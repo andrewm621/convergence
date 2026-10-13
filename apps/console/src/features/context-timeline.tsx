@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import type { FacetValue, RecordHistory, RecordSnapshot } from "contracts";
 import { diffFacets } from "delta-core";
 import { ArrowRight, BookMarked, Check, ChevronRight, FilePenLine, FilePlus2, Plus, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps } from "react";
 import { newIdempotencyKey } from "@/client/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 import { UnavailableHint } from "@/components/unavailable-hint";
 import { useConsole } from "@/state/console-context";
 import { scenarioMeta } from "./scenario-meta";
-import { actorLabel, proseEdits, recordIds } from "@/state/derive";
+import { actorLabel, impactSentence, impactSummary, previewImpact, proseEdits, recordIds } from "@/state/derive";
 
 export function ContextTimeline() {
 	const { view, editorRequest, requestEditor } = useConsole();
@@ -222,7 +222,47 @@ function toRows(facets: Record<string, FacetValue>): FacetRow[] {
 	return Object.entries(facets).map(([key, value], index) => ({ id: index, key, value: formatFacet(value), original: true }));
 }
 
-/** The "Propose change" editor: edit facets and prose, see what it will do, commit with an Idempotency-Key. */
+/** A one-line field that wraps and grows with its text, so a long key or value is never cut off. Enter does not add a line. */
+function GrowField({ value, className, onChange, ...props }: Omit<ComponentProps<typeof Textarea>, "rows" | "onChange"> & { value: string; onChange(value: string): void }) {
+	const ref = useRef<HTMLTextAreaElement>(null);
+	const measure = useCallback(() => {
+		const el = ref.current;
+		if (!el) return;
+		el.style.height = "auto";
+		if (el.scrollHeight > 0) el.style.height = `${el.scrollHeight}px`;
+	}, []);
+	useLayoutEffect(measure, [measure, value]);
+	// A narrower or wider card re-wraps the text, so the height has to follow the width as well as the text.
+	useEffect(() => {
+		const el = ref.current;
+		if (!el || typeof ResizeObserver === "undefined") return;
+		let width = el.clientWidth;
+		const observer = new ResizeObserver(() => {
+			if (el.clientWidth === width) return;
+			width = el.clientWidth;
+			measure();
+		});
+		observer.observe(el);
+		return () => observer.disconnect();
+	}, [measure]);
+	return (
+		<Textarea
+			{...props}
+			ref={ref}
+			rows={1}
+			value={value}
+			onChange={(e) => onChange(e.target.value.replace(/\r?\n/g, " "))}
+			onKeyDown={(e) => {
+				// Enter that confirms an input-method composition is not a new line; leave it alone.
+				if (e.key === "Enter" && !e.nativeEvent.isComposing) e.preventDefault();
+				props.onKeyDown?.(e);
+			}}
+			className={cn("min-h-8 resize-none overflow-hidden py-1 leading-snug break-words", className)}
+		/>
+	);
+}
+
+/** The "Propose change" editor: edit settings and prose, see what it will do, commit with an Idempotency-Key. */
 export function ChangeEditor({ recordId, snapshot, onClose }: { recordId: string; snapshot: RecordSnapshot; onClose(): void }) {
 	const { client, view, editorRequest, notify, markChangeSent, clearChangeSent } = useConsole();
 	// The baseline the editor opened on: a change made from a version that has since moved is refused, not merged over.
@@ -257,16 +297,28 @@ export function ChangeEditor({ recordId, snapshot, onClose }: { recordId: string
 	const changes = useMemo(() => diffFacets(snapshot, { facets }), [snapshot, facets]);
 	const proseChanged = prose.trim() !== originalProse.trim();
 	const nothingToCommit = changes.length === 0 && !proseChanged;
+	// What this commit would block and leave alone, worked out from the view as the owner types.
+	const impact = useMemo(() => previewImpact(view, recordId, facets, { proseChanged }), [view, recordId, facets, proseChanged]);
 	const keyProblem = rows.some((row) => row.key.trim() === "" && row.value.trim() !== "") || new Set(rows.map((r) => r.key.trim()).filter(Boolean)).size !== rows.filter((r) => r.key.trim()).length;
 	const rationaleMissing = rationale.trim() === "";
 	const nextVersion = snapshot.version + (changes.length > 0 ? 1 : 0);
+	// The decision moved on since this editor opened (the view is ahead of the version being edited): the preview and the Commit label would name different versions.
+	const moved = impact !== null && impact.fromVersion !== snapshot.version;
+
+	// Screen readers hear a short count, settled after typing pauses, rather than the whole line on every keystroke.
+	const summary = impact && !moved ? impactSummary(impact) : "";
+	const [announced, setAnnounced] = useState(summary);
+	useEffect(() => {
+		const timer = setTimeout(() => setAnnounced(summary), 700);
+		return () => clearTimeout(timer);
+	}, [summary]);
 
 	// Prose edits get an automatic reason; a decision change must say why.
 	const effectiveRationale = rationale.trim() === "" && changes.length === 0 && proseChanged ? "Prose edit" : rationale.trim();
 
 	async function submit() {
 		setSubmitted(true);
-		if (nothingToCommit || keyProblem || effectiveRationale === "") return;
+		if (nothingToCommit || moved || keyProblem || effectiveRationale === "") return;
 		setSubmitting(true);
 		markChangeSent();
 		const result = await client.api.proposeContextChange({ recordId, facets, prose, rationale: effectiveRationale, ...(openedAt ? { expectedBaselineCommit: openedAt } : {}) }, newIdempotencyKey());
@@ -292,27 +344,30 @@ export function ChangeEditor({ recordId, snapshot, onClose }: { recordId: string
 			<fieldset className="space-y-1.5">
 				<legend className="mb-1 text-xs font-semibold">Facets</legend>
 				{rows.map((row) => (
-					<div key={row.id} className="flex items-center gap-1.5">
-						<Input
-							aria-label="Facet key"
-							value={row.key}
-							readOnly={row.original}
-							onChange={(e) => setRows((rs) => rs.map((r) => (r.id === row.id ? { ...r, key: e.target.value } : r)))}
-							className={cn("h-8 w-[46%] font-mono text-xs", row.original && "bg-muted text-muted-foreground")}
-							placeholder="facet.key"
-						/>
-						<Input
+					// Key above value, each as wide as the card and growing with its text: nothing is cut off, and keys that share a prefix still show how they differ.
+					<div key={row.id} className="space-y-1">
+						<div className="flex items-start gap-1.5">
+							<GrowField
+								aria-label="Facet key"
+								value={row.key}
+								readOnly={row.original}
+								onChange={(key) => setRows((rs) => rs.map((r) => (r.id === row.id ? { ...r, key } : r)))}
+								className={cn("flex-1 font-mono text-xs", row.original && "bg-muted text-muted-foreground")}
+								placeholder="facet.key"
+							/>
+							{!row.original && (
+								<Button type="button" variant="ghost" size="icon-sm" aria-label="Remove facet" onClick={() => setRows((rs) => rs.filter((r) => r.id !== row.id))}>
+									<X />
+								</Button>
+							)}
+						</div>
+						<GrowField
 							aria-label={`Value for ${row.key || "new facet"}`}
 							value={row.value}
-							onChange={(e) => setRows((rs) => rs.map((r) => (r.id === row.id ? { ...r, value: e.target.value } : r)))}
-							className="h-8 flex-1 text-[13px]"
+							onChange={(value) => setRows((rs) => rs.map((r) => (r.id === row.id ? { ...r, value } : r)))}
+							className="text-[13px]"
 							placeholder="value"
 						/>
-						{!row.original && (
-							<Button type="button" variant="ghost" size="icon-sm" aria-label="Remove facet" onClick={() => setRows((rs) => rs.filter((r) => r.id !== row.id))}>
-								<X />
-							</Button>
-						)}
 					</div>
 				))}
 				<Button
@@ -349,19 +404,23 @@ export function ChangeEditor({ recordId, snapshot, onClose }: { recordId: string
 
 			{/* Sticky: the effect line and Commit stay in view however far the facets and prose push them down. */}
 			<div className="sticky bottom-0 z-10 -mx-3.5 -mb-3.5 space-y-2 border-t bg-card px-3.5 pt-2.5 pb-3.5" data-testid="editor-footer">
-				<p className={cn("rounded-md px-2.5 py-1.5 text-xs", changes.length > 0 ? "bg-warning-soft text-warning" : "bg-muted text-muted-foreground")} data-testid="editor-effect" aria-live="polite">
-					{nothingToCommit
-						? "Nothing changed yet."
-						: changes.length > 0
-							? `${plural(changes.length, "facet")} changed: this commits v${nextVersion} and re-evaluates every work item that relies on ${changes.length === 1 ? "it" : "them"}.`
-							: `Facets unchanged: this saves as a prose edit of v${snapshot.version}. Nothing is re-evaluated and nobody is paged.`}
+				<p
+					className={cn("rounded-md px-2.5 py-1.5 text-xs", changes.length > 0 ? "bg-warning-soft text-warning" : "bg-muted text-muted-foreground")}
+					data-testid="editor-effect"
+					data-blocked={impact?.blocked.map((b) => b.id).join(",")}
+					data-left-alone={impact?.leftAlone.map((b) => b.id).join(",")}
+					>
+					{moved ? "The decision changed while you were editing. Close this and reopen it to see the effect." : impact ? impactSentence(impact) : `This makes v${nextVersion} the decision.`}
 				</p>
+				<span role="status" aria-live="polite" className="sr-only" data-testid="editor-effect-summary">
+					{announced}
+				</span>
 				{submitted && keyProblem && <p className="text-xs text-danger">Every facet needs a unique key.</p>}
 				{submitted && !keyProblem && changes.length > 0 && rationaleMissing && <p className="text-xs text-danger">Say why the decision changed.</p>}
 
 				<div className="flex items-center gap-2">
-					<Button type="submit" size="sm" disabled={submitting || nothingToCommit}>
-						{submitting ? "Committing" : changes.length > 0 ? `Commit v${nextVersion}` : "Save prose edit"}
+					<Button type="submit" size="sm" disabled={submitting || nothingToCommit || moved}>
+						{submitting ? "Committing" : moved ? "Commit" : changes.length > 0 ? `Commit v${nextVersion}` : "Save prose edit"}
 					</Button>
 					<Button type="button" variant="ghost" size="sm" onClick={onClose}>
 						Cancel
