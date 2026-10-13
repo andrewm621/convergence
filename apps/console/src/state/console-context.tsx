@@ -23,7 +23,16 @@ type ConsoleContextValue = {
 	requestEditor(request: Omit<EditorRequest, "nonce"> | null): void;
 	toasts: Toast[];
 	notify(tone: Toast["tone"], text: string): void;
+	/** Call when this browser sends a context change. The next evaluation to arrive is timed from here. */
+	markChangeSent(): void;
+	/** Call if that change was refused, so a later unrelated change is not timed against it. */
+	clearChangeSent(): void;
+	/** Time from sending a context change to its evaluation arriving here, measured in this browser. */
+	observed: ObservedEvaluation | null;
 };
+
+/** `ms` is client-measured: sent to verdict on screen, so it includes the network and the poller. */
+export type ObservedEvaluation = { seq: number; ms: number };
 
 const ConsoleContext = createContext<ConsoleContextValue | null>(null);
 
@@ -40,12 +49,16 @@ export function ConsoleProvider({ client, children, flushMs = 24 }: { client: Co
 	const [tab, setTab] = useState<InspectorTab>("why");
 	const [editorRequest, setEditorRequest] = useState<EditorRequest | null>(null);
 	const [toasts, setToasts] = useState<Toast[]>([]);
+	const [observed, setObserved] = useState<ObservedEvaluation | null>(null);
+	const sentAt = useRef<number | null>(null);
 	const nextId = useRef(1);
 
 	// Messages that arrive in the same moment (a fan-out registers forty items) render once.
 	useEffect(() => {
 		dispatch({ type: "reset" });
 		setSelectedId(null);
+		setObserved(null);
+		sentAt.current = null;
 		let queue: ConsoleMessage[] = [];
 		let timer: ReturnType<typeof setTimeout> | null = null;
 		const flush = () => {
@@ -56,6 +69,12 @@ export function ConsoleProvider({ client, children, flushMs = 24 }: { client: Co
 		};
 		const stop = client.connect({
 			onMessage(message) {
+				// The first baseline push with a record after this browser sent a change is that change's verdict.
+				const pushed = message.type === "event" ? message.event.payload.event : null;
+				if (sentAt.current !== null && message.type === "event" && pushed?.type === "BaselinePushed" && pushed.records.length > 0) {
+					setObserved({ seq: message.event.seq, ms: performance.now() - sentAt.current });
+					sentAt.current = null;
+				}
 				queue.push(message);
 				if (timer === null) timer = setTimeout(flush, flushMs);
 			},
@@ -82,11 +101,18 @@ export function ConsoleProvider({ client, children, flushMs = 24 }: { client: Co
 		setEditorRequest(request ? { ...request, nonce: nextId.current++ } : null);
 	}, []);
 
+	const markChangeSent = useCallback(() => {
+		sentAt.current = performance.now();
+	}, []);
+	const clearChangeSent = useCallback(() => {
+		sentAt.current = null;
+	}, []);
+
 	const select = useCallback((id: string | null) => setSelectedId(id), []);
 
 	const value = useMemo<ConsoleContextValue>(
-		() => ({ client, view, connection, selectedId, select, tab, setTab, editorRequest, requestEditor, toasts, notify }),
-		[client, view, connection, selectedId, select, tab, editorRequest, requestEditor, toasts, notify],
+		() => ({ client, view, connection, selectedId, select, tab, setTab, editorRequest, requestEditor, toasts, notify, markChangeSent, clearChangeSent, observed }),
+		[client, view, connection, selectedId, select, tab, editorRequest, requestEditor, toasts, notify, markChangeSent, clearChangeSent, observed],
 	);
 	return (
 		<ConsoleContext.Provider value={value}>

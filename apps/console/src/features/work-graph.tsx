@@ -28,12 +28,21 @@ function useIsDark(): boolean {
 	return dark;
 }
 
+/**
+ * The time the strip may show. The mock's number is real engine time. The Worker's `evaluationMs`
+ * is the reconciler alone (often under 0.01 ms), which means nothing to a viewer, so in live mode
+ * the strip shows only what this browser measured: change sent to verdict arriving. A change this
+ * browser did not send has no honest number, so none is shown.
+ */
 export function WorkGraph() {
-	const { view } = useConsole();
+	const { view, client, observed } = useConsole();
+	const evaluation = view.evaluation;
+	const live = client.kind === "live";
+	const ms = live ? (evaluation && observed?.seq === evaluation.seq ? observed.ms : null) : (evaluation?.ms ?? null);
 	return (
 		<section aria-label="Work graph" className="relative flex min-h-0 flex-1 flex-col">
 			<PaneHeader title="Work graph" subtitle="Who is building on which decision">
-				<ResultsStrip evaluation={view.evaluation} />
+				<ResultsStrip evaluation={evaluation} ms={ms} measuredHere={live} />
 			</PaneHeader>
 			<div className="relative min-h-0 flex-1">
 				<ReactFlowProvider>
@@ -153,9 +162,9 @@ export function StartAgents({ onStart }: { onStart(): Promise<{ ok: boolean; mes
 }
 
 /** `N evaluated · K stale · M untouched · time`: what the last decision change did, and how fast. */
-export function ResultsStrip({ evaluation }: { evaluation: Evaluation | null }) {
+export function ResultsStrip({ evaluation, ms = evaluation?.ms ?? null, measuredHere = false }: { evaluation: Evaluation | null; ms?: number | null; measuredHere?: boolean }) {
 	if (!evaluation) return null;
-	const time = evaluation.ms === null ? null : formatMs(evaluation.ms);
+	const time = ms === null ? null : formatMs(ms);
 	return (
 		<div
 			role="status"
@@ -185,7 +194,11 @@ export function ResultsStrip({ evaluation }: { evaluation: Evaluation | null }) 
 					{time && (
 						<>
 							<Dot />
-							<span className="text-muted-foreground tabular-nums" title="Reconciler time for this evaluation">
+							<span
+								className="text-muted-foreground tabular-nums"
+								data-testid="results-time"
+								title={measuredHere ? "Measured in this browser, from sending the change to this verdict arriving. Includes the network and the poller." : "Reconciler time for this evaluation"}
+							>
 								{time}
 							</span>
 						</>

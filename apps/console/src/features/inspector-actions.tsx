@@ -1,5 +1,5 @@
 import type { ResolutionBinding, WorkItemState } from "contracts";
-import { CircleAlert, CircleCheck, Gavel, Loader, RefreshCw, ShieldAlert, ShieldCheck, ThumbsDown } from "lucide-react";
+import { CircleAlert, CircleCheck, Gavel, Loader, RefreshCw, ShieldAlert, ShieldCheck, ThumbsDown, TriangleAlert } from "lucide-react";
 import { useMemo, useState, type FormEvent } from "react";
 import { newIdempotencyKey, type ResolveInput } from "@/client/types";
 import { ActorChip, ReasonChip } from "@/components/status";
@@ -9,7 +9,7 @@ import { Input, Label, NativeSelect, Textarea } from "@/components/ui/input";
 import { formatDateTime, formatTime, shortHash } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useConsole } from "@/state/console-context";
-import { analysisOf, currentRecord } from "@/state/derive";
+import { analysisOf, currentRecord, exceptionStatus } from "@/state/derive";
 import { useGate } from "@/state/use-gate";
 import { PromoteButton } from "./promote-button";
 
@@ -309,25 +309,60 @@ export function RejectForm({ busy, onCancel, onSubmit }: { busy: boolean; onCanc
 }
 
 function ResolutionHistory({ wi }: { wi: WorkItemState }) {
+	const { view } = useConsole();
 	if (wi.resolutions.length === 0) return null;
 	return (
 		<section aria-label="Resolutions on record" className="space-y-2">
 			<h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">On record</h3>
 			<ol className="space-y-2">
-				{wi.resolutions.map((r, index) => (
-					<li key={`${r.requestId ?? index}`} className="rounded-lg border bg-card p-3 text-[13px]">
-						<div className="flex items-center gap-2">
-							<Badge tone="primary">{r.kind}</Badge>
-							<ActorChip actor={r.actor} />
-							<span className="ml-auto text-xs text-muted-foreground">{formatDateTime(r.ts)}</span>
-						</div>
-						<p className="mt-1.5">{r.rationale}</p>
-						{r.scope && <p className="mt-1 text-xs text-muted-foreground">Scope: {r.scope}</p>}
-						<p className="mt-1 font-mono text-[11px] text-muted-foreground">
-							bound to {r.binding.recordId}@{r.binding.version} · head {shortHash(r.binding.forkHeadSha)} · {formatTime(r.ts)}
-						</p>
-					</li>
-				))}
+				{wi.resolutions.map((r, index) => {
+					const exception = exceptionStatus(view, wi, r);
+					return (
+						<li
+							key={`${r.requestId ?? index}`}
+							className={cn("rounded-lg border bg-card p-3 text-sm", exception?.lapsed && "border-danger/40 bg-danger-soft")}
+							data-resolution={r.kind}
+							data-exception={exception ? (exception.lapsed ? "lapsed" : "valid") : undefined}
+						>
+							<div className="flex items-center gap-2">
+								<Badge tone="primary" className="text-sm">
+									{r.kind}
+								</Badge>
+								{exception?.lapsed && (
+									<Badge tone="danger" className="text-sm font-semibold">
+										<TriangleAlert aria-hidden /> Lapsed
+									</Badge>
+								)}
+								<ActorChip actor={r.actor} />
+								<span className="ml-auto text-xs text-muted-foreground">{formatDateTime(r.ts)}</span>
+							</div>
+							<p className="mt-1.5">{r.rationale}</p>
+							{r.scope && <p className="mt-1 text-sm text-muted-foreground">Scope: {r.scope}</p>}
+							{exception && (
+								<div className="mt-2 space-y-1.5 rounded-md border border-dashed bg-background/60 p-2.5" data-testid="exception-rule">
+									{exception.lapsed ? (
+										<>
+											<p className="flex flex-wrap items-center gap-2 font-semibold text-danger">
+												Lapsed
+												<ReasonChip code={exception.reasonCode} className="text-xs" />
+											</p>
+											<p>
+												It was valid while {r.binding.recordId} was at v{exception.version}. {exception.reason} The gate no longer treats this exception as covering the work.
+											</p>
+										</>
+									) : (
+										<p className="font-medium">
+											Valid while {r.binding.recordId} is at v{exception.version} <span aria-hidden>·</span> lapses at the next version
+										</p>
+									)}
+								</div>
+							)}
+							<p className="mt-1.5 font-mono text-xs text-muted-foreground">
+								bound to {r.binding.recordId}@{r.binding.version} · head {shortHash(r.binding.forkHeadSha)} · {formatTime(r.ts)}
+							</p>
+						</li>
+					);
+				})}
 			</ol>
 		</section>
 	);

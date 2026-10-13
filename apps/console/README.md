@@ -71,6 +71,12 @@ pnpm build:console        # from the repo root; same as pnpm --filter console bu
 
 At 1920x1080 the graph pane is about 1120 x 600 px. The node sizes, dagre spacing and fit padding in `src/features/graph-layout.ts` (`NODE_SIZE`, `SPACING`, `FIT`) are set so 2 to 5 work items frame at about 1:1 (a 17 px title is about 17 px on screen) and 6 still lands above 14 px, while the 40-item fan-out cluster still fits whole. `src/features/graph-fit.test.ts` pins that, so a change to node size cannot quietly make the text tiny again.
 
+## Reading it on camera
+
+- **Receipt.** Each record shows `record@version`, then the named facets the work item was handed, each with a short hash, and the facets that have moved on are marked against the current version. All of it is 14 px or larger. The receipt carries one combined facet hash per record, so the per-facet hashes are computed in the console from each facet's canonical JSON (the tooltip says so). In the Why chain, the receipt chip expands to the same list.
+- **Exception card.** An accept-exception reads "Valid while `<record>` is at v`<N>` · lapses at the next version". Once the record moves on (or the fork head does) it reads **Lapsed** with `EXCEPTION_LAPSED` and the reason. It uses delta-core's `classifyExceptions`, the same rule the gate applies.
+- **Evaluation time.** In mock mode the strip shows the engine's own time. In live mode the Worker's `evaluationMs` is the reconciler alone (often under 0.01 ms), so the strip shows only a time this browser measured, from sending a change to its verdict arriving (network and poller included). A change this browser did not send shows no time.
+
 ## Layout of `src/`
 
 | Path | What |

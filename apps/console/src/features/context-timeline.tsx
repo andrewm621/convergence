@@ -221,7 +221,7 @@ function toRows(facets: Record<string, FacetValue>): FacetRow[] {
 
 /** The "Propose change" editor: edit facets and prose, see what it will do, commit with an Idempotency-Key. */
 export function ChangeEditor({ recordId, snapshot, onClose }: { recordId: string; snapshot: RecordSnapshot; onClose(): void }) {
-	const { client, editorRequest, notify } = useConsole();
+	const { client, editorRequest, notify, markChangeSent, clearChangeSent } = useConsole();
 	const draft = editorRequest && editorRequest.recordId === recordId ? editorRequest : null;
 	const [rows, setRows] = useState<FacetRow[]>(() => toRows(draft?.facets ?? snapshot.facets));
 	const [prose, setProse] = useState(draft?.prose ?? "");
@@ -263,8 +263,10 @@ export function ChangeEditor({ recordId, snapshot, onClose }: { recordId: string
 		setSubmitted(true);
 		if (nothingToCommit || keyProblem || effectiveRationale === "") return;
 		setSubmitting(true);
+		markChangeSent();
 		const result = await client.api.proposeContextChange({ recordId, facets, prose, rationale: effectiveRationale }, newIdempotencyKey());
 		setSubmitting(false);
+		if (!result.ok) clearChangeSent();
 		if (result.ok) {
 			notify("success", result.message ?? "Committed.");
 			onClose();

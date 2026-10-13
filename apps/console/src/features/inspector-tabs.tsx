@@ -9,6 +9,7 @@ import { formatFacet, plural, shortHash } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useConsole } from "@/state/console-context";
 import { analysisOf, currentRecord, semanticDiff, type ClaimVerdict } from "@/state/derive";
+import { ReceiptFacetList } from "./receipt-facets";
 
 // ---------- Receipt ----------
 
@@ -32,7 +33,7 @@ function CopyButton({ text, label }: { text: string; label: string }) {
 	);
 }
 
-/** What this work item was handed: records, versions, hashes. It proves delivery, not understanding. */
+/** What this work item was handed: records, versions, named facets. It proves delivery, not understanding. */
 export function ReceiptTab({ wi }: { wi: WorkItemState }) {
 	const { view } = useConsole();
 	const { receipt } = wi;
@@ -44,36 +45,48 @@ export function ReceiptTab({ wi }: { wi: WorkItemState }) {
 	return (
 		<div className="space-y-4 p-4" data-testid="receipt-tab">
 			<div className="flex items-center gap-2">
-				<h3 className="text-sm font-semibold">Context receipt</h3>
-				<EpistemicChip kind="recorded" className="ml-auto" />
+				<h3 className="text-base font-semibold">Context receipt</h3>
+				<EpistemicChip kind="recorded" className="ml-auto text-sm" />
 			</div>
-			<p className="text-[13px] text-muted-foreground">What {wi.item.actor.displayName} was handed before it started. It proves what was delivered, not that it was understood.</p>
+			<p className="text-sm text-muted-foreground">What {wi.item.actor.displayName} was handed before it started. It proves what was delivered, not that it was understood.</p>
 
-			<ul className="space-y-2" aria-label="Records delivered">
+			<ul className="space-y-3" aria-label="Records delivered">
 				{receipt.accepted.map((entry) => {
 					const current = currentRecord(view, entry.recordId);
 					const newer = current && current.version > entry.version;
 					const behind = newer && staleIds.has(entry.recordId);
 					return (
-						<li key={entry.recordId} className="rounded-lg border bg-card p-3" data-receipt-record={entry.recordId}>
-							<div className="flex items-center gap-2">
-								<span className="text-sm font-semibold">{entry.recordId}</span>
-								<Badge tone="primary">v{entry.version}</Badge>
+						<li key={entry.recordId} className="rounded-lg border bg-card p-3.5" data-receipt-record={entry.recordId}>
+							<div className="flex flex-wrap items-center gap-2">
+								<span className="font-mono text-base font-semibold" data-testid={`receipt-ref-${entry.recordId}`}>
+									{entry.recordId}@{entry.version}
+								</span>
 								{behind && (
-									<Badge tone="danger">
+									<Badge tone="danger" className="text-sm">
 										<TriangleAlert aria-hidden /> behind: accepted is v{current.version}
 									</Badge>
 								)}
-								{newer && !behind && <Badge tone="outline">v{current.version} exists, facets it relies on unchanged</Badge>}
+								{newer && !behind && (
+									<Badge tone="outline" className="text-sm">
+										v{current.version} exists, facets it relies on unchanged
+									</Badge>
+								)}
+								{!newer && (
+									<Badge tone="success" className="text-sm">
+										current
+									</Badge>
+								)}
 							</div>
-							<dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 font-mono text-[11px] text-muted-foreground">
-								<dt>blob</dt>
-								<dd className="truncate" title={entry.blobHash}>
-									{shortHash(entry.blobHash, 16)}
-								</dd>
-								<dt>facets</dt>
+							<p className="mt-2.5 mb-1.5 text-sm font-medium">Facets it was handed</p>
+							<ReceiptFacetList wi={wi} entry={entry} />
+							<dl className="mt-2.5 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 font-mono text-sm text-muted-foreground">
+								<dt>all facets</dt>
 								<dd className="truncate" title={entry.facetHash}>
-									{shortHash(entry.facetHash, 16)}
+									#{shortHash(entry.facetHash, 12)}
+								</dd>
+								<dt>record file</dt>
+								<dd className="truncate" title={entry.blobHash}>
+									#{shortHash(entry.blobHash, 12)}
 								</dd>
 							</dl>
 						</li>
@@ -82,7 +95,7 @@ export function ReceiptTab({ wi }: { wi: WorkItemState }) {
 				{receipt.accepted.length === 0 && <li className="text-sm text-muted-foreground">No accepted records were delivered.</li>}
 			</ul>
 
-			<dl className="grid grid-cols-[auto_1fr] items-center gap-x-4 gap-y-1.5 rounded-lg bg-muted/60 p-3 text-xs">
+			<dl className="grid grid-cols-[auto_1fr] items-center gap-x-4 gap-y-1.5 rounded-lg bg-muted/60 p-3 text-sm">
 				<dt className="text-muted-foreground">Baseline commit</dt>
 				<dd className="font-mono">{shortHash(receipt.baselineCommit, 12)}</dd>
 				<dt className="text-muted-foreground">Packet hash</dt>
@@ -97,9 +110,9 @@ export function ReceiptTab({ wi }: { wi: WorkItemState }) {
 
 			{noteCommand && (
 				<div className="space-y-1.5">
-					<p className="text-xs font-medium">Also a git note on the fork</p>
+					<p className="text-sm font-medium">Also a git note on the fork</p>
 					<div className="flex items-center gap-1 rounded-md border bg-card pl-2.5">
-						<code className="min-w-0 flex-1 truncate font-mono text-[11px]">{noteCommand}</code>
+						<code className="min-w-0 flex-1 truncate font-mono text-sm">{noteCommand}</code>
 						<CopyButton text={noteCommand} label="Copy git notes command" />
 					</div>
 				</div>

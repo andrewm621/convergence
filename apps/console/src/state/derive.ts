@@ -1,5 +1,5 @@
-import { parseRecordRef, type Claim, type Dependency, type FacetValue, type ReasonCode, type ReconciliationEvent, type RecordSnapshot, type WorkItemState } from "contracts";
-import { analyze, classifyExceptions, facetValuesEqual, findStale, type Analysis } from "delta-core";
+import { parseRecordRef, type Claim, type Dependency, type FacetValue, type ReasonCode, type ReceiptEntry, type ReconciliationEvent, type RecordSnapshot, type Resolution, type WorkItemState } from "contracts";
+import { analyze, authorityFor, classifyExceptions, diffFacets, facetValuesEqual, findStale, type Analysis } from "delta-core";
 import { DEMO_IDENTITY } from "@/config";
 import { toCellState, type ViewState } from "./store";
 
@@ -262,4 +262,82 @@ export function leftAlone(view: ViewState, workItemId: string, options: { sticky
 export function reliedFacets(view: ViewState, workItemId: string, recordId: string): string[] | null {
 	const dep = view.dependencies.find((d) => d.workItemId === workItemId && d.recordId === recordId && d.status === "accepted");
 	return dep ? dep.facetKeys : null;
+}
+
+// ---------- the receipt, facet by facet ----------
+
+export type ReceiptFacetStatus = "unchanged" | "changed" | "removed";
+
+export type ReceiptFacetRow = {
+	key: string;
+	/** The value the work item was handed. */
+	handed: FacetValue;
+	status: ReceiptFacetStatus;
+	/** The accepted value now, when it differs from what was handed (null when the facet was removed). */
+	now: FacetValue | null;
+	/** The work item relies on this facet (an accepted dependency names it, or names the whole record). */
+	relied: boolean;
+};
+
+export type ReceiptFacets = {
+	/** The version the receipt names, as the cell recorded it. Null when the snapshot does not carry that version. */
+	held: RecordSnapshot | null;
+	current: RecordSnapshot | null;
+	rows: ReceiptFacetRow[];
+	/** Facets that exist now but did not when the receipt was issued. */
+	added: { key: string; now: FacetValue }[];
+};
+
+/**
+ * The named facets a receipt entry handed to the work item, each marked against the current
+ * accepted version. Uses only the record histories already in the snapshot.
+ */
+export function receiptFacets(view: ViewState, wi: WorkItemState, entry: ReceiptEntry): ReceiptFacets {
+	const held = view.records[entry.recordId]?.versions[String(entry.version)] ?? null;
+	const current = currentRecord(view, entry.recordId);
+	if (!held) return { held, current, rows: [], added: [] };
+	const relied = reliedFacets(view, wi.item.id, entry.recordId);
+	const changes = current && current.version !== held.version ? diffFacets(held, current) : [];
+	const byKey = new Map(changes.map((change) => [change.key, change]));
+	const rows = Object.keys(held.facets)
+		.sort()
+		.map((key): ReceiptFacetRow => {
+			const change = byKey.get(key);
+			const isRelied = relied === null ? false : relied.length === 0 || relied.includes(key);
+			const handed = held.facets[key] as FacetValue;
+			if (!change) return { key, handed, status: "unchanged", now: null, relied: isRelied };
+			if (change.kind === "removed") return { key, handed, status: "removed", now: null, relied: isRelied };
+			return { key, handed, status: "changed", now: (change.to ?? null) as FacetValue | null, relied: isRelied };
+		});
+	const added = changes.filter((change) => change.kind === "added").map((change) => ({ key: change.key, now: change.to as FacetValue }));
+	return { held, current, rows, added };
+}
+
+// ---------- accepted exceptions ----------
+
+export type ExceptionStatus =
+	| { lapsed: false; version: number }
+	| { lapsed: true; version: number; reason: string; reasonCode: "EXCEPTION_LAPSED" };
+
+/**
+ * An accept-exception is bound to the record version it was granted against (rule R7). It is valid
+ * while that record is still at that version and the fork head has not moved; the next accepted
+ * version lapses it, and the gate then blocks with EXCEPTION_LAPSED. Same classification the gate uses.
+ */
+export function exceptionStatus(view: ViewState, wi: WorkItemState, resolution: Resolution): ExceptionStatus | null {
+	if (resolution.kind !== "accept-exception" || !view.policy) return null;
+	const { binding } = resolution;
+	const state = toCellState(view);
+	const { lapsed } = classifyExceptions(state, wi, view.policy);
+	if (!lapsed.includes(resolution)) return { lapsed: false, version: binding.version };
+	const now = view.records[binding.recordId]?.current ?? null;
+	const reason =
+		now !== null && now !== binding.version
+			? `${binding.recordId} moved from v${binding.version} to v${now}.`
+			: binding.forkHeadSha !== wi.headSha
+				? "The fork head moved after the exception was granted."
+				: resolution.actor.kind !== "human" || authorityFor(state, view.policy, binding.recordId) !== resolution.actor.id
+					? `The granting actor is no longer the authority for ${binding.recordId}.`
+					: "It no longer applies.";
+	return { lapsed: true, version: binding.version, reason, reasonCode: "EXCEPTION_LAPSED" };
 }

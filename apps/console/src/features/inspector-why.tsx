@@ -1,15 +1,16 @@
 import type { Condition, ConditionType, WorkItemState } from "contracts";
 import { diffFacets } from "delta-core";
-import { ArrowRight, BookMarked, Check, CircleAlert, FlaskConical, GitCommitHorizontal, Hourglass, Receipt, ShieldAlert, Sparkles, X } from "lucide-react";
-import { useMemo, type ReactNode } from "react";
+import { ArrowRight, BookMarked, Check, ChevronDown, ChevronRight, CircleAlert, FlaskConical, GitCommitHorizontal, Hourglass, Receipt, ShieldAlert, Sparkles, X } from "lucide-react";
+import { useMemo, useState, type ReactNode } from "react";
 import { EpistemicChip, ReasonChip, useDegraded } from "@/components/status";
-import { Badge } from "@/components/ui/badge";
+import { Badge, badgeVariants } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatDateTime, formatFacet, plural } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useConsole } from "@/state/console-context";
 import { actorLabel, analysisOf, currentRecord, leftAlone, reliedFacets, semanticDiff } from "@/state/derive";
 import { useGate } from "@/state/use-gate";
+import { ReceiptFacetList } from "./receipt-facets";
 
 const CONDITION_TONE: Record<ConditionType, "danger" | "warning" | "success" | "primary" | "merged"> = {
 	Fresh: "success",
@@ -141,23 +142,9 @@ export function WhyTab({ wi }: { wi: WorkItemState }) {
 				</ChainLink>
 
 				<ChainLink icon={Receipt} step="2" title="Receipt" subtitle="what this agent was given" chip={<EpistemicChip kind="recorded" />} tone={analysis.stale.length > 0 ? "danger" : "neutral"}>
-					<ul className="flex flex-wrap gap-1.5" aria-label="Records in the receipt">
-						{wi.receipt.accepted.map((entry) => {
-							const head = currentRecord(view, entry.recordId);
-							const newer = head && head.version > entry.version;
-							const behind = newer && staleIds.has(entry.recordId);
-							return (
-								<li key={entry.recordId}>
-									<Badge tone={behind ? "danger" : "outline"} className="font-mono">
-										{entry.recordId}@{entry.version}
-										{behind ? ` (now v${head.version})` : newer ? ` (v${head.version} exists, unaffected)` : ""}
-									</Badge>
-								</li>
-							);
-						})}
-					</ul>
+					<ReceiptChips wi={wi} staleIds={staleIds} />
 					{analysis.stale.length > 0 && (
-						<p className="mt-1.5 text-xs text-danger">
+						<p className="mt-1.5 text-sm text-danger">
 							Behind on {plural(analysis.stale.length, "record")}: the facets it relies on have changed since this receipt.
 						</p>
 					)}
@@ -252,6 +239,51 @@ export function WhyTab({ wi }: { wi: WorkItemState }) {
 				</ChainLink>
 			</ol>
 		</div>
+	);
+}
+
+/** The records in the receipt as chips. Each opens to the named facets that were handed over, marked against the current version. */
+function ReceiptChips({ wi, staleIds }: { wi: WorkItemState; staleIds: ReadonlySet<string> }) {
+	const { view } = useConsole();
+	const [openId, setOpenId] = useState<string | null>(null);
+	const open = wi.receipt.accepted.find((entry) => entry.recordId === openId);
+	return (
+		<>
+			<ul className="flex flex-wrap gap-2" aria-label="Records in the receipt">
+				{wi.receipt.accepted.map((entry) => {
+					const head = currentRecord(view, entry.recordId);
+					const newer = head && head.version > entry.version;
+					const behind = newer && staleIds.has(entry.recordId);
+					const expanded = openId === entry.recordId;
+					const Chevron = expanded ? ChevronDown : ChevronRight;
+					return (
+						<li key={entry.recordId}>
+							<button
+								type="button"
+								aria-expanded={expanded}
+								aria-controls={`receipt-facets-${entry.recordId}`}
+								data-receipt-chip={entry.recordId}
+								title="Show the facets this work item was handed"
+								onClick={() => setOpenId(expanded ? null : entry.recordId)}
+								className={cn(badgeVariants({ tone: behind ? "danger" : "outline" }), "cursor-pointer gap-1.5 px-2.5 py-1 font-mono text-sm outline-none hover:brightness-95 focus-visible:ring-[3px] focus-visible:ring-ring/50")}
+							>
+								<Chevron aria-hidden />
+								{entry.recordId}@{entry.version}
+								{behind ? ` (now v${head.version})` : newer ? ` (v${head.version} exists, unaffected)` : ""}
+							</button>
+						</li>
+					);
+				})}
+			</ul>
+			{open && (
+				<div id={`receipt-facets-${open.recordId}`} className="mt-2">
+					<p className="mb-1.5 text-sm font-medium">
+						Facets handed over with {open.recordId}@{open.version}
+					</p>
+					<ReceiptFacetList wi={wi} entry={open} />
+				</div>
+			)}
+		</>
 	);
 }
 
