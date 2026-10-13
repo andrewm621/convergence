@@ -63,17 +63,26 @@ describe("the seed for our own build (end state, not a replay)", () => {
 		expect([...humans]).toEqual(["decision-owner"]);
 	});
 
-	it("the pointer routes take only a smoke- repo, a claims file and a pointer", () => {
+	it("the pointer routes take only a build cell's repos, and never write to a baseline", () => {
 		const pointer = { workItem: "WI-8", head: null, note: "A new piece of work." };
-		expect(PointerForkRequest.safeParse({ baseline: "smoke-b-baseline", name: "smoke-b-wi-8", claims: [], pointer }).success).toBe(true);
-		expect(PointerPushRequest.safeParse({ repo: "smoke-b-wi-8", claims: [], pointer }).success).toBe(true);
+		const base = "smoke-delta-convergence-build-live-1-baseline";
+		const fork = "smoke-delta-convergence-build-live-1-wi-8";
+		expect(PointerForkRequest.safeParse({ baseline: base, name: fork, claims: [], pointer }).success).toBe(true);
+		expect(PointerPushRequest.safeParse({ repo: fork, claims: [], pointer }).success).toBe(true);
+		const notBuild = "smoke-notifications-demo-1-wi-1";
 		for (const bad of [
 			{ repo: "production-wi-8", claims: [], pointer },
-			{ repo: "smoke-b-wi-8", claims: [], pointer, files: { "src/x.ts": "x" } },
-			{ repo: "smoke-b-wi-8", claims: [], pointer: { ...pointer, head: "abc" } },
-			{ repo: "smoke-b-wi-8", claims: [{ subject: "x" }], pointer },
+			{ repo: notBuild, claims: [], pointer }, // the recorded notifications demo
+			{ repo: "smoke-m1-1-wi-1", claims: [], pointer },
+			{ repo: base, claims: [], pointer }, // a baseline
+			{ repo: fork, claims: [], pointer, files: { "src/x.ts": "x" } },
+			{ repo: fork, claims: [], pointer: { ...pointer, head: "abc" } },
+			{ repo: fork, claims: [{ subject: "x" }], pointer },
 		]) {
 			expect(PointerPushRequest.safeParse(bad).success, JSON.stringify(bad)).toBe(false);
 		}
+		expect(PointerForkRequest.safeParse({ baseline: notBuild, name: fork, claims: [], pointer }).success).toBe(false);
+		expect(PointerForkRequest.safeParse({ baseline: base, name: notBuild, claims: [], pointer }).success).toBe(false);
+		expect(PointerForkRequest.safeParse({ baseline: base, name: base, claims: [], pointer }).success).toBe(false);
 	});
 });

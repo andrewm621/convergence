@@ -11,7 +11,7 @@
 //   --cell <name>              run in a cell with this name instead of a throwaway one, to leave a demo behind. The name
 //                              must be notifications-<something> (lowercase letters, digits, dashes, at most 40), so the
 //                              console can open it with ?cell=<name>. The cell must not exist yet. Implies --keep and
-//                              skips the second (fast-forward) scenario.
+//                              skips the second (unmoved baseline) scenario.
 //   --stop-before-revalidate   stop once notifications v2 has made WI-2 stale and blocked (WI-1 still ready, nothing
 //                              promoted), so the human revalidate, the re-dispatch and both promotions can be done on
 //                              camera in the console. Implies --keep.
@@ -115,14 +115,15 @@ if (cellArg !== undefined) {
 	}
 }
 const seeded = await call("POST", `/api/smoke/seed?forks=2&scenario=notifications${cellArg !== undefined ? `&label=${cellArg}` : ""}`);
+// Record whatever was created before judging it, so every exit path below deletes it (unless kept).
+for (const repo of [seeded.json?.baseline, ...(seeded.json?.forks ?? [])]) if (repo?.name) created.push(repo.name);
 check("seed baseline + 2 forks on real Artifacts", seeded.status === 200 && seeded.json.forks?.length === 2 && seeded.json.creationTokensRevoked, `${seeded.ms} ms`);
-if (seeded.status !== 200) {
+if (seeded.status !== 200 || seeded.json.forks?.length !== 2) {
 	console.error(j(seeded.json));
-	process.exit(1);
+	await finish();
 }
 const baselineRepo = seeded.json.baseline.name;
 const [fork1, fork2] = seeded.json.forks.map((f) => f.name);
-created.push(baselineRepo, fork1, fork2);
 const prefix = baselineRepo.replace(/-baseline$/, "");
 const agentIds = { "WI-1": `${prefix}-wi-1`.length > 0 ? "wi-1" : "wi-1", "WI-2": "wi-2" };
 
@@ -385,34 +386,40 @@ check("WI-1 is promoted", ["promoted", "merged"].includes(await statusOf("WI-1")
 }
 
 // ---------------------------------------------------------------------------------------------------------
-// 8. The fast-forward promotion path: a fresh scenario where the baseline has not moved since the fork
+// 8. Promotion when the baseline has not moved since the fork. A fork carries .delta/, which the baseline never keeps,
+//    so this is a merge commit (parents: the baseline head and the fork head) and not a fast-forward.
 // ---------------------------------------------------------------------------------------------------------
-if (cellArg === undefined) {
+const seed2 = cellArg === undefined ? await call("POST", "/api/smoke/seed?forks=1&scenario=notifications") : null;
+if (seed2) for (const repo of [seed2.json?.baseline, ...(seed2.json?.forks ?? [])]) if (repo?.name) created.push(repo.name);
+if (seed2) check("second scenario: seed baseline + 1 fork", seed2.status === 200 && seed2.json.forks?.length === 1, `${seed2.ms} ms ${seed2.status === 200 ? "" : j(seed2.json).slice(0, 300)}`);
+if (seed2?.status === 200 && seed2.json.forks?.length === 1) {
 	const ffScenario = `${scenario}-ff`;
-	const seed2 = await call("POST", "/api/smoke/seed?forks=1&scenario=notifications");
 	const b2 = seed2.json.baseline.name;
 	const f2 = seed2.json.forks[0].name;
-	created.push(b2, f2);
 	const fpost = (p, body, label) => call("POST", `/api/scenarios/${ffScenario}${p}`, body, idem(label));
 	const fget = (p) => call("GET", `/api/scenarios/${ffScenario}${p}`);
 	const i2 = await fpost("/init", { baselineRepo: b2, policy }, "ffinit");
 	const r2 = await fpost("/work-items", { id: "WI-1", title: "Status badges and the status-change API", forkRepo: f2, dependencies: [{ recordId: "status-model", facetKeys: ["status.transitions", "status.values"] }] }, "ffreg");
-	check("fast-forward scenario: init + register", i2.status === 201 && r2.status === 201, `${i2.status}/${r2.status}`);
+	check("second scenario: init + register", i2.status === 201 && r2.status === 201, `${i2.status}/${r2.status}`);
 	const d = await call("POST", "/api/agents/dispatch", { forkRepo: f2, workItemId: "wi-1", prompt: "Add status badges and the status-change API", wait: true }, idem("ffdisp"));
-	check("fast-forward scenario: stub agent pushed", d.json?.state === "succeeded", `${d.ms} ms`);
+	check("second scenario: stub agent pushed", d.json?.state === "succeeded", `${d.ms} ms`);
 	await until(async () => (await fget("/state")).json.workItems[0]?.headSha === d.json?.commit, 20_000, "ForkPushed");
 	const st = (await fget("/state")).json;
 	const p0 = performance.now();
 	const pr = await fpost("/work-items/WI-1/promote", { expectedBaselineCommit: st.baselineCommit, forkHeadSha: d.json.commit }, "ffprom");
 	const prMs = Math.round(performance.now() - p0);
-	check("fast-forward promotion succeeds; the merge commit is the fork head", pr.status === 200 && pr.json?.mergeCommitSha === d.json?.commit, `${pr.status} ${prMs} ms merge=${pr.json?.mergeCommitSha?.slice(0, 7)} forkHead=${d.json?.commit?.slice(0, 7)} ${pr.status === 200 ? "" : j(pr.json).slice(0, 300)}`);
-	results.timings.promoteFastForwardMs = prMs;
+	const log2 = await call("GET", `/api/repos/${b2}/log?limit=5`);
+	const head2 = log2.json?.commits?.[0];
+	check("promotion with an unmoved baseline succeeds; the merge commit has the baseline head and the fork head as parents", pr.status === 200 && head2?.hash === pr.json?.mergeCommitSha && head2?.parents?.length === 2 && head2.parents[1] === d.json?.commit, `${pr.status} ${prMs} ms merge=${pr.json?.mergeCommitSha?.slice(0, 7)} forkHead=${d.json?.commit?.slice(0, 7)} parents=${j(head2?.parents?.map((x) => x.slice(0, 7)))} ${pr.status === 200 ? "" : j(pr.json).slice(0, 300)}`);
+	const tree2 = await call("GET", `/api/repos/${b2}/file?path=.delta/claims.json`);
+	check("the baseline does not carry the fork's .delta/ (the next fork cannot inherit its claims)", tree2.status === 404, `HTTP ${tree2.status}`);
+	results.timings.promoteUnmovedBaselineMs = prMs;
 	await sleep(4000);
 	const pol = (await fget("/poller")).json;
-	check("the fast-forwarded fork head is recorded as kind=merge (an agent-authored commit can never accept context)", (pol?.written ?? []).some((w) => w.sha === d.json?.commit && w.kind === "merge"), j(pol?.written));
+	check("the merge commit is recorded as kind=merge (it can never accept context)", (pol?.written ?? []).some((w) => w.sha === pr.json?.mergeCommitSha && w.kind === "merge"), j(pol?.written));
 	const v = (await fget("/ledger/verify")).json;
-	check("fast-forward scenario: ledger chain valid", v?.ok === true, j(v));
-	check("fast-forward scenario: WI-1 promoted, poller healthy", (await fget("/state")).json.workItems[0]?.item.status === "promoted" && pol?.health?.healthy === true, j(pol?.health));
+	check("second scenario: ledger chain valid", v?.ok === true, j(v));
+	check("second scenario: WI-1 promoted, poller healthy", (await fget("/state")).json.workItems[0]?.item.status === "promoted" && pol?.health?.healthy === true, j(pol?.health));
 }
 
 await finish();
@@ -430,4 +437,13 @@ async function finish() {
 		note(`cleanup: ${j(purge.json).slice(0, 300)}`);
 	}
 	process.exit(failed.length ? 1 : 0);
+}
+
+// An unexpected error must not leave this run's repos behind.
+for (const event of ["uncaughtException", "unhandledRejection"]) {
+	process.on(event, async (error) => {
+		console.error(`FAIL  unexpected error: ${error instanceof Error ? error.message : String(error)}`);
+		checks.push({ name: "no unexpected error", ok: false });
+		await finish();
+	});
 }

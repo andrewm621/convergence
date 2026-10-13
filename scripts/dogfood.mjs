@@ -7,12 +7,14 @@
 //                                     --rationale "<one neutral line>" --idempotency-key <k> [--cell <name>]
 //   node scripts/dogfood.mjs register --wi <id> --title "..." --depends <record>:<facet>,... \
 //                                     --claim <facet>=<value>,... --head <sha|none> [--agent <id>] [--cell <name>]
-//   node scripts/dogfood.mjs update   --wi <id> --claim <facet>=<value>,... --head <sha|none> [--cell <name>]
+//   node scripts/dogfood.mjs revalidate --wi <id> --rationale "<one neutral line>" --idempotency-key <k> [--cell <name>]
+//   node scripts/dogfood.mjs update   --wi <id> --claim <facet>=<value>,... --head <sha|none> [--force] [--cell <name>]
 //
 // The cell defaults to $DOGFOOD_CELL, then delta-convergence-build-live. The Worker URL is $WORKER_URL and the bearer
 // token $DEV_TOKEN, each from the environment or from a `.dev.vars` file (apps/worker/.dev.vars, then ./.dev.vars).
-// Neither is ever printed. `decide`, `status` and the init and register calls go through the ordinary API. `seed`,
-// `register` and `update` create repos or commit to a pointer's fork, which the Worker only does with ENABLE_SMOKE=1.
+// Neither is ever printed. `decide`, `revalidate`, `status` and the init and register calls go through the ordinary API.
+// `seed`, `register` and `update` create repos or commit to a pointer's fork, which the Worker only does with ENABLE_SMOKE=1.
+// --facet and --claim can be repeated; within one value, `a=x,y,b=z` reads as a="x,y" and b="z".
 
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -46,13 +48,17 @@ for (let i = 0; i < rest.length; i++) {
 	const arg = rest[i];
 	if (!arg.startsWith("--")) fail(`unexpected argument: ${arg}`);
 	const name = arg.slice(2);
+	if (name === "force") {
+		flags.force = ["1"];
+		continue;
+	}
 	const value = rest[i + 1];
 	if (value === undefined || value.startsWith("--")) fail(`--${name} needs a value`);
 	(flags[name] ??= []).push(value);
 	i++;
 }
 const one = (name, required = false) => {
-	if (flags[name] && flags[name].length > 1 && name !== "facet") fail(`--${name} was given more than once`);
+	if (flags[name] && flags[name].length > 1 && name !== "facet" && name !== "claim") fail(`--${name} was given more than once`);
 	if (required && !flags[name]) fail(`--${name} is required`);
 	return flags[name]?.[0];
 };
@@ -62,8 +68,8 @@ function fail(message) {
 	console.error(message);
 	process.exit(2);
 }
-if (!["seed", "status", "decide", "register", "update"].includes(command ?? "")) {
-	fail("usage: dogfood.mjs seed|status|decide|register|update (see the header of this file)");
+if (!["seed", "status", "decide", "revalidate", "register", "update"].includes(command ?? "")) {
+	fail("usage: dogfood.mjs seed|status|decide|revalidate|register|update (see the header of this file)");
 }
 if (!base || !token) fail("set WORKER_URL and DEV_TOKEN, in the environment or in apps/worker/.dev.vars");
 if (!CELL_RE.test(cell) || cell.length > 40) fail(`the cell must be ${SCENARIO}-<name>: lowercase letters, digits and dashes, at most 40 characters`);
@@ -88,10 +94,12 @@ const cellPath = (p) => `/api/scenarios/${cell}${p}`;
 const j = (v) => JSON.stringify(v);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+class HttpFailure extends Error {}
+
+/** The body of a 2xx answer; anything else throws, so callers can clean up and the bottom of the file reports it. */
 async function must(res, what) {
 	if (res.status >= 200 && res.status < 300) return res.json;
-	console.error(`${what} failed: HTTP ${res.status} ${j(res.json).slice(0, 600)}`);
-	process.exit(1);
+	throw new HttpFailure(`${what} failed: HTTP ${res.status} ${j(res.json).slice(0, 600)}`);
 }
 
 /** A facet or claim value: JSON when it parses as a number, boolean or list, else the text as given. */
@@ -106,11 +114,24 @@ function parseValue(text) {
 	}
 	return t;
 }
-const splitPairs = (text, sep) => text.split(",").map((p) => p.trim()).filter(Boolean).map((p) => {
-	const at = p.indexOf(sep);
-	if (at <= 0 || at === p.length - 1) fail(`expected <key>${sep}<value>, got "${p}"`);
-	return [p.slice(0, at), p.slice(at + 1)];
-});
+const splitPair = (piece, sep) => {
+	const at = piece.indexOf(sep);
+	if (at <= 0 || at === piece.length - 1) fail(`expected <key>${sep}<value>, got "${piece}"`);
+	return [piece.slice(0, at).trim(), piece.slice(at + 1).trim()];
+};
+/**
+ * `a=x,b=y` as pairs. A comma-separated piece with no separator belongs to the value before it, so `a=x,y,b=z` is
+ * a="x,y" and b="z". The key is what comes before the first separator of a piece.
+ */
+const splitPairs = (text, sep) => {
+	const pieces = [];
+	for (const piece of text.split(",")) {
+		const keyed = piece.indexOf(sep) > 0 && /^[A-Za-z0-9_.-]+$/.test(piece.slice(0, piece.indexOf(sep)).trim());
+		if (keyed || pieces.length === 0) pieces.push(piece);
+		else pieces[pieces.length - 1] += `,${piece}`;
+	}
+	return pieces.map((p) => splitPair(p, sep));
+};
 
 async function state() {
 	const res = await call("GET", cellPath("/state"));
@@ -210,8 +231,8 @@ function headOf() {
 }
 
 /** Claims for the facets of `depends` (record -> facets), at each record's current version. */
-function claimsFor(snap, claimArg, factToRecord) {
-	return splitPairs(claimArg, "=").map(([subject, value]) => {
+function claimsFor(snap, claimArgs, factToRecord) {
+	return claimArgs.flatMap((arg) => splitPairs(arg, "=")).map(([subject, value]) => {
 		const recordId = factToRecord.get(subject);
 		if (!recordId) fail(`--claim ${subject}: that facet is not one this work item depends on (${[...factToRecord.keys()].join(", ")})`);
 		return { subject, value: parseValue(value), basedOn: `${recordId}@${snap.records[recordId].current}` };
@@ -234,15 +255,43 @@ async function register() {
 		facetToRecord.set(facet, recordId);
 		byRecord.set(recordId, [...(byRecord.get(recordId) ?? []), facet]);
 	}
-	const claims = claimsFor(snap, one("claim", true), facetToRecord);
+	one("claim", true);
+	const claims = claimsFor(snap, flags.claim, facetToRecord);
 	const baseline = await baselineRepoOf();
 	const name = `${baseline.replace(/-baseline$/, "")}-${wi.toLowerCase()}`;
 	const pointer = { workItem: wi, head, note: `${title}. This fork is a pointer to the real work, not the work itself. The claims are what we declare it holds.` };
-	await must(await call("POST", "/api/smoke/pointer-fork", { baseline, name, claims, pointer }), "creating the pointer fork (needs ENABLE_SMOKE=1)");
+	// Rerunnable: if an earlier run made the fork but stopped before registering it, use it as it is.
+	const existing = await call("GET", `/api/repos/${name}/log?limit=1`);
+	if (existing.status === 200 && existing.json?.commits?.length > 0) console.log(`fork ${name} already exists; registering it as it is`);
+	else await must(await call("POST", "/api/smoke/pointer-fork", { baseline, name, claims, pointer }), "creating the pointer fork (needs ENABLE_SMOKE=1)");
 	const dependencies = [...byRecord].map(([recordId, facetKeys]) => ({ recordId, facetKeys }));
 	await must(await call("POST", cellPath("/work-items"), { id: wi, title, forkRepo: name, agent: { id: agent }, requires: ["human-resolution"], dependencies }, `dogfood-register-${cell}-${wi}`), `registering ${wi}`);
 	console.log(`registered ${wi} with fork ${name}`);
 	await waitForHeads([wi]);
+	await status();
+}
+
+/** A human's revalidate: the work is stale, and the real work will be redone elsewhere. Binds to what the console would bind to. */
+async function revalidate() {
+	const wi = one("wi", true);
+	const rationale = one("rationale", true).trim();
+	const key = one("idempotency-key", true);
+	if (rationale.includes("\n") || rationale.length > 300) fail("--rationale is one neutral line of at most 300 characters");
+	const snap = await state();
+	const item = snap.workItems.find((w) => w.item.id === wi);
+	if (!item) fail(`no work item ${wi}`);
+	if (!item.headSha) fail(`${wi} has no push yet: a resolution binds to a specific head`);
+	// The record to bind to is one the work is stale or in conflict on; any current record would bind, this is the one that matters.
+	const condition = item.conditions.find((c) => c.type !== "Fresh" && c.recordRefs?.length > 0);
+	if (!condition) fail(`${wi} is not stale or in conflict (${item.conditions.map((c) => c.type).join(", ") || "no conditions"}); there is nothing to revalidate`);
+	const recordId = condition.recordRefs[0].split("@")[0];
+	const history = snap.records[recordId];
+	const record = history?.versions[String(history.current)];
+	if (!record) fail(`no accepted version of ${recordId}`);
+	const binding = { recordId, version: record.version, blobHash: record.blobHash, baseSha: snap.baselineCommit, forkHeadSha: item.headSha, contextSnapshotHash: snap.snapshotHash };
+	const out = await must(await call("POST", cellPath(`/work-items/${wi}/resolutions`), { kind: "revalidate", rationale, binding }, key), "the revalidate");
+	console.log(`revalidate recorded for ${wi} (ledger line ${out.seq}); nothing is dispatched here. Redo the real work, then: dogfood.mjs update --wi ${wi} --claim ... --head <sha>`);
+	await sleep(1000);
 	await status();
 }
 
@@ -252,8 +301,13 @@ async function update() {
 	const snap = await state();
 	const item = snap.workItems.find((w) => w.item.id === wi);
 	if (!item) fail(`no work item ${wi}`);
+	if (item.item.status !== "revalidating" && !flags.force) {
+		console.error(`${wi} is ${item.item.status}, not revalidating. Without a revalidate the Worker issues no new receipt, so the new claims would be judged against the old one and the item stays stale. Run: dogfood.mjs revalidate --wi ${wi} ... first, or pass --force to push the pointer anyway.`);
+		process.exit(3);
+	}
 	const factToRecord = new Map(snap.dependencies.filter((d) => d.workItemId === wi && d.status === "accepted").flatMap((d) => d.facetKeys.map((f) => [f, d.recordId])));
-	const claims = claimsFor(snap, one("claim", true), factToRecord);
+	one("claim", true);
+	const claims = claimsFor(snap, flags.claim, factToRecord);
 	const pointer = { workItem: wi, head, note: `${item.item.title}. Updated after the real work was redone; the claims are what we declare it holds now.` };
 	const pushed = await must(await call("POST", "/api/smoke/pointer-push", { repo: item.item.forkRepo, claims, pointer }), "pushing the pointer (needs ENABLE_SMOKE=1)");
 	console.log(`pushed ${pushed.commit.slice(0, 7)} to ${pushed.repo}`);
@@ -262,4 +316,9 @@ async function update() {
 	await status();
 }
 
-await { seed, status, decide, register, update }[command]();
+try {
+	await { seed, status, decide, revalidate, register, update }[command]();
+} catch (error) {
+	console.error(error instanceof HttpFailure ? error.message : `unexpected error: ${error instanceof Error ? error.message : String(error)}`);
+	process.exit(1);
+}

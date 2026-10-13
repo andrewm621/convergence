@@ -29,7 +29,7 @@ Each live decision carries a short rationale approved by the Decision owner. It 
 
 A cell of this scenario (its name is `delta-convergence-build`, or starts with `delta-convergence-build-`) never dispatches an agent runtime, whatever the Worker is configured with, and never merges anything.
 
-- **Revalidate** records the resolution and moves the work item to `revalidating`. Nothing is dispatched. The activity stream says: "Human-resolved outside the console". The real work is redone in the real pull request. When its pointer is next pushed (`dogfood.mjs update`), the Worker issues the receipt at the current versions, then judges the new claims. A claim that still cites an old version or an old value keeps the item stale.
+- **Revalidate** (`dogfood.mjs revalidate`) records the resolution and moves the work item to `revalidating`. Nothing is dispatched. The activity stream says: "Human-resolved outside the console". The real work is redone in the real pull request, and then its pointer is pushed (`dogfood.mjs update`). On that push the Worker first issues the receipt at the current versions (the reconciler takes one only while a revalidation is open), then judges the new claims. Claims that cite the current versions with the current values leave the item fresh. Claims that still cite an old version or an old value surface as a `ClaimConflict`, and the item stays blocked. `update` refuses to run (exit 3) when the item is not revalidating, because without a revalidate there is no new receipt; `--force` pushes anyway.
 - **Promote** is refused: `409 NOT_PROMOTABLE`, "not promotable: work items here are pointers to real PRs". Nothing reaches the baseline.
 - The console disables Revalidate, Accept exception, Reject and Promote on this cell with the same tooltip as the replay: "Resolved by a human outside the console in the real build."
 
@@ -54,18 +54,21 @@ node scripts/dogfood.mjs status
 node scripts/dogfood.mjs decide --record scenario-plan --facet scenario.second-act-mode=live \
   --rationale "Show the second act live." --idempotency-key plan-v2
 
+# The full sequence after a decision: see what went stale, revalidate it (works with smoke off) ...
+node scripts/dogfood.mjs revalidate --wi WI-4 --rationale "Redo the fixtures for the new county." --idempotency-key reval-wi-4-v3
+
 # Register new work (needs smoke): a pointer fork plus its declared dependencies and claims.
 node scripts/dogfood.mjs register --wi WI-8 --title "Demo recording" \
   --depends scenario-plan:scenario.second-act-mode,scenario-naming:scenario.county \
   --claim scenario.second-act-mode=live,scenario.county="Larkhaven County" --head none
 
-# Push the pointer again after redoing the real work (needs smoke).
+# ... and push the pointer again after redoing the real work (needs smoke).
 node scripts/dogfood.mjs update --wi WI-4 --claim scenario.county="Larkhaven County" --head <sha>
 ```
 
-`--facet` can be repeated. `--idempotency-key` makes a retry safe: the same key with the same request replays the first answer. Claim values cannot contain a comma.
+`--facet` and `--claim` can be repeated, and a value may contain commas (`a=x,y,b=z` reads as `a` = "x,y" and `b` = "z"). `register` can be rerun if it stopped after creating the fork. `--idempotency-key` makes a retry safe: the same key with the same request replays the first answer.
 
-`seed`, `register` and `update` create repos or commit to a fork, which the Worker only does with `ENABLE_SMOKE=1`. `decide` and `status` use the ordinary API and work with smoke off.
+The pointer routes behind `register` and `update` only touch `smoke-delta-convergence-build-*` repos and never a baseline, so they cannot reach the repos of any other cell. `seed`, `register` and `update` create repos or commit to a fork, which the Worker only does with `ENABLE_SMOKE=1`. `decide` and `status` use the ordinary API and work with smoke off.
 
 ## Limits
 

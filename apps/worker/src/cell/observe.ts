@@ -159,6 +159,10 @@ export async function observeForkCommit(deps: ObserveDeps, tracked: TrackedRepo,
 	try {
 		if (!tracked.baseCommit) throw new Error("fork has no base commit");
 		const [baseTree, forkTree] = await Promise.all([treeAt(deps, baselineRepo, tracked.baseCommit), treeAt(deps, tracked.repo, commit.sha)]);
+		// A claims file that is byte for byte the one the fork was cut with is not this work item's claim: it was inherited
+		// (from another item's, if the baseline ever held it). Read as missing, so an agent that writes none has none.
+		const inherited = baseTree.get(CLAIMS_PATH)?.hash;
+		if (inherited !== undefined && forkTree.get(CLAIMS_PATH)?.hash === inherited) claims = null;
 		const diff = diffFlatTrees(baseTree, forkTree);
 		contextPaths = [...diff.added, ...diff.removed, ...diff.changed].map((entry) => entry.path).filter((path) => path.startsWith("context/"));
 	} catch (error) {

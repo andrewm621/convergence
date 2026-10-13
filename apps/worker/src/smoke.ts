@@ -5,6 +5,7 @@ import { commitFiles, errorCode, getRepo, sleep } from "./artifacts/git-write";
 import { diffCommits, type TreeDiff } from "./artifacts/tree-diff";
 import { redactDeep } from "./artifacts/tokens";
 import { NOTIFICATIONS_V1, STATUS_MODEL_V1 } from "scenario-notifications";
+import { POINTER_SCENARIO } from "./cell/pointer-scenario";
 import { pointerCommitMessage, pointerFiles } from "./smoke-build";
 import { NOTIFICATIONS_V2, SEED_FILES, recordVersion } from "./smoke-fixtures";
 
@@ -334,7 +335,11 @@ export async function purgeSmokeRepos(env: Env): Promise<{ deleted: string[]; fa
 	return { deleted, failed };
 }
 
-const SmokeRepoName = z.string().regex(REPO_NAME_RE, "not a valid repo name").startsWith(SMOKE_PREFIX, `repo names must start with ${SMOKE_PREFIX}`);
+/** The repos of a seeded build cell are `smoke-delta-convergence-build-...`; the pointer routes touch nothing else, so never a recorded demo's repos. */
+export const POINTER_REPO_PREFIX = `${SMOKE_PREFIX}${POINTER_SCENARIO}-`;
+const PointerRepoName = z.string().regex(REPO_NAME_RE, "not a valid repo name").startsWith(POINTER_REPO_PREFIX, `repo names must start with ${POINTER_REPO_PREFIX}`);
+/** A fork to write to: never a baseline. */
+const PointerForkName = PointerRepoName.refine((name) => !name.endsWith("-baseline"), "a baseline is not a pointer fork");
 
 /** What a pointer work item's fork holds: the claims, and where the real work stands. Nothing else can be written through these routes. */
 const PointerBody = {
@@ -347,9 +352,9 @@ const PointerBody = {
 };
 
 /** POST /api/smoke/pointer-fork: a new fork of `baseline`, named `name`, holding one pointer commit. */
-export const PointerForkRequest = z.strictObject({ baseline: SmokeRepoName, name: SmokeRepoName, ...PointerBody });
+export const PointerForkRequest = z.strictObject({ baseline: PointerRepoName, name: PointerForkName, ...PointerBody });
 /** POST /api/smoke/pointer-push: a new pointer commit on an existing fork. */
-export const PointerPushRequest = z.strictObject({ repo: SmokeRepoName, ...PointerBody });
+export const PointerPushRequest = z.strictObject({ repo: PointerForkName, ...PointerBody });
 
 export async function forkPointer(env: Env, req: z.infer<typeof PointerForkRequest>) {
 	const commit = { files: pointerFiles(req.claims, req.pointer), message: pointerCommitMessage(req.pointer) };
