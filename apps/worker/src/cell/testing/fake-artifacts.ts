@@ -61,6 +61,14 @@ export class FakeWorld {
 		this.#failures.set(method, { times, skip, error });
 	}
 
+	readonly #nullBlobs = { times: 0, skip: 0 };
+
+	/** Make `times` blob reads answer null (not found, not an error), after letting `skip` reads through. `times` 0 clears it. */
+	nullNextBlobs(times = 1, skip = 0): void {
+		this.#nullBlobs.times = times;
+		this.#nullBlobs.skip = skip;
+	}
+
 	#enter(method: PortMethod): void {
 		this.calls.push(method);
 		const failure = this.#failures.get(method);
@@ -162,6 +170,11 @@ export class FakeWorld {
 			},
 			readBlob: async (repo, oid) => {
 				this.#enter("readBlob");
+				if (this.#nullBlobs.skip > 0) this.#nullBlobs.skip -= 1;
+				else if (this.#nullBlobs.times > 0) {
+					this.#nullBlobs.times -= 1;
+					return null;
+				}
 				return this.#repo(repo).blobs.get(oid) ?? null;
 			},
 			tree: async (repo, commit) => {

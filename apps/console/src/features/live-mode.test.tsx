@@ -85,7 +85,7 @@ describe("poller degraded: visible, and never Fresh", () => {
 		expect(screen.getByText("Live")).toBeInTheDocument();
 	});
 
-	it("shows a fresh work item as unconfirmed, never as fresh, while degraded", () => {
+	it("shows a fresh or ready work item as unconfirmed, never as fresh or cleared, while degraded", () => {
 		const { rerender } = render(<StatusChip status="fresh" />);
 		expect(screen.getByText("fresh")).toBeInTheDocument();
 		rerender(
@@ -95,13 +95,24 @@ describe("poller degraded: visible, and never Fresh", () => {
 		);
 		expect(screen.queryByText("fresh")).toBeNull();
 		expect(screen.getByText("unconfirmed")).toBeInTheDocument();
+		// "Cleared by the gate" is a claim about current decisions too, so ready is downgraded the same way.
+		rerender(<StatusChip status="ready" />);
+		expect(screen.getByText("ready")).toBeInTheDocument();
+		rerender(
+			<DegradedContext.Provider value>
+				<StatusChip status="ready" />
+			</DegradedContext.Provider>,
+		);
+		expect(screen.queryByText("ready")).toBeNull();
+		expect(screen.getByText("unconfirmed")).toBeInTheDocument();
+		expect(screen.getByText("unconfirmed").closest("[data-status]")).toHaveAttribute("title", expect.not.stringContaining("Cleared by the gate"));
 		// Other statuses are not rewritten.
 		rerender(
 			<DegradedContext.Provider value>
 				<StatusChip status="stale" />
 			</DegradedContext.Provider>,
 		);
-		expect(screen.getByText("stale")).toBeInTheDocument();
+		expect(screen.getByText("needs review")).toBeInTheDocument();
 	});
 
 	it("closes Promote while degraded even when the gate passes, and reopens when the poller recovers", async () => {

@@ -46,6 +46,7 @@ export type WorldOp =
 	| { op: "pushMany"; repo: string; count: number }
 	| { op: "fail"; method: PortMethod; times?: number; skip?: number }
 	| { op: "failAfter"; method: PortMethod }
+	| { op: "nullBlobs"; times?: number; skip?: number }
 	| { op: "calls" }
 	| { op: "note"; repo: string; commit: string }
 	| { op: "agent"; behavior: Partial<FakeAgentBehavior> }
@@ -83,6 +84,9 @@ export class TestCell extends CellBase {
 			}
 			case "fail":
 				world.failNext(op.method, op.times ?? 1, undefined, op.skip ?? 0);
+				return null;
+			case "nullBlobs":
+				world.nullNextBlobs(op.times ?? 1, op.skip ?? 0);
 				return null;
 			case "failAfter":
 				world.failAfterNext(op.method);

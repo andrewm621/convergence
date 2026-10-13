@@ -1,8 +1,14 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { renderWithMock } from "@/test/render";
+import { useConsole } from "@/state/console-context";
 import { ContextTimeline } from "./context-timeline";
+
+function Toasts() {
+	const { toasts } = useConsole();
+	return <ul aria-label="Toasts">{toasts.map((t) => <li key={t.id}>{t.text}</li>)}</ul>;
+}
 
 describe("empty state", () => {
 	it("says there is no accepted context and offers a one-click scenario seed", async () => {
@@ -78,5 +84,37 @@ describe("propose change", () => {
 		await user.click(screen.getByRole("button", { name: "Commit v2" }));
 		await waitFor(async () => expect((await mock.client.api.gate("WI-2")).reasonCodes).toContain("STALE_RECEIPT"));
 		expect(await screen.findByText("v2", { selector: "[data-slot=badge]" })).toBeInTheDocument();
+	});
+
+	it("sends the baseline commit it opened on, and says so when another tab moved the decisions first", async () => {
+		const user = userEvent.setup();
+		const mock = await renderWithMock(
+			<>
+				<ContextTimeline />
+				<Toasts />
+			</>,
+			{ beats: 1 },
+		);
+		const propose = vi.spyOn(mock.client.api, "proposeContextChange");
+		const shown = (await screen.findByText(/^baseline [0-9a-f]+$/)).textContent?.replace("baseline ", "") ?? "";
+		expect(shown).not.toBe("");
+		const card = (await screen.findByRole("heading", { name: "notifications" })).closest("article") as HTMLElement;
+		await user.click(within(card).getByRole("button", { name: /Propose change/ }));
+		const value = await screen.findByLabelText("Value for notifications.default");
+		await user.clear(value);
+		await user.type(value, "opt-in");
+		await user.type(screen.getByLabelText("Why this change"), "Opt-in only.");
+
+		// Another tab commits to the baseline first (a different record, so this editor stays open and only the compare-and-swap can catch it).
+		const other = await mock.client.api.proposeContextChange({ recordId: "status-model", facets: { "status.values": ["draft", "active", "blocked", "done", "archived"], "status.transitions": "forward-only" }, prose: "", rationale: "other tab" }, "other-tab");
+		expect(other).toEqual({ ok: true, message: expect.anything() });
+		propose.mockClear();
+
+		await user.click(screen.getByRole("button", { name: "Commit v2" }));
+		await waitFor(() => expect(propose).toHaveBeenCalledTimes(1));
+		expect(propose.mock.calls[0]?.[0]).toMatchObject({ recordId: "notifications", expectedBaselineCommit: expect.stringMatching(new RegExp(`^${shown}`)) });
+		expect(await screen.findByText(/The decisions changed after you opened this editor/)).toBeInTheDocument();
+		// The Worker's refusal is what the console is told, and nothing was committed on top of the other tab's change.
+		await expect(propose.mock.results[0]?.value).resolves.toMatchObject({ ok: false, code: "BASELINE_MOVED" });
 	});
 });

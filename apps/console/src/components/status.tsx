@@ -33,8 +33,8 @@ type StatusMeta = { label: string; tone: Tone; icon: typeof Play; description: s
  */
 export const STATUS_META: Record<WorkItemStatus, StatusMeta> = {
 	running: { label: "running", tone: "info", icon: Play, description: "The agent is working." },
-	fresh: { label: "fresh", tone: "success", icon: ShieldCheck, description: "Built on the current decisions." },
-	stale: { label: "stale", tone: "danger", icon: TriangleAlert, description: "Built on a decision that has since changed." },
+	fresh: { label: "fresh", tone: "success", icon: ShieldCheck, description: "No recorded dependency on a changed decision." },
+	stale: { label: "needs review", tone: "danger", icon: TriangleAlert, description: "Built on a decision that has since changed. A changed decision is not a verdict on the work." },
 	conflict: { label: "conflict", tone: "danger", icon: Swords, description: "Its claims or checks contradict an accepted decision." },
 	revalidating: { label: "revalidating", tone: "info", icon: RefreshCw, description: "Re-running on the current decisions." },
 	ready: { label: "ready", tone: "primary", icon: CheckCheck, description: "Cleared by the gate. A human decides whether to promote." },
@@ -51,12 +51,13 @@ export function useDegraded(): boolean {
 }
 
 /**
- * What to show for a status. While the poller is degraded a work item that reads `fresh` cannot be
- * trusted (a baseline change may be sitting unread), so it is shown as `unconfirmed`, never Fresh.
+ * What to show for a status. While the poller is degraded a work item that reads `fresh` or `ready` cannot be
+ * trusted (a baseline change may be sitting unread; unknown is not unaffected), so it is shown as `unconfirmed`,
+ * never Fresh and never "Cleared by the gate".
  */
 export function statusMeta(status: WorkItemStatus, degraded: boolean): StatusMeta {
-	if (degraded && status === "fresh") {
-		return { label: "unconfirmed", tone: "warning", icon: HelpCircle, description: "The poller is degraded, so Delta Convergence cannot confirm this is still built on the current decisions." };
+	if (degraded && (status === "fresh" || status === "ready")) {
+		return { label: "unconfirmed", tone: "warning", icon: HelpCircle, description: "The poller is degraded, so Delta Convergence cannot confirm that no decision it depends on has changed." };
 	}
 	return STATUS_META[status];
 }
@@ -66,7 +67,7 @@ export function StatusChip({ status, className }: { status: WorkItemStatus; clas
 	const meta = statusMeta(status, degraded);
 	const Icon = meta.icon;
 	return (
-		<Badge tone={meta.tone} data-status={status} data-unconfirmed={degraded && status === "fresh" ? "" : undefined} title={meta.description} className={cn("font-semibold", className)}>
+		<Badge tone={meta.tone} data-status={status} data-unconfirmed={meta.label === "unconfirmed" ? "" : undefined} title={meta.description} className={cn("font-semibold", className)}>
 			<Icon className={cn(status === "revalidating" && "motion-safe:animate-spin")} aria-hidden />
 			{meta.label}
 		</Badge>

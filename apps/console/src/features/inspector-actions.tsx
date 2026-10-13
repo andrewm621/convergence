@@ -225,7 +225,7 @@ export function ExceptionForm({
 
 	return (
 		<form onSubmit={handle} noValidate aria-label="Accept exception" className="space-y-3 rounded-xl border border-dashed bg-card p-3.5">
-			<p className="text-[13px] text-muted-foreground">An exception waives staleness and conflicts for one record, within a scope you name. It lapses if that record changes again.</p>
+			<p className="text-[13px] text-muted-foreground">An exception waives staleness and conflicts for one record, within a scope you name. It lapses when that record gets a new version or when the fork pushes again.</p>
 			{candidates.length > 1 && (
 				<div className="space-y-1">
 					<Label htmlFor="exception-record">Record</Label>
@@ -363,7 +363,7 @@ function ResolutionHistory({ wi }: { wi: WorkItemState }) {
 										</>
 									) : (
 										<p className="font-medium">
-											Valid while {r.binding.recordId} is at v{exception.version} <span aria-hidden>·</span> lapses at the next version
+											Valid while {r.binding.recordId} is at v{exception.version} <span aria-hidden>·</span> lapses at the next version or when the fork pushes again
 										</p>
 									)}
 								</div>

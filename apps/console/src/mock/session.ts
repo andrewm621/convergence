@@ -138,6 +138,9 @@ export class MockSession {
 
 	async proposeChange(input: ContextChangeInput): Promise<CommandResult> {
 		const state = await this.cell.state();
+		if (input.expectedBaselineCommit && input.expectedBaselineCommit !== state.baselineCommit) {
+			return { ok: false, code: "BASELINE_MOVED", message: `the baseline is at ${state.baselineCommit}, not ${input.expectedBaselineCommit}` };
+		}
 		const prev = currentSnapshot(state, input.recordId);
 		if (!prev) return { ok: false, code: "UNKNOWN_RECORD", message: `${input.recordId} has no accepted version yet.` };
 		const changes = diffFacets(prev, { facets: input.facets });

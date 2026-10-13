@@ -111,6 +111,8 @@ export type ContextChangeInput = {
 	facets: Record<string, FacetValue>;
 	prose: string;
 	rationale: string;
+	/** Compare-and-swap: the baseline commit the editor opened on. The Worker refuses with BASELINE_MOVED if it has moved since. */
+	expectedBaselineCommit?: string;
 };
 
 export type ResolveInput = {

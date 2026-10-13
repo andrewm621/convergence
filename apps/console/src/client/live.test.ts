@@ -247,6 +247,15 @@ describe("live client: commands", () => {
 		expect(String(fetchImpl.mock.calls[2]?.[0])).toBe("http://delta.test/api/scenarios/notifications/work-items/WI-2/resolutions");
 	});
 
+	it("sends the baseline commit a context change was made on, and passes the Worker's BASELINE_MOVED refusal through", async () => {
+		const fetchImpl = vi.fn<typeof fetch>();
+		const client = createLiveClient({ scenario: "notifications", apiBase: "http://delta.test", fetchImpl, WebSocketImpl: FakeSocket as unknown as typeof WebSocket, token: () => SECRET });
+		fetchImpl.mockResolvedValueOnce(new Response(JSON.stringify({ error: { code: "BASELINE_MOVED", message: "the baseline is at b, not a" } }), { status: 409 }));
+		const moved = await client.api.proposeContextChange({ recordId: "notifications", facets: {}, prose: "x", rationale: "y", expectedBaselineCommit: "a".repeat(40) }, "key-moved");
+		expect(moved).toEqual({ ok: false, code: "BASELINE_MOVED", message: "the baseline is at b, not a" });
+		expect(JSON.parse(String((fetchImpl.mock.calls[0]?.[1] as RequestInit).body))).toMatchObject({ expectedBaselineCommit: "a".repeat(40) });
+	});
+
 	it("reads a gate for work that has not pushed yet (the Worker sends a null fork head)", async () => {
 		const fetchImpl = vi.fn<typeof fetch>();
 		const client = createLiveClient({ scenario: "notifications", apiBase: "http://delta.test", fetchImpl, WebSocketImpl: FakeSocket as unknown as typeof WebSocket, token: () => SECRET });

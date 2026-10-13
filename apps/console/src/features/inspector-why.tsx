@@ -104,7 +104,7 @@ export function WhyTab({ wi }: { wi: WorkItemState }) {
 
 			<ol className="space-y-0" aria-label="Why chain">
 				<ChainLink icon={BookMarked} step="1" title="Decision" chip={<EpistemicChip kind="recorded" />} tone="neutral">
-					{decisionIds.length === 0 && <p className="text-[13px] text-muted-foreground">This work does not rely on any accepted decision.</p>}
+					{decisionIds.length === 0 && <p className="text-[13px] text-muted-foreground">No recorded reliance on an accepted decision.</p>}
 					{decisionIds.map((recordId) => {
 						const head = currentRecord(view, recordId);
 						if (!head) return null;
@@ -280,7 +280,7 @@ function ReceiptChips({ wi, staleIds }: { wi: WorkItemState; staleIds: ReadonlyS
 							>
 								<Chevron aria-hidden />
 								{entry.recordId}@{entry.version}
-								{behind ? ` (now v${head.version})` : newer ? ` (v${head.version} exists, unaffected)` : ""}
+								{behind ? ` (now v${head.version})` : newer ? ` (v${head.version} exists; no recorded affected dependency)` : ""}
 							</button>
 						</li>
 					);

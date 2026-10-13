@@ -387,6 +387,45 @@ describe("gate, resolutions and promotion", () => {
 	});
 });
 
+describe("concurrent requests against one baseline", () => {
+	it("two context changes made from the same baseline: one commits, the other is refused with BASELINE_MOVED and the baseline it is at", async () => {
+		const s = await scenario();
+		const opened = (await get(s, "/state")).body.baselineCommit as string;
+		const mine = { recordId: "notifications", facets: V2_FACETS, rationale: "opt-in", expectedBaselineCommit: opened };
+		const theirs = { recordId: "notifications", facets: { ...V2_FACETS, "notifications.cadence": "daily-digest" }, rationale: "daily", expectedBaselineCommit: opened };
+		const first = await post(s, "/context-changes", mine);
+		expect([first.status, first.body.version]).toEqual([201, 2]);
+		const second = await post(s, "/context-changes", theirs);
+		expect([second.status, second.body.error.code]).toEqual([409, "BASELINE_MOVED"]);
+		expect(second.body.error.baselineCommit).toBe(first.body.commitSha);
+		expect((await w.world(s, { op: "files", repo: BASELINE }))["context/notifications.md"]).not.toContain("daily-digest");
+	});
+
+	it("two promote requests fired together against one baseline: exactly one merges, the other is a clean 409, and the ledger has one PromotionMerged", async () => {
+		const s = await scenario();
+		await w.world(s, { op: "push", repo: WI1, files: { ".delta/claims.json": JSON.stringify(claims.wi1), "src/wi1.ts": "export const badge = 1;\n" }, author: "workitem-wi-1" });
+		await w.cell(s, "pollNow");
+		const head = (await item(s, "WI-1"))?.headSha as string;
+		await evidence(s, WI1, "WI-1", head, "tests/contract/status-model.test.ts");
+		const state = (await get(s, "/state")).body;
+		const body = { expectedBaselineCommit: state.baselineCommit, forkHeadSha: head };
+
+		const results = await Promise.all([post(s, "/work-items/WI-1/promote", body, key("race-a")), post(s, "/work-items/WI-1/promote", body, key("race-b"))]);
+		const outcomes = results.map((r) => [r.status, r.body.error?.code ?? null]).sort((a, b) => (a[0] as number) - (b[0] as number));
+		expect(outcomes[0]).toEqual([200, null]);
+		// The cell runs requests one at a time, so the loser is judged after the winner's merge is recorded: the item is already promoted.
+		expect(outcomes[1]).toEqual([409, "ALREADY_PROMOTED"]);
+		const entries = await ledger(s);
+		expect(entries.filter((e) => e.type === "PromotionMerged")).toHaveLength(1);
+		// Both requests are on the ledger, but only the first was allowed; the second is a recorded refusal.
+		const requests = entries.filter((e) => e.type === "PromotionRequested");
+		expect(requests.map((e) => reasons(e))).toEqual([[], ["ALREADY_PROMOTED"]]);
+		expect((await w.world(s, { op: "files", repo: BASELINE }))["src/wi1.ts"]).toContain("badge");
+		expect((await item(s, "WI-1"))?.item.status).toBe("promoted");
+		expect((await get(s, "/ledger/verify")).body).toMatchObject({ ok: true });
+	});
+});
+
 describe("ledger", () => {
 	it("verifies an untouched chain and reports the seq of an edited line", async () => {
 		const s = await scenario();
@@ -525,6 +564,46 @@ describe("poller: never loses a baseline change, and says when it is struggling"
 		);
 		expect(recorded).toBe(true);
 		await until(async () => (await state()).headers.get("x-delta-poller") === "healthy", 8000, "the poller to recover");
+	}, 40_000);
+
+	it("fails closed on a decision file it cannot read: the change is not dropped, nothing promotes meanwhile, and the next poll lands it", async () => {
+		const s = await scenario();
+		await w.world(s, { op: "push", repo: WI1, files: { ".delta/claims.json": JSON.stringify(claims.wi1) }, author: "workitem-wi-1" });
+		await w.cell(s, "pollNow");
+		const wi1Head = (await item(s, "WI-1"))?.headSha as string;
+		await evidence(s, WI1, "WI-1", wi1Head, "tests/contract/status-model.test.ts");
+		const before = (await get(s, "/state")).body;
+
+		// The Worker writes v2 and reads it straight back; Artifacts answers "not found" for the new blob (skip the one read of the sitting version).
+		await w.world(s, { op: "nullBlobs", times: 1000, skip: 1 });
+		const change = await post(s, "/context-changes", { recordId: "notifications", facets: V2_FACETS, rationale: "opt-in" });
+		expect(change.status).toBe(201);
+		expect(change.body.observed).toBe(false);
+		const sha = change.body.commitSha as string;
+		await w.cell(s, "pollNow");
+
+		// Unknown is not invalid: no line for the commit (so no RECORD_NOT_ACCEPTED either), the cursor stays behind it, and the baseline has not moved.
+		const entries = await ledger(s);
+		expect(entries.some((e) => e.payload.event.type === "BaselinePushed" && e.payload.event.commitSha === sha)).toBe(false);
+		expect(reasons(entries.at(-1))).not.toContain("RECORD_NOT_ACCEPTED");
+		const mid = (await get(s, "/state")).body;
+		expect(mid.baselineCommit).toBe(before.baselineCommit);
+		expect(mid.records.notifications.current).toBe(1);
+		expect((await get(s, "/poller")).body.health.healthy).toBe(false);
+		// Promotion is refused while the cell is behind the baseline; it never merges v1-based work into a v2 baseline.
+		const promote = await post(s, "/work-items/WI-1/promote", { expectedBaselineCommit: before.baselineCommit, forkHeadSha: wi1Head });
+		expect([promote.status, promote.body.error.code]).toEqual([503, "POLLER_BEHIND"]);
+		expect((await item(s, "WI-1"))?.item.status).not.toBe("promoted");
+		expect((await w.world(s, { op: "files", repo: BASELINE }))["src/wi1.ts"]).toBeUndefined();
+
+		// The read works on a later poll: the change lands and the dependent goes stale.
+		await w.world(s, { op: "nullBlobs", times: 0 });
+		await until(async () => (await item(s, "WI-2"))?.item.status === "stale", 20_000, "the retried read to land the change");
+		const landed = (await ledger(s)).filter((e) => e.payload.event.type === "BaselinePushed" && e.payload.event.commitSha === sha);
+		expect(landed).toHaveLength(1);
+		expect(reasons(landed[0])).not.toContain("RECORD_NOT_ACCEPTED");
+		expect((await get(s, "/state")).body.records.notifications.current).toBe(2);
+		expect((await item(s, "WI-1"))?.conditions.map((c) => c.type)).toEqual(["Fresh", "TestsPassed", "Ready"]); // no dependency on the changed facets
 	}, 40_000);
 
 	it("tells the console in the snapshot meta, and refuses to promote or change context on a baseline it has not caught up with", async () => {
