@@ -224,9 +224,42 @@ describe("prepareModelBody: the model and its output budget are enforced in the 
 	const body = (o: object) => JSON.stringify({ model: pinned, max_tokens: 1024, messages: [{ role: "user", content: "hi" }], ...o });
 	const prep = (text: string, max = 8192) => prepareModelBody(text, new TextEncoder().encode(text).byteLength, pinned, max);
 
-	it("passes a valid body through untouched", () => {
-		const text = body({});
-		expect(prep(text)).toMatchObject({ ok: true, body: text, maxTokens: 1024 });
+	it("forwards the canonical re-serialization of a valid body, not the raw text", () => {
+		const text = `  ${body({})}\n`;
+		const r = prep(text);
+		expect(r).toMatchObject({ ok: true, maxTokens: 1024 });
+		expect(r.ok && r.body).toBe(JSON.stringify(JSON.parse(text)));
+		expect(r.ok && r.body).not.toBe(text);
+	});
+
+	it("a duplicate key cannot be read differently upstream: only the validated model and clamped max_tokens are forwarded", () => {
+		const raw = `{"model":"vendor/expensive","model":"${pinned}","max_tokens":100000,"max_tokens":100,"messages":[{"role":"user","content":"hi"}]}`;
+		const r = prep(raw);
+		expect(r.ok).toBe(true);
+		if (!r.ok) return;
+		expect(r.body.match(/"model"/g)).toHaveLength(1);
+		expect(r.body.match(/"max_tokens"/g)).toHaveLength(1);
+		expect(JSON.parse(r.body)).toMatchObject({ model: pinned, max_tokens: 100 });
+		expect(r.body).not.toContain("expensive");
+		expect(r.body).not.toContain("100000");
+		// the other order: the last value is the one that is checked, and it is the one forwarded
+		const rev = prep(`{"model":"${pinned}","model":"vendor/expensive","max_tokens":100}`);
+		expect(rev).toMatchObject({ ok: false, status: 403 });
+		const big = prep(`{"model":"${pinned}","max_tokens":100,"max_tokens":999999}`);
+		expect(big.ok && JSON.parse(big.body).max_tokens).toBe(8192);
+		expect(big.ok && big.body.match(/"max_tokens"/g)).toHaveLength(1);
+	});
+
+	it("forwards well-formed text for lone surrogates and invalid UTF-8, and sizes the call by the larger body", () => {
+		const bytes = new Uint8Array([...new TextEncoder().encode(`{"model":"${pinned}","max_tokens":5,"messages":[{"role":"user","content":"a`), 0xff, 0xfe, ...new TextEncoder().encode('\\ud800"}]}')]);
+		const text = new TextDecoder().decode(bytes);
+		const r = prepareModelBody(text, bytes.byteLength, pinned, 8192);
+		expect(r.ok).toBe(true);
+		if (!r.ok) return;
+		expect(r.body).toContain("\\ud800"); // the lone surrogate is escaped, not forwarded raw
+		expect(() => new TextDecoder("utf-8", { fatal: true }).decode(new TextEncoder().encode(r.body))).not.toThrow();
+		expect(r.worstInputTokens).toBeGreaterThanOrEqual(bytes.byteLength);
+		expect(r.worstInputTokens).toBeGreaterThanOrEqual(new TextEncoder().encode(r.body).byteLength);
 	});
 
 	it.each([

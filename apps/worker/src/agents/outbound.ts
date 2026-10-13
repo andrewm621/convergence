@@ -9,6 +9,7 @@ import {
 	forwardModelHeaders,
 	limitStream,
 	prepareModelBody,
+	readBodyLimited,
 	settleModelCall,
 	tapUsage,
 	worstCaseCostUsd,
@@ -56,9 +57,14 @@ export class ArtifactsGateway extends WorkerEntrypoint<Env_, ArtifactsGatewayPro
 
 		const headers = new Headers(request.headers);
 		headers.set("Authorization", `Basic ${btoa(`x:${stripExpiry(secret)}`)}`);
-		// A body with no declared length is counted as it streams, so it can't exceed the cap by omitting the header.
-		const body = request.body && declared === null ? limitStream(request.body, MAX_GIT_BODY_BYTES) : request.body;
-		return fetch(new Request(request.url, { method: request.method, headers, body, redirect: "manual", ...(body ? { duplex: "half" } : {}) } as RequestInit));
+		// The body is always counted as it streams: a declared length is the container's word, not a bound.
+		const body = request.body ? limitStream(request.body, MAX_GIT_BODY_BYTES) : null;
+		try {
+			return await fetch(new Request(request.url, { method: request.method, headers, body, redirect: "manual", ...(body ? { duplex: "half" } : {}) } as RequestInit));
+		} catch (e) {
+			if (e instanceof Error && e.message === "body too large") return new Response("Request too large", { status: 413 });
+			throw e;
+		}
 	}
 }
 
@@ -96,8 +102,9 @@ export class ModelGateway extends WorkerEntrypoint<Env_, ModelGatewayProps> {
 
 		const declared = request.headers.get("content-length");
 		if (declared !== null && !(Number(declared) <= MAX_MODEL_BODY_BYTES)) return modelError(413, "request too large");
-		const raw = await request.arrayBuffer();
-		if (raw.byteLength > MAX_MODEL_BODY_BYTES) return modelError(413, "request too large");
+		// Read through a bounded reader: with no content-length (or a false one) the whole body must not be buffered before the cap is checked.
+		const raw = await readBodyLimited(request.body, MAX_MODEL_BODY_BYTES);
+		if (!raw) return modelError(413, "request too large");
 
 		const prep = prepareModelBody(new TextDecoder().decode(raw), raw.byteLength, model, maxOutputTokens);
 		if (!prep.ok) return modelError(prep.status, prep.reason);

@@ -141,7 +141,7 @@ function toolsAllowed(tools: unknown): boolean {
  * Check a model request body against the run's pin and output ceiling. The model must be exactly the pinned slug
  * (no suffix, no alias), only whitelisted top-level keys are forwarded, rerouting keys and server tools are refused,
  * `max_tokens` must be a positive integer and is clamped to the ceiling (with any extended-thinking budget kept
- * below it). Returns the body to forward, which is re-serialized whenever something was dropped or clamped.
+ * below it). Returns the body to forward: always the canonical re-serialization, never the raw text.
  */
 export function prepareModelBody(bodyText: string, bodyBytes: number, pinnedModel: string, maxOutputTokens: number): ModelPrep {
 	if (!isExactModelSlug(pinnedModel)) return { ok: false, status: 403, reason: "model not allowed for this run" };
@@ -164,16 +164,11 @@ export function prepareModelBody(bodyText: string, bodyBytes: number, pinnedMode
 		return { ok: false, status: 400, reason: "max_tokens must be a positive integer" };
 	}
 
-	let rewrite = false;
 	for (const key of Object.keys(body)) {
-		if (!BODY_KEYS.has(key)) {
-			delete body[key];
-			rewrite = true;
-		}
+		if (!BODY_KEYS.has(key)) delete body[key];
 	}
 	const maxTokens = Math.min(requested, maxOutputTokens);
 	if (maxTokens !== requested) {
-		rewrite = true;
 		body.max_tokens = maxTokens;
 		const thinking = body.thinking;
 		if (thinking && typeof thinking === "object") {
@@ -185,14 +180,21 @@ export function prepareModelBody(bodyText: string, bodyBytes: number, pinnedMode
 			}
 		}
 	}
-	// A token is at least one byte, so the body's size bounds its input tokens from above. The cheaper estimate
-	// (a third of that) sizes reservations; the bound is what a call with unknown usage is charged.
+	// What is forwarded is always the canonical re-serialization of what was validated here, never the raw text. A raw
+	// body can carry duplicate keys (JSON.parse keeps the last, another parser may keep the first: a second `model`
+	// or `max_tokens` would pass the pin and the ceiling and then be read differently upstream), lone surrogates or
+	// invalid UTF-8; the re-serialization has one value per key and well-formed text.
+	const forwarded = JSON.stringify(body);
+	// A token is at least one byte, so the body's size bounds its input tokens from above (the larger of what was
+	// received and what is forwarded). The cheaper estimate (a third of that) sizes reservations; the bound is what a
+	// call with unknown usage is charged.
+	const sizeBytes = Math.max(bodyBytes, new TextEncoder().encode(forwarded).byteLength);
 	return {
 		ok: true,
-		body: rewrite ? JSON.stringify(body) : bodyText,
+		body: forwarded,
 		maxTokens,
-		estInputTokens: Math.ceil(bodyBytes / 3),
-		worstInputTokens: bodyBytes,
+		estInputTokens: Math.ceil(sizeBytes / 3),
+		worstInputTokens: sizeBytes,
 	};
 }
 
@@ -446,6 +448,39 @@ export function limitStream(body: ReadableStream<Uint8Array>, maxBytes: number):
 			},
 		}),
 	);
+}
+
+/**
+ * Read a request body into memory, but never more than `maxBytes`: the read stops (and the rest is cancelled) as
+ * soon as the bytes seen pass the cap, so a body with no declared length, or one whose declared length is a lie,
+ * can't be buffered whole before it is checked. Returns null when the body is over the cap.
+ */
+export async function readBodyLimited(body: ReadableStream<Uint8Array> | null, maxBytes: number): Promise<Uint8Array | null> {
+	if (!body) return new Uint8Array();
+	const reader = body.getReader();
+	const chunks: Uint8Array[] = [];
+	let seen = 0;
+	try {
+		for (;;) {
+			const { done, value } = await reader.read();
+			if (done) break;
+			seen += value.byteLength;
+			if (seen > maxBytes) {
+				await reader.cancel("body too large").catch(() => undefined);
+				return null;
+			}
+			chunks.push(value);
+		}
+	} finally {
+		reader.releaseLock();
+	}
+	const out = new Uint8Array(seen);
+	let at = 0;
+	for (const chunk of chunks) {
+		out.set(chunk, at);
+		at += chunk.byteLength;
+	}
+	return out;
 }
 
 const MAX_PLAIN_USAGE_BYTES = 1024 * 1024;

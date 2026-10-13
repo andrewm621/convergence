@@ -107,6 +107,23 @@ describe("ArtifactsGateway", () => {
 		expect(upstream).toHaveLength(0);
 	});
 
+	it("cuts off a git body that streams past the 64 MB cap, with or without a declared length, instead of forwarding it unbounded", async () => {
+		for (const declared of [undefined, "100"]) {
+			const sent = { n: 0 };
+			const body = new ReadableStream<Uint8Array>({
+				pull(controller) {
+					if (sent.n >= 70) return controller.close();
+					sent.n++;
+					controller.enqueue(new Uint8Array(1024 * 1024));
+				},
+			});
+			const req = new Request(`https://${HOST}${REPO}/git-receive-pack`, { method: "POST", body, ...(declared ? { headers: { "content-length": declared } } : {}), duplex: "half" } as RequestInit);
+			const res = await gateway().fetch(req);
+			expect(res.status).toBe(413);
+			expect(sent.n).toBeLessThan(70);
+		}
+	});
+
 	it("does not let the container's own Authorization header through", async () => {
 		const req = new Request(`https://${HOST}${REPO}/git-upload-pack`, { method: "POST", body: "x", headers: { authorization: "Bearer attacker" } });
 		await gateway().fetch(req);
@@ -153,6 +170,36 @@ describe("ModelGateway", () => {
 	it("rejects a body over the size cap", async () => {
 		const big = call(valid, { headers: { "content-length": String(50 * 1024 * 1024) } });
 		expect((await gateway().fetch(big)).status).toBe(413);
+		expect(upstream).toHaveLength(0);
+	});
+
+	// A body with no content-length (chunked) must be cut off while it is read, not buffered whole and then measured.
+	function chunked(totalChunks: number, chunkBytes: number) {
+		const counter = { pulled: 0 };
+		const body = new ReadableStream<Uint8Array>({
+			pull(controller) {
+				if (counter.pulled >= totalChunks) return controller.close();
+				counter.pulled++;
+				controller.enqueue(new Uint8Array(chunkBytes).fill(120));
+			},
+		});
+		return { body, counter };
+	}
+
+	it("rejects a chunked body over the size cap with 413 and stops reading it, before admitting or forwarding", async () => {
+		const { body, counter } = chunked(200, 1024 * 1024); // 200 MB on offer, no content-length
+		const req = new Request("https://openrouter.ai/api/v1/messages", { method: "POST", body, duplex: "half" } as RequestInit);
+		expect(req.headers.get("content-length")).toBeNull();
+		expect((await gateway().fetch(req)).status).toBe(413);
+		expect(counter.pulled).toBeLessThan(20); // the 8 MB cap plus what the stream buffers ahead, nowhere near 200
+		expect(admitCalls).toHaveLength(0);
+		expect(upstream).toHaveLength(0);
+	});
+
+	it("does not trust a declared content-length that is smaller than the body", async () => {
+		const { body } = chunked(12, 1024 * 1024);
+		const req = new Request("https://openrouter.ai/api/v1/messages", { method: "POST", body, headers: { "content-length": "100" }, duplex: "half" } as RequestInit);
+		expect((await gateway().fetch(req)).status).toBe(413);
 		expect(upstream).toHaveLength(0);
 	});
 
