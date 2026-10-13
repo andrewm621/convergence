@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import type { FacetValue, RecordHistory, RecordSnapshot } from "contracts";
 import { diffFacets } from "delta-core";
 import { ArrowRight, BookMarked, Check, ChevronRight, FilePenLine, FilePlus2, Plus, X } from "lucide-react";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps } from "react";
 import { newIdempotencyKey } from "@/client/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 import { UnavailableHint } from "@/components/unavailable-hint";
 import { useConsole } from "@/state/console-context";
 import { scenarioMeta } from "./scenario-meta";
-import { actorLabel, impactSentence, previewImpact, proseEdits, recordIds } from "@/state/derive";
+import { actorLabel, impactSentence, impactSummary, previewImpact, proseEdits, recordIds } from "@/state/derive";
 
 export function ContextTimeline() {
 	const { view, editorRequest, requestEditor } = useConsole();
@@ -225,12 +225,26 @@ function toRows(facets: Record<string, FacetValue>): FacetRow[] {
 /** A one-line field that wraps and grows with its text, so a long key or value is never cut off. Enter does not add a line. */
 function GrowField({ value, className, onChange, ...props }: Omit<ComponentProps<typeof Textarea>, "rows" | "onChange"> & { value: string; onChange(value: string): void }) {
 	const ref = useRef<HTMLTextAreaElement>(null);
-	useLayoutEffect(() => {
+	const measure = useCallback(() => {
 		const el = ref.current;
 		if (!el) return;
 		el.style.height = "auto";
 		if (el.scrollHeight > 0) el.style.height = `${el.scrollHeight}px`;
-	}, [value]);
+	}, []);
+	useLayoutEffect(measure, [measure, value]);
+	// A narrower or wider card re-wraps the text, so the height has to follow the width as well as the text.
+	useEffect(() => {
+		const el = ref.current;
+		if (!el || typeof ResizeObserver === "undefined") return;
+		let width = el.clientWidth;
+		const observer = new ResizeObserver(() => {
+			if (el.clientWidth === width) return;
+			width = el.clientWidth;
+			measure();
+		});
+		observer.observe(el);
+		return () => observer.disconnect();
+	}, [measure]);
 	return (
 		<Textarea
 			{...props}
@@ -239,7 +253,8 @@ function GrowField({ value, className, onChange, ...props }: Omit<ComponentProps
 			value={value}
 			onChange={(e) => onChange(e.target.value.replace(/\r?\n/g, " "))}
 			onKeyDown={(e) => {
-				if (e.key === "Enter") e.preventDefault();
+				// Enter that confirms an input-method composition is not a new line; leave it alone.
+				if (e.key === "Enter" && !e.nativeEvent.isComposing) e.preventDefault();
 				props.onKeyDown?.(e);
 			}}
 			className={cn("min-h-8 resize-none overflow-hidden py-1 leading-snug break-words", className)}
@@ -287,13 +302,23 @@ export function ChangeEditor({ recordId, snapshot, onClose }: { recordId: string
 	const keyProblem = rows.some((row) => row.key.trim() === "" && row.value.trim() !== "") || new Set(rows.map((r) => r.key.trim()).filter(Boolean)).size !== rows.filter((r) => r.key.trim()).length;
 	const rationaleMissing = rationale.trim() === "";
 	const nextVersion = snapshot.version + (changes.length > 0 ? 1 : 0);
+	// The decision moved on since this editor opened (the view is ahead of the version being edited): the preview and the Commit label would name different versions.
+	const moved = impact !== null && impact.fromVersion !== snapshot.version;
+
+	// Screen readers hear a short count, settled after typing pauses, rather than the whole line on every keystroke.
+	const summary = impact && !moved ? impactSummary(impact) : "";
+	const [announced, setAnnounced] = useState(summary);
+	useEffect(() => {
+		const timer = setTimeout(() => setAnnounced(summary), 700);
+		return () => clearTimeout(timer);
+	}, [summary]);
 
 	// Prose edits get an automatic reason; a decision change must say why.
 	const effectiveRationale = rationale.trim() === "" && changes.length === 0 && proseChanged ? "Prose edit" : rationale.trim();
 
 	async function submit() {
 		setSubmitted(true);
-		if (nothingToCommit || keyProblem || effectiveRationale === "") return;
+		if (nothingToCommit || moved || keyProblem || effectiveRationale === "") return;
 		setSubmitting(true);
 		markChangeSent();
 		const result = await client.api.proposeContextChange({ recordId, facets, prose, rationale: effectiveRationale, ...(openedAt ? { expectedBaselineCommit: openedAt } : {}) }, newIdempotencyKey());
@@ -384,16 +409,18 @@ export function ChangeEditor({ recordId, snapshot, onClose }: { recordId: string
 					data-testid="editor-effect"
 					data-blocked={impact?.blocked.map((b) => b.id).join(",")}
 					data-left-alone={impact?.leftAlone.map((b) => b.id).join(",")}
-					aria-live="polite"
-				>
-					{impact ? impactSentence(impact) : `This makes v${nextVersion} the decision.`}
+					>
+					{moved ? "The decision changed while you were editing. Close this and reopen it to see the effect." : impact ? impactSentence(impact) : `This makes v${nextVersion} the decision.`}
 				</p>
+				<span role="status" aria-live="polite" className="sr-only" data-testid="editor-effect-summary">
+					{announced}
+				</span>
 				{submitted && keyProblem && <p className="text-xs text-danger">Every facet needs a unique key.</p>}
 				{submitted && !keyProblem && changes.length > 0 && rationaleMissing && <p className="text-xs text-danger">Say why the decision changed.</p>}
 
 				<div className="flex items-center gap-2">
-					<Button type="submit" size="sm" disabled={submitting || nothingToCommit}>
-						{submitting ? "Committing" : changes.length > 0 ? `Commit v${nextVersion}` : "Save prose edit"}
+					<Button type="submit" size="sm" disabled={submitting || nothingToCommit || moved}>
+						{submitting ? "Committing" : moved ? "Commit" : changes.length > 0 ? `Commit v${nextVersion}` : "Save prose edit"}
 					</Button>
 					<Button type="button" variant="ghost" size="sm" onClick={onClose}>
 						Cancel

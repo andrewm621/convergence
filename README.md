@@ -342,7 +342,7 @@ As of 2026-10-13, checked against `main`. "Built" means code on `main` with test
 | MCP server, AI dependency inference, claim extraction | Not built | After the contest |
 | Demo video | Not yet | Link to be added |
 
-A preview at commit time is built: before the Decision owner commits a new version, the editor names the work it will block and the work it leaves alone, and says which exceptions it ends. A test checks that this always matches what the engine does on commit. Full what-if branching (trying alternative decisions side by side before choosing one) is still not built.
+A preview at commit time is built: before the Decision owner commits a new version, the editor names the work it will block and the work it leaves alone, and says which exceptions it ends. A test commits through the engine and checks the preview matched, for each story's change and for one-setting edits at every step. Full what-if branching (trying alternative decisions side by side before choosing one) is still not built.
 
 <!-- TODO(andrew): add the demo video link once it is recorded and uploaded. -->
 

@@ -1,10 +1,10 @@
-import type { FacetValue, RecordSnapshot } from "contracts";
+import type { FacetValue, RecordSnapshot, WorkItemState } from "contracts";
 import { findStale } from "delta-core";
 import { buildShelterIntakeScenario } from "scenario-shelter-intake";
 import { describe, expect, it } from "vitest";
 import type { UiHint } from "@/mock/beats";
 import { startMock } from "@/test/harness";
-import { currentRecord, exceptionStatus, impactSentence, previewImpact, validExceptions, type Impact } from "./derive";
+import { currentRecord, exceptionStatus, impactSentence, impactSummary, previewImpact, validExceptions, type Impact } from "./derive";
 import { toCellState, type ViewState } from "./store";
 
 type Mock = Awaited<ReturnType<typeof startMock>>;
@@ -30,13 +30,26 @@ async function commit(mock: Mock, recordId: string, facets: Record<string, Facet
 }
 
 const ids = (items: readonly { id: string }[]) => items.map((i) => i.id).sort();
-const liveIds = (view: ViewState) => Object.values(view.workItems).filter((wi) => wi.item.status !== "promoted").map((wi) => wi.item.id).sort();
+/** Work the preview speaks about: not merged, and not rejected (the rest of the console counts rejected work as not blocked). */
+const isLive = (wi: WorkItemState) => wi.item.status !== "promoted" && wi.item.status !== "rejected";
+const liveIds = (view: ViewState) => Object.values(view.workItems).filter(isLive).map((wi) => wi.item.id).sort();
 
 /** What the engine did: live work that now carries a Stale or ClaimConflict condition on this decision (the conditions are the engine's own state). */
 function blockedByEngine(view: ViewState, recordId: string): string[] {
 	return Object.values(view.workItems)
-		.filter((wi) => wi.item.status !== "promoted")
+		.filter(isLive)
 		.filter((wi) => wi.conditions.some((c) => (c.type === "Stale" || c.type === "ClaimConflict") && c.recordRefs.some((ref) => ref.startsWith(`${recordId}@`))))
+		.map((wi) => wi.item.id)
+		.sort();
+}
+
+/** Live work the commit did not block that is stale on some other decision: what the results strip calls "already stale". */
+function blockedElsewhereByEngine(view: ViewState, recordId: string): string[] {
+	const here = blockedByEngine(view, recordId);
+	return Object.values(view.workItems)
+		.filter(isLive)
+		.filter((wi) => !here.includes(wi.item.id))
+		.filter((wi) => wi.conditions.some((c) => c.type === "Stale" && c.recordRefs.some((ref) => !ref.startsWith(`${recordId}@`))))
 		.map((wi) => wi.item.id)
 		.sort();
 }
@@ -44,7 +57,7 @@ function blockedByEngine(view: ViewState, recordId: string): string[] {
 /** Exceptions on this decision that were valid before the commit and are not after, on work that is not merged. */
 function exceptionsEnded(before: ViewState, after: ViewState, recordId: string): string[] {
 	return Object.values(before.workItems)
-		.filter((wi) => wi.item.status !== "promoted")
+		.filter(isLive)
 		.filter((wi) => validExceptions(before, wi).some((e) => e.recordId === recordId))
 		.filter((wi) => {
 			const now = after.workItems[wi.item.id];
@@ -66,8 +79,12 @@ async function expectPreviewToMatchEngine(mock: Mock, recordId: string, facets: 
 	const after = mock.view;
 
 	const blocked = blockedByEngine(after, recordId);
+	const elsewhere = blockedElsewhereByEngine(after, recordId);
+	const blockedBefore = blockedByEngine(before, recordId);
 	expect(ids(impact.blocked), "blocked").toEqual(blocked);
-	expect(ids(impact.leftAlone), "left alone").toEqual(liveIds(before).filter((id) => !blocked.includes(id)));
+	expect(ids(impact.alreadyBlocked), "already blocked").toEqual(blocked.filter((id) => blockedBefore.includes(id)));
+	expect(ids(impact.blockedElsewhere), "blocked elsewhere").toEqual(elsewhere);
+	expect(ids(impact.leftAlone), "left alone").toEqual(liveIds(before).filter((id) => !blocked.includes(id) && !elsewhere.includes(id)));
 	expect(ids(impact.endsExceptions), "ends exceptions").toEqual(exceptionsEnded(before, after, recordId));
 	expect(after.records[recordId]?.current).toBe(impact.toVersion);
 	return impact;
@@ -91,7 +108,7 @@ describe("the impact preview equals what the engine does on commit", () => {
 		// The engine's own ledger line for that commit says the same thing: these went stale, the rest were left alone.
 		const evaluation = mock.view.evaluation;
 		expect(evaluation).not.toBeNull();
-		expect(ids(impact.blocked)).toEqual([...(evaluation?.staleIds ?? []), ...(evaluation?.alreadyStaleIds ?? [])].sort());
+		expect([...ids(impact.blocked), ...ids(impact.blockedElsewhere)]).toEqual([...(evaluation?.staleIds ?? []), ...(evaluation?.alreadyStaleIds ?? [])].sort());
 		expect(evaluation?.untouched).toBe(impact.leftAlone.length);
 		expect(liveIds(before)).toEqual([...ids(impact.blocked), ...ids(impact.leftAlone)].sort());
 		mock.stop();
@@ -126,7 +143,7 @@ describe("the impact preview equals what the engine does on commit", () => {
 		expect(validExceptions(mock.view, signage)).toHaveLength(1);
 
 		const impact = await expectPreviewToMatchEngine(mock, "shelter-intake-policy", v3.records[0]?.facets ?? {});
-		expect(impactSentence(impact)).toBe("This makes v3 the decision. Blocks 1 built on v1: Door signage text. Ends 1 exception: Door signage text.");
+		expect(impactSentence(impact)).toBe("This makes v3 the decision. Blocks nothing new. Keeps 1 blocked: Door signage text. Ends 1 exception: Door signage text.");
 		// Merged work is not touched, so it is in neither list.
 		expect([...ids(impact.blocked), ...ids(impact.leftAlone)]).toEqual(["WI-2"]);
 		const after = mock.view.workItems["WI-2"];
@@ -180,10 +197,61 @@ describe("previewImpact", () => {
 			["WI-3", 1],
 			["WI-5", 1],
 		]);
+		// Three of those are blocked on v2 already, so the line says one more, and counts the others as kept.
+		expect(ids(again?.alreadyBlocked ?? [])).toEqual(["WI-1", "WI-2", "WI-3"]);
+		expect(again && impactSentence(again)).toBe(
+			"This makes v3 the decision. Blocks 1 more built on v1: Shift schedule. Keeps 3 blocked: Front-desk intake script, Door signage text, Volunteer briefing one-pager. Leaves 1 alone: Cots and blankets supply list.",
+		);
 
 		const back = previewImpact(mock.view, "shelter-intake-policy", v1.facets);
 		expect(back?.blocked).toEqual([]);
 		expect(back?.leftAlone.map((b) => b.id)).toEqual(["WI-1", "WI-2", "WI-3", "WI-4", "WI-5"]);
+		mock.stop();
+	});
+
+	it("leaves out rejected work, as the rest of the console treats it as not blocked, and still matches the engine", async () => {
+		const mock = await startMock({ scenario: "shelter-intake" });
+		await mock.jump(5); // v2 landed and the drafts are in: the script is stale and has a head to bind to
+		const wi = mock.view.workItems["WI-1"];
+		const record = currentRecord(mock.view, "shelter-intake-policy") as RecordSnapshot;
+		if (!wi?.headSha) throw new Error("WI-1 has no head");
+		const rejected = await mock.client.api.resolve(
+			{
+				kind: "reject",
+				workItemId: "WI-1",
+				rationale: "Not needed any more.",
+				binding: { recordId: record.recordId, version: record.version, blobHash: record.blobHash, baseSha: mock.view.baselineCommit, forkHeadSha: wi.headSha, contextSnapshotHash: mock.view.snapshotHash },
+			},
+			"reject-wi-1",
+		);
+		expect(rejected).toMatchObject({ ok: true });
+		expect(mock.view.workItems["WI-1"]?.item.status).toBe("rejected");
+
+		const impact = await expectPreviewToMatchEngine(mock, "shelter-intake-policy", { ...record.facets, hours: "doors open 8:00 to 20:00 daily" });
+		const named = [...impact.blocked, ...impact.leftAlone, ...impact.blockedElsewhere, ...impact.endsExceptions].map((i) => i.id);
+		expect(named).not.toContain("WI-1");
+		expect(impactSentence(impact)).not.toContain("Front-desk intake script");
+		expect(mock.view.workItems["WI-1"]?.item.status).toBe("rejected");
+		mock.stop();
+	});
+
+	it("does not call work blocked on another decision 'left alone', and the results strip agrees", async () => {
+		const mock = await startMock({ scenario: "notifications" });
+		await mock.jump(1); // both agents run; the status badges and the notification work both rely on status-model
+		const status = currentRecord(mock.view, "status-model") as RecordSnapshot;
+		await commit(mock, "status-model", { ...status.facets, "status.values": ["draft", "active", "blocked", "done", "archived"] });
+		expect(mock.view.workItems["WI-1"]?.item.status).toBe("stale");
+
+		const notifications = currentRecord(mock.view, "notifications") as RecordSnapshot;
+		const impact = await expectPreviewToMatchEngine(mock, "notifications", { ...notifications.facets, "notifications.default": "opt-in" });
+		expect(ids(impact.blocked)).toEqual(["WI-2"]);
+		expect(ids(impact.blockedElsewhere)).toEqual(["WI-1"]);
+		expect(impact.leftAlone).toEqual([]);
+		expect(impactSentence(impact)).toBe(
+			"This makes v2 the decision. Blocks 1 built on v1: Notification preferences and delivery. 1 already blocked on another decision: Status badges and the status-change API.",
+		);
+		// The strip, after the commit, counts WI-1 as already stale rather than as untouched.
+		expect(mock.view.evaluation?.alreadyStaleIds).toContain("WI-1");
 		mock.stop();
 	});
 
@@ -207,7 +275,7 @@ describe("previewImpact", () => {
 
 		const wording = previewImpact(mock.view, "shelter-intake-policy", current.facets, { proseChanged: true });
 		expect(wording).toMatchObject({ saves: "prose-edit", blocked: [], toVersion: 1 });
-		expect(wording && impactSentence(wording)).toBe("This saves a prose edit of v1. No setting changed, so nothing is blocked and nobody is paged.");
+		expect(wording && impactSentence(wording)).toBe("This saves a wording change to v1. No setting changed, so nothing is blocked.");
 		mock.stop();
 	});
 
@@ -231,7 +299,7 @@ describe("previewImpact", () => {
 		expect(ids(byRecord?.blocked ?? [])).toEqual(dependents);
 		expect(ids(wording?.blocked ?? [])).toEqual(dependents);
 		expect(wording?.toVersion).toBe(1);
-		expect(wording && impactSentence(wording)).toContain("counts any edit as a change");
+		expect(wording && impactSentence(wording)).toContain("This saves a wording change to v1, and this decision counts any change.");
 
 		// And the engine's own staleness rule agrees, taking the new version as given.
 		for (const [mode, impact] of [["facet", byFacet], ["record", byRecord]] as const) {
@@ -269,7 +337,7 @@ describe("previewImpact", () => {
 
 describe("impactSentence", () => {
 	const item = (id: string, title: string, heldVersion: number | null = 1) => ({ id, title, heldVersion });
-	const impact = (over: Partial<Impact>): Impact => ({ recordId: "r", fromVersion: 1, toVersion: 2, saves: "version", changedKeys: ["k"], blocked: [], leftAlone: [], endsExceptions: [], staleness: "facet", ...over });
+	const impact = (over: Partial<Impact>): Impact => ({ recordId: "r", fromVersion: 1, toVersion: 2, saves: "version", changedKeys: ["k"], blocked: [], alreadyBlocked: [], leftAlone: [], blockedElsewhere: [], endsExceptions: [], staleness: "facet", ...over });
 
 	it("uses the singular for one item", () => {
 		expect(impactSentence(impact({ blocked: [item("WI-1", "Front-desk script")], leftAlone: [item("WI-2", "Supply list")], endsExceptions: [{ id: "WI-1", title: "Front-desk script", scope: null }] }))).toBe(
@@ -296,6 +364,25 @@ describe("impactSentence", () => {
 		expect(impactSentence(impact({ toVersion: 3, blocked: [item("A", "A", 1), item("B", "B", 2)] }))).toBe("This makes v3 the decision. Blocks 2 built on an older version: A, B.");
 		expect(impactSentence(impact({ leftAlone: [item("A", "Only one")] }))).toBe("This makes v2 the decision. Blocks nothing. Leaves 1 alone: Only one.");
 		expect(impactSentence(impact({}))).toBe("This makes v2 the decision. No work is built on it yet, so nothing is blocked.");
+	});
+
+	it("separates work that stays blocked from work newly blocked, and work blocked on another decision from work left alone", () => {
+		const kept = [item("WI-1", "Front-desk script"), item("WI-2", "Door signage")];
+		expect(impactSentence(impact({ blocked: [...kept, item("WI-5", "Shift schedule")], alreadyBlocked: kept }))).toBe(
+			"This makes v2 the decision. Blocks 1 more built on v1: Shift schedule. Keeps 2 blocked: Front-desk script, Door signage.",
+		);
+		expect(impactSentence(impact({ blocked: kept, alreadyBlocked: kept, leftAlone: [item("WI-4", "Supply list")] }))).toBe(
+			"This makes v2 the decision. Blocks nothing new. Keeps 2 blocked: Front-desk script, Door signage. Leaves 1 alone: Supply list.",
+		);
+		expect(impactSentence(impact({ leftAlone: [item("WI-4", "Supply list")], blockedElsewhere: [item("WI-6", "Menu"), item("WI-7", "Rota")] }))).toBe(
+			"This makes v2 the decision. Blocks nothing. Leaves 1 alone: Supply list. 2 already blocked on another decision: Menu, Rota.",
+		);
+		expect(impactSentence(impact({ blockedElsewhere: [item("WI-6", "Menu")] }))).toBe("This makes v2 the decision. Blocks nothing. 1 already blocked on another decision: Menu.");
+	});
+
+	it("keeps the screen-reader summary to counts", () => {
+		expect(impactSummary(impact({ blocked: [item("A", "A"), item("B", "B"), item("C", "C")], leftAlone: [item("D", "D"), item("E", "E")] }))).toBe("Blocks 3, leaves 2 alone.");
+		expect(impactSummary(impact({ saves: "nothing" }))).toBe("Nothing changed yet.");
 	});
 
 	it("shortens a long list", () => {

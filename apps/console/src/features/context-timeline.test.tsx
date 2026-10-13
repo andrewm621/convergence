@@ -1,9 +1,16 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { renderWithMock } from "@/test/render";
 import { useConsole } from "@/state/console-context";
-import { ContextTimeline } from "./context-timeline";
+import { ChangeEditor, ContextTimeline } from "./context-timeline";
+
+/** The editor opened on v1, while the view can move on underneath it: what a second tab committing would do. */
+function EditorOnV1() {
+	const { view } = useConsole();
+	const v1 = view.records["notifications"]?.versions["1"];
+	return v1 ? <ChangeEditor recordId="notifications" snapshot={v1} onClose={() => {}} /> : null;
+}
 
 function Toasts() {
 	const { toasts } = useConsole();
@@ -56,8 +63,8 @@ describe("propose change", () => {
 		const prose = await screen.findByLabelText("Prose");
 		await waitFor(() => expect((prose as HTMLTextAreaElement).value).toContain("Users receive"));
 		await user.type(prose, " (reviewed)");
-		expect(screen.getByTestId("editor-effect")).toHaveTextContent(/prose edit of v1/);
-		expect(screen.getByTestId("editor-effect")).toHaveTextContent(/nobody is paged/);
+		expect(screen.getByTestId("editor-effect")).toHaveTextContent(/wording change to v1/);
+		expect(screen.getByTestId("editor-effect")).toHaveTextContent(/nothing is blocked/);
 
 		await user.click(screen.getByRole("button", { name: "Save prose edit" }));
 		await waitFor(() => expect(screen.queryByRole("form", { name: /Propose a change/ })).toBeNull());
@@ -144,6 +151,83 @@ describe("propose change", () => {
 			expect((value as HTMLTextAreaElement).value).toBe(long);
 		} finally {
 			scrollHeight.mockRestore();
+		}
+	});
+
+	it("does not show a Commit button for one version next to a preview for another when the decision moves under the editor", async () => {
+		const user = userEvent.setup();
+		const mock = await renderWithMock(<EditorOnV1 />, { beats: 1 });
+		const value = await screen.findByLabelText("Value for notifications.default");
+		await user.clear(value);
+		await user.type(value, "opt-in");
+		expect(screen.getByRole("button", { name: "Commit v2" })).toBeEnabled();
+		expect(screen.getByTestId("editor-effect")).toHaveTextContent("This makes v2 the decision.");
+
+		// Another tab commits a different change to the same decision, so it is now v2 and the draft was written against v1.
+		const other = await mock.client.api.proposeContextChange({ recordId: "notifications", facets: { "notifications.default": "off", "notifications.cadence": "daily", "notifications.channel": "in-app" }, prose: "", rationale: "other tab" }, "other-tab");
+		expect(other).toMatchObject({ ok: true });
+		await waitFor(() => expect(screen.getByTestId("editor-effect")).toHaveTextContent("The decision changed while you were editing. Close this and reopen it to see the effect."));
+		expect(screen.getByTestId("editor-effect")).not.toHaveTextContent(/This makes v/);
+		const commit = screen.getByRole("button", { name: "Commit" });
+		expect(commit).toBeDisabled();
+		expect(screen.queryByRole("button", { name: /Commit v\d/ })).toBeNull();
+	});
+
+	it("announces a short count to screen readers once typing settles, not the whole line on every keystroke", async () => {
+		const user = userEvent.setup();
+		await renderWithMock(<ContextTimeline />, { beats: 1 });
+		const card = (await screen.findByRole("heading", { name: "notifications" })).closest("article") as HTMLElement;
+		await user.click(within(card).getByRole("button", { name: /Propose change/ }));
+		const effect = await screen.findByTestId("editor-effect");
+		expect(effect).not.toHaveAttribute("aria-live");
+		const live = screen.getByTestId("editor-effect-summary");
+		expect(live).toHaveAttribute("aria-live", "polite");
+		expect(live).toHaveTextContent("Nothing changed yet.");
+
+		const value = screen.getByLabelText("Value for notifications.default");
+		await user.clear(value);
+		await user.type(value, "opt-in");
+		expect(effect).toHaveTextContent("Blocks 1 built on v1");
+		await waitFor(() => expect(live).toHaveTextContent("Blocks 1, leaves 1 alone."), { timeout: 4000 });
+		expect(live).not.toHaveTextContent("Notification preferences");
+	});
+
+	it("re-measures a field when the card changes width, and lets Enter confirm an input-method composition", async () => {
+		const user = userEvent.setup();
+		const observers: Array<() => void> = [];
+		vi.stubGlobal(
+			"ResizeObserver",
+			class {
+				constructor(callback: () => void) {
+					observers.push(callback);
+				}
+				observe() {}
+				disconnect() {}
+			},
+		);
+		let width = 300;
+		let height = 40;
+		const clientWidth = vi.spyOn(Element.prototype, "clientWidth", "get").mockImplementation(() => width);
+		const scrollHeight = vi.spyOn(HTMLTextAreaElement.prototype, "scrollHeight", "get").mockImplementation(() => height);
+		try {
+			await renderWithMock(<ContextTimeline />, { beats: 1 });
+			const card = (await screen.findByRole("heading", { name: "notifications" })).closest("article") as HTMLElement;
+			await user.click(within(card).getByRole("button", { name: /Propose change/ }));
+			const value = await screen.findByLabelText("Value for notifications.default");
+			expect(value).toHaveStyle({ height: "40px" });
+
+			// Narrower card: the same text wraps onto more lines.
+			width = 150;
+			height = 96;
+			for (const callback of observers) callback();
+			expect(value).toHaveStyle({ height: "96px" });
+
+			expect(fireEvent.keyDown(value, { key: "Enter" })).toBe(false); // a new line is refused
+			expect(fireEvent.keyDown(value, { key: "Enter", isComposing: true })).toBe(true); // confirming a composition is not
+		} finally {
+			clientWidth.mockRestore();
+			scrollHeight.mockRestore();
+			vi.unstubAllGlobals();
 		}
 	});
 

@@ -600,10 +600,14 @@ export type Impact = {
 	saves: "version" | "prose-edit" | "nothing";
 	/** Settings (facet keys) whose value differs from the accepted version. */
 	changedKeys: string[];
-	/** Live work the commit blocks, including work already blocked on this decision (it is still built on the old version). */
+	/** Live work that is blocked on this decision once the commit lands: the newly blocked plus `alreadyBlocked`. */
 	blocked: ImpactItem[];
-	/** Live work the commit does not touch. */
+	/** The part of `blocked` that is blocked on this decision today, so it stays blocked (it is still built on the old version). */
+	alreadyBlocked: ImpactItem[];
+	/** Live work the commit does not touch and that nothing else blocks. */
 	leftAlone: ImpactItem[];
+	/** Work the commit does not touch, but that is already blocked on a different decision (the results strip counts it as already stale). */
+	blockedElsewhere: ImpactItem[];
 	/** Valid exceptions on this decision that the new version ends. */
 	endsExceptions: ImpactException[];
 	/** The policy's staleness mode: `record` means any change at all counts, `facet` only the settings a dependency names. */
@@ -634,14 +638,26 @@ function citedConflict(view: ViewState, wi: WorkItemState, recordId: string, fac
 	return null;
 }
 
+/** Blocked on this decision today: a stale or conflicting condition that names it. */
+function blockedOn(wi: WorkItemState, recordId: string): boolean {
+	return wi.conditions.some((c) => (c.type === "Stale" || c.type === "ClaimConflict") && c.recordRefs.some((ref) => ref.startsWith(`${recordId}@`)));
+}
+
+/** Stale on some other decision: the same test the results strip uses for work it "left alone, but already stale". */
+function staleElsewhere(wi: WorkItemState, recordId: string): boolean {
+	return wi.conditions.some((c) => c.type === "Stale" && c.recordRefs.some((ref) => !ref.startsWith(`${recordId}@`)));
+}
+
 /**
  * What committing these settings to one decision would do, worked out from the view alone using the rules the engine applies
  * on commit (R1 staleness, R3 claim conflicts, R7 exceptions bound to a version), so it works against the live Worker as well
- * as the replay. Work that is already merged is not touched, so it appears in neither list.
+ * as the replay. Work that is already merged, or that a human rejected, appears in no list: merged work is not touched, and the
+ * rest of the console treats rejected work as not blocked (`stillBlocked`), though the engine does keep it stale.
  *
  * Work counts as blocked when it has an accepted dependency whose receipt is out of date against the new version (only the
  * settings the dependency names, unless the policy counts any change), or a claim the new settings contradict. Work already
- * blocked on this decision stays blocked, so it is listed too, unless the new settings put it back in line.
+ * blocked on this decision stays blocked unless the new settings put it back in line; it is also named in `alreadyBlocked`.
+ * Work the commit does not touch but another decision already blocks is `blockedElsewhere`, not "left alone".
  * `proseChanged` matters only under a policy that counts any change: there a prose edit is a change too.
  */
 export function previewImpact(view: ViewState, recordId: string, facets: Record<string, FacetValue>, options: { proseChanged?: boolean } = {}): Impact | null {
@@ -654,16 +670,18 @@ export function previewImpact(view: ViewState, recordId: string, facets: Record<
 	const saves: Impact["saves"] = bump ? "version" : options.proseChanged === true ? "prose-edit" : "nothing";
 	const base = { recordId, fromVersion: current.version, toVersion, saves, changedKeys: changes.map((change) => change.key), staleness };
 
-	const live = workItemsSorted(view).filter((wi) => wi.item.status !== "promoted");
+	const live = workItemsSorted(view).filter((wi) => wi.item.status !== "promoted" && wi.item.status !== "rejected");
 	const item = (wi: WorkItemState, heldVersion: number | null): ImpactItem => ({ id: wi.item.id, title: wi.item.title, heldVersion });
 
 	// A prose edit under a facet-mode policy changes nothing the rules look at (PROSE_ONLY), and an unchanged draft changes nothing at all.
 	if (saves === "nothing" || (saves === "prose-edit" && staleness === "facet")) {
-		return { ...base, blocked: [], leftAlone: live.map((wi) => item(wi, null)), endsExceptions: [] };
+		return { ...base, blocked: [], alreadyBlocked: [], leftAlone: live.map((wi) => item(wi, null)), blockedElsewhere: [], endsExceptions: [] };
 	}
 
 	const blocked: ImpactItem[] = [];
+	const alreadyBlocked: ImpactItem[] = [];
 	const leftAlone: ImpactItem[] = [];
+	const blockedElsewhere: ImpactItem[] = [];
 	for (const wi of live) {
 		const entry = wi.receipt.accepted.find((e) => e.recordId === recordId) ?? null;
 		const deps = view.dependencies.filter((d) => d.workItemId === wi.item.id && d.recordId === recordId && d.status === "accepted");
@@ -677,8 +695,15 @@ export function previewImpact(view: ViewState, recordId: string, facets: Record<
 			return dep.facetKeys.length === 0 ? changed.length > 0 : changed.some((key) => dep.facetKeys.includes(key));
 		});
 		const conflict = citedConflict(view, wi, recordId, facets, toVersion);
-		if (stale || conflict) blocked.push(item(wi, entry?.version ?? conflict?.version ?? null));
-		else leftAlone.push(item(wi, entry?.version ?? null));
+		if (stale || conflict) {
+			const blockedItem = item(wi, entry?.version ?? conflict?.version ?? null);
+			blocked.push(blockedItem);
+			if (blockedOn(wi, recordId)) alreadyBlocked.push(blockedItem);
+		} else if (staleElsewhere(wi, recordId)) {
+			blockedElsewhere.push(item(wi, entry?.version ?? null));
+		} else {
+			leftAlone.push(item(wi, entry?.version ?? null));
+		}
 	}
 
 	// R7: an exception is bound to the version it was granted against, so any new version ends it.
@@ -690,7 +715,7 @@ export function previewImpact(view: ViewState, recordId: string, facets: Record<
 			}
 		}
 	}
-	return { ...base, blocked, leftAlone, endsExceptions };
+	return { ...base, blocked, alreadyBlocked, leftAlone, blockedElsewhere, endsExceptions };
 }
 
 const IMPACT_NAMES = 6;
@@ -704,18 +729,31 @@ function namesOf(items: readonly { title: string }[]): string {
 export function impactSentence(impact: Impact): string {
 	if (impact.saves === "nothing") return "Nothing changed yet, so nothing is blocked.";
 	if (impact.saves === "prose-edit" && impact.staleness === "facet") {
-		return `This saves a prose edit of v${impact.fromVersion}. No setting changed, so nothing is blocked and nobody is paged.`;
+		return `This saves a wording change to v${impact.fromVersion}. No setting changed, so nothing is blocked.`;
 	}
-	const parts = [impact.saves === "version" ? `This makes v${impact.toVersion} the decision.` : `This saves an edit to the wording of v${impact.fromVersion}, and this decision counts any edit as a change.`];
-	const { blocked, leftAlone, endsExceptions } = impact;
-	if (blocked.length > 0) {
-		const held = [...new Set(blocked.map((b) => b.heldVersion))];
+	const parts = [impact.saves === "version" ? `This makes v${impact.toVersion} the decision.` : `This saves a wording change to v${impact.fromVersion}, and this decision counts any change.`];
+	const { alreadyBlocked, leftAlone, blockedElsewhere, endsExceptions } = impact;
+	const kept = new Set(alreadyBlocked.map((b) => b.id));
+	const fresh = impact.blocked.filter((b) => !kept.has(b.id));
+	if (fresh.length > 0) {
+		const held = [...new Set(fresh.map((b) => b.heldVersion))];
 		const built = held.length === 1 && held[0] !== null ? `built on v${held[0]}` : "built on an older version";
-		parts.push(`Blocks ${blocked.length} ${built}: ${namesOf(blocked)}.`);
+		// "more" only when other work is already blocked on this decision and counted on its own below.
+		parts.push(`Blocks ${fresh.length}${alreadyBlocked.length > 0 ? " more" : ""} ${built}: ${namesOf(fresh)}.`);
+	} else if (alreadyBlocked.length > 0) {
+		parts.push("Blocks nothing new.");
 	} else {
-		parts.push(leftAlone.length > 0 ? "Blocks nothing." : "No work is built on it yet, so nothing is blocked.");
+		parts.push(leftAlone.length + blockedElsewhere.length > 0 ? "Blocks nothing." : "No work is built on it yet, so nothing is blocked.");
 	}
+	if (alreadyBlocked.length > 0) parts.push(`Keeps ${alreadyBlocked.length} blocked: ${namesOf(alreadyBlocked)}.`);
 	if (leftAlone.length > 0) parts.push(`Leaves ${leftAlone.length} alone: ${namesOf(leftAlone)}.`);
+	if (blockedElsewhere.length > 0) parts.push(`${blockedElsewhere.length} already blocked on another decision: ${namesOf(blockedElsewhere)}.`);
 	if (endsExceptions.length > 0) parts.push(`Ends ${endsExceptions.length} ${endsExceptions.length === 1 ? "exception" : "exceptions"}: ${namesOf(endsExceptions)}.`);
 	return parts.join(" ");
+}
+
+/** A short line for a screen reader: counts only, so typing does not read every name out again. */
+export function impactSummary(impact: Impact): string {
+	if (impact.saves === "nothing") return "Nothing changed yet.";
+	return `Blocks ${impact.blocked.length}, leaves ${impact.leftAlone.length} alone.`;
 }
