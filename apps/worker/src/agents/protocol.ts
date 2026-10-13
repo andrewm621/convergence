@@ -24,6 +24,8 @@ const ContextFileName = z.string().regex(/^[a-z0-9][a-z0-9_-]*\.md$/, "context f
 /**
  * Re-run on the same fork after accepted decisions changed ("decision X changed from v1 to v2; reconcile").
  * `context` is the new context packet: files that replace the matching ones under `.delta/context/`.
+ * `changes` may be empty (a claim conflict on a current receipt: no version moved) and `fromVersion` may be 0
+ * (a record the work was never given, e.g. an undeclared dependency a human accepted).
  */
 export const Revalidate = z.strictObject({
 	changes: z
@@ -31,12 +33,11 @@ export const Revalidate = z.strictObject({
 			z
 				.strictObject({
 					recordId: RecordSlug,
-					fromVersion: z.number().int().min(1),
-					toVersion: z.number().int().min(2),
+					fromVersion: z.number().int().min(0),
+					toVersion: z.number().int().min(1),
 				})
 				.refine((c) => c.toVersion > c.fromVersion, "toVersion must be greater than fromVersion"),
 		)
-		.min(1)
 		.max(20),
 	context: z
 		.record(ContextFileName, z.string().min(1).max(64_000))
@@ -105,9 +106,11 @@ export function commitSubject(workItemId: string, prompt: string): string {
 
 /** The diff-aware lead-in for a revalidation run: which decisions changed, and what to do about it. */
 export function buildRevalidationPrompt(changes: Revalidate["changes"]): string {
-	const lines = changes.map((c) => `- Decision ${c.recordId} changed from v${c.fromVersion} to v${c.toVersion}.`);
+	const lines = changes.map((c) => (c.fromVersion === 0 ? `- Decision ${c.recordId} (v${c.toVersion}) was not in your context before.` : `- Decision ${c.recordId} changed from v${c.fromVersion} to v${c.toVersion}.`));
 	return [
-		"REVALIDATION: accepted decisions changed while you worked. Reconcile your work.",
+		changes.length > 0
+			? "REVALIDATION: accepted decisions changed while you worked. Reconcile your work."
+			: "REVALIDATION: your claims conflict with the accepted decisions, although no decision version changed. Reconcile your work.",
 		...lines,
 		"The new versions are in .delta/context/ (see .delta/receipt.json for what was delivered). Update the code and .delta/claims.json",
 		"so they follow the new versions, and cite the new recordId@version on every claim.",

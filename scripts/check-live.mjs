@@ -307,7 +307,9 @@ check("WI-1 is promoted", ["promoted", "merged"].includes(await statusOf("WI-1")
 	const order = ledgerA.map((e) => e.type);
 	check("ledger order: ReceiptIssued, AgentRunStarted, then the push, AgentRunFinished and EvidenceRecorded", order.lastIndexOf("ReceiptIssued") < order.lastIndexOf("AgentRunStarted") && order.lastIndexOf("AgentRunStarted") < order.lastIndexOf("EvidenceRecorded"), j(order.slice(-10)));
 	const atHead = (after?.evidence ?? []).filter((e) => e.headSha === after?.headSha);
-	check("the Worker recorded its own check at the verified head (kind delta-claims-check: NOT an executed contract test)", atHead.length > 0 && atHead.every((e) => e.pass && e.kind === "delta-claims-check"), j(atHead.map((e) => `${e.check}:${e.pass}:${e.kind}`)));
+	const ran = atHead.filter((e) => e.kind === "delta-run-check");
+	check("the Worker ran each required contract check itself on the pushed files (kind delta-run-check, names the file and sha)", ran.length > 0 && ran.every((e) => e.pass && /Delta-run contract check .* at [0-9a-f]{7}, reading /.test(e.output)), j(ran.map((e) => `${e.check}:${e.pass}`)));
+	check("the claims check is recorded beside them, informational only (kind delta-claims-check under delta:claims-vs-receipt)", atHead.some((e) => e.kind === "delta-claims-check" && e.check === "delta:claims-vs-receipt"), j(atHead.map((e) => `${e.check}:${e.pass}:${e.kind}`)));
 	note(`receipt noteRef=${after?.receipt?.noteRef ?? "none"}; noteError=${job.value?.noteError ?? "none"}  (UNVERIFIED before this run: whether Artifacts accepts a push to refs/notes/delta)`);
 	const noteLog = await call("GET", `/api/repos/${fork2}/log?ref=refs/notes/delta`);
 	note(`GET log?ref=refs/notes/delta on the fork: HTTP ${noteLog.status} ${noteLog.json?.commits?.length ?? 0} commit(s)`);

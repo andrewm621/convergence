@@ -408,7 +408,6 @@ describe("revalidation and idempotency inputs", () => {
 	});
 
 	it.each([
-		["no changes", { changes: [], context }],
 		["no context", { changes, context: {} }],
 		["downgrade", { changes: [{ recordId: "notifications", fromVersion: 2, toVersion: 2 }], context }],
 		["bad record id", { changes: [{ recordId: "Not A Slug", fromVersion: 1, toVersion: 2 }], context }],
@@ -418,6 +417,13 @@ describe("revalidation and idempotency inputs", () => {
 		["unknown field", { changes, context, extra: 1 }],
 	])("rejects revalidate with %s", (_n, body) => {
 		expect(Revalidate.safeParse(body).success).toBe(false);
+	});
+
+	it("accepts a conflict with no version change, and a record the work never had (from v0)", () => {
+		expect(Revalidate.safeParse({ changes: [], context }).success).toBe(true);
+		expect(Revalidate.safeParse({ changes: [{ recordId: "notifications", fromVersion: 0, toVersion: 1 }], context }).success).toBe(true);
+		expect(buildRevalidationPrompt([])).toContain("your claims conflict with the accepted decisions, although no decision version changed");
+		expect(buildRevalidationPrompt([{ recordId: "notifications", fromVersion: 0, toVersion: 1 }])).toContain("Decision notifications (v1) was not in your context before.");
 	});
 
 	it("writes the diff-aware prompt", () => {

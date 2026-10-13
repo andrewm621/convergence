@@ -161,6 +161,7 @@ export abstract class CellBase extends DurableObject<Env> {
 				await this.#serial(() => this.#pollAll({ repos: [repo] }));
 			},
 			activity: (workItemId, kind, text) => this.publishActivity({ type: "agent-activity", workItemId, runId: "delta", kind, text, ts: this.now() }),
+			retryIntervalMs: () => this.pollIntervalMs(),
 			logError: (what, error) => this.#logError(what, error),
 		};
 	}

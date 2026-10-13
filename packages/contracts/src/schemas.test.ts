@@ -89,6 +89,7 @@ describe("schemas", () => {
 		expect(Evidence.safeParse(base).success).toBe(true);
 		expect(Evidence.parse({ ...base, kind: "delta-claims-check" }).kind).toBe("delta-claims-check");
 		expect(Evidence.safeParse({ ...base, kind: "executed-test" }).success).toBe(true);
+		expect(Evidence.safeParse({ ...base, kind: "delta-run-check" }).success).toBe(true);
 		expect(Evidence.safeParse({ ...base, kind: "vibes" }).success).toBe(false);
 		expect(Evidence.safeParse({ ...base, extra: 1 }).success).toBe(false);
 	});

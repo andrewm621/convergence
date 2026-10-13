@@ -120,6 +120,12 @@ importers:
       isomorphic-git:
         specifier: 1.43.2
         version: 1.43.2
+      scenario-notifications:
+        specifier: workspace:*
+        version: link:../../scenarios/notifications
+      scenario-shelter-intake:
+        specifier: workspace:*
+        version: link:../../scenarios/shelter-intake
       zod:
         specifier: ^4.6.7
         version: 4.6.7
@@ -133,9 +139,6 @@ importers:
       miniflare:
         specifier: 5.20261006.1-alpha
         version: 5.20261006.1-alpha(@types/node@26.6.5)
-      scenario-notifications:
-        specifier: workspace:*
-        version: link:../../scenarios/notifications
       scenario-sales-ops:
         specifier: workspace:*
         version: link:../../scenarios/sales-ops

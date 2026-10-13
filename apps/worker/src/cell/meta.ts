@@ -43,6 +43,7 @@ const SCHEMA = [
 		run_id TEXT,
 		attempts INTEGER NOT NULL DEFAULT 0,
 		misses INTEGER NOT NULL DEFAULT 0,
+		requeues INTEGER NOT NULL DEFAULT 0,
 		retry_at INTEGER,
 		error TEXT,
 		created_ms INTEGER NOT NULL,
@@ -96,13 +97,15 @@ export type DispatchJobRow = {
 	attempts: number;
 	/** Consecutive status reads that found no run record, while one should exist. */
 	misses: number;
+	/** Times the job was sent back to the start because the receipt it prepared was overtaken (the baseline moved). */
+	requeues: number;
 	retryAt: number | null;
 	error: string | null;
 	createdMs: number;
 	updatedMs: number;
 };
 
-export type DispatchJobPatch = Partial<Pick<DispatchJobRow, "phase" | "payload" | "runId" | "attempts" | "misses" | "retryAt" | "error">>;
+export type DispatchJobPatch = Partial<Pick<DispatchJobRow, "phase" | "payload" | "runId" | "attempts" | "misses" | "requeues" | "retryAt" | "error">>;
 
 type RawDispatch = {
 	request_id: string;
@@ -113,6 +116,7 @@ type RawDispatch = {
 	run_id: string | null;
 	attempts: number;
 	misses: number;
+	requeues: number;
 	retry_at: number | null;
 	error: string | null;
 	created_ms: number;
@@ -301,7 +305,7 @@ export class CellMeta {
 	updateDispatch(requestId: string, patch: DispatchJobPatch, nowMs: number): void {
 		const sets: string[] = ["updated_ms = ?"];
 		const values: unknown[] = [nowMs];
-		const column: Record<keyof DispatchJobPatch, string> = { phase: "phase", payload: "payload", runId: "run_id", attempts: "attempts", misses: "misses", retryAt: "retry_at", error: "error" };
+		const column: Record<keyof DispatchJobPatch, string> = { phase: "phase", payload: "payload", runId: "run_id", attempts: "attempts", misses: "misses", requeues: "requeues", retryAt: "retry_at", error: "error" };
 		for (const key of Object.keys(patch) as Array<keyof DispatchJobPatch>) {
 			sets.push(`${column[key]} = ?`);
 			const value = patch[key];
@@ -375,6 +379,7 @@ function toDispatch(row: RawDispatch): DispatchJobRow {
 		runId: row.run_id,
 		attempts: row.attempts,
 		misses: row.misses,
+		requeues: row.requeues,
 		retryAt: row.retry_at,
 		error: row.error,
 		createdMs: row.created_ms,

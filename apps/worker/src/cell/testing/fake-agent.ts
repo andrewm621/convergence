@@ -18,9 +18,11 @@ export type FakeAgentBehavior = {
 	/** Keep every run open until `release()`. */
 	hold: boolean;
 	/** What the run does when it settles. */
-	outcome: "push" | "no-push" | "fail" | "keep-old-claims";
+	outcome: "push" | "no-push" | "fail" | "keep-old-claims" | "wrong-code";
 	/** Make this many dispatch calls throw a retryable runtime error first. */
 	failDispatches: number;
+	/** The error code those throws carry (`RUN_IN_PROGRESS` is the busy runtime). */
+	failCode: string;
 	/** The model the run reports. */
 	model: string;
 };
@@ -29,7 +31,7 @@ type Run = { view: AgentRunView; dueMs: number; request: AgentDispatch };
 
 export class FakeAgentRuntime implements AgentRuntimePort {
 	readonly calls: AgentDispatch[] = [];
-	behavior: FakeAgentBehavior = { delayMs: 0, hold: false, outcome: "push", failDispatches: 0, model: "stub agent" };
+	behavior: FakeAgentBehavior = { delayMs: 0, hold: false, outcome: "push", failDispatches: 0, failCode: "UNAVAILABLE", model: "stub agent" };
 	readonly #world: FakeWorld;
 	readonly #runs = new Map<string, Run>();
 	readonly #keys = new Map<string, string>();
@@ -53,7 +55,7 @@ export class FakeAgentRuntime implements AgentRuntimePort {
 		if (replay) return { ...(this.#runs.get(replay) as Run).view };
 		if (this.behavior.failDispatches > 0) {
 			this.behavior = { ...this.behavior, failDispatches: this.behavior.failDispatches - 1 };
-			throw new AgentRuntimeError("UNAVAILABLE", "the runtime is busy", true);
+			throw new AgentRuntimeError(this.behavior.failCode, "the runtime is busy", true);
 		}
 		if (this.#runs.get(request.workItemId)?.view.state === "running") {
 			throw new AgentRuntimeError("RUN_IN_PROGRESS", `work item ${request.workItemId} already has a run in flight`, true);
@@ -101,6 +103,12 @@ export class FakeAgentRuntime implements AgentRuntimePort {
 		const files: Record<string, string> = { ...out.files, ...contextFiles };
 		// An agent that changed the code but never touched its claims leaves the old claims file in the tree.
 		if (outcome === "keep-old-claims") delete files[".delta/claims.json"];
+		// An agent whose claims cite the new versions while its code still holds other values: only a check on the code can tell.
+		if (outcome === "wrong-code") {
+			for (const [path, text] of Object.entries(files)) {
+				if (path.startsWith("src/work/")) files[path] = text.replace(/^(export const \w+ = ).*?;/gm, '$1"previous";');
+			}
+		}
 		const commit = await this.#world.push(request.forkRepo, files, { author: view.author, message: `revalidate: ${request.prompt}` });
 		finish({ state: "succeeded", commit, pushVerified: true });
 	}

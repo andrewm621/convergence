@@ -61,7 +61,7 @@ export function buildConditions(wi: WorkItemState, analysis: Analysis, gate: Gat
 		);
 	}
 	if (analysis.failedChecks.length > 0) out.push(make("TestFailed", ["TEST_FAILED"], `Failing at the current head: ${analysis.failedChecks.join(", ")}.`));
-	if (analysis.testsPassed) out.push(make("TestsPassed", ["TESTS_PASSED"], `Passing at the current head: ${analysis.headEvidence.map((e) => e.check).join(", ")}.`));
+	if (analysis.testsPassed) out.push(make("TestsPassed", ["TESTS_PASSED"], `Passing at the current head: ${analysis.testEvidence.map((e) => e.check).join(", ")}.`));
 	if (!gate.promotable && gate.reasonCodes.some(isBlockingReason)) out.push(make("Blocked", gate.reasonCodes, gate.blockers.join(" ")));
 	if (gate.promotable) out.push(make("Ready", [], "Fresh and every requirement is met. A human may promote."));
 	return out.sort((a, b) => ORDER.indexOf(a.type) - ORDER.indexOf(b.type));

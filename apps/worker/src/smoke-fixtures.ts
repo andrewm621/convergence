@@ -5,7 +5,8 @@ export const AGENTS_MD = `# Agent protocol
 1. Read \`context/*.md\`. Each file is an accepted decision; its front-matter facets are binding.
 2. Do the task on your own fork.
 3. Cite \`recordId@version\` for every claim you make.
-4. Commit and push to your fork. Never push to the baseline.
+4. State each governed facet in code as a constant named after the facet key with its accepted value, for example \`export const NOTIFICATIONS_DEFAULT = "opt-in";\`. Delta runs its contract check on those declarations.
+5. Commit and push to your fork. Never push to the baseline.
 `;
 
 export const INDEX_TS = `export function greet(name: string): string {

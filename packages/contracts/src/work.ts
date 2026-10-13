@@ -63,12 +63,18 @@ export const ClaimsFile = z.array(Claim);
 export type ClaimsFile = z.infer<typeof ClaimsFile>;
 
 /**
- * What produced a piece of Evidence. Absent means the check's own result, as before (a Delta-run
- * contract test). `delta-claims-check` is the Worker's own deterministic check that a verified push's
- * claims cite the issued receipt and agree with the accepted facets; it is NOT an executed test, and a
- * console must not present it as one.
+ * What produced a piece of Evidence. Absent means the check's own result, as before (a contract test
+ * run by Delta, as the fixtures record it).
+ *
+ * - `executed-test`: a test suite was executed.
+ * - `delta-run-check`: a pure, deterministic assertion the Worker ran on the file contents of a verified
+ *   push (rule R8). This is what satisfies a record's `validation:` check.
+ * - `delta-claims-check`: the Worker's comparison of the push's claims with the issued receipt. It is derived
+ *   from agent-written claims, so it is informational only: the reconciler never counts it as a test result
+ *   for any check, passing or failing, so it cannot satisfy or overwrite a validation check. It is NOT a
+ *   test, and a console must not present it as one.
  */
-export const EvidenceKind = z.enum(["executed-test", "delta-claims-check"]);
+export const EvidenceKind = z.enum(["executed-test", "delta-run-check", "delta-claims-check"]);
 export type EvidenceKind = z.infer<typeof EvidenceKind>;
 
 /** Result of a Delta-run check at a specific head (rule R8). */

@@ -1,3 +1,4 @@
+import type { FacetValue } from "./common";
 import type { ContextReceipt, RecordSnapshot } from "./context";
 import { formatNoteRef } from "./context";
 import { hashContextPacket, hashContextSnapshot } from "./receipt-note";
@@ -39,3 +40,16 @@ export async function receiptOf(baselineCommit: string, delivered: RecordSnapsho
 		...(options.noteCommit ? { noteRef: formatNoteRef(options.noteCommit) } : {}),
 	};
 }
+
+/**
+ * A scenario's contract check (rule R8) as a pure function of the file contents of a pushed head and the
+ * accepted facets of the record whose `validation:` names it. The Worker reads the files from the repo at the
+ * verified sha, never from the agent, and records the result as Evidence of kind `delta-run-check`.
+ * No I/O, no clock, no model.
+ */
+export type ContractCheckResult = { pass: boolean; output: string };
+export type ContractCheck = {
+	/** Which files of the pushed tree the check reads (repo-relative paths). The Worker passes only these to `run`. */
+	reads(path: string): boolean;
+	run(files: Record<string, string>, facets: Record<string, FacetValue>): ContractCheckResult;
+};

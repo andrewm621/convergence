@@ -136,12 +136,21 @@ describe("revalidate loop (M4)", () => {
 		const gate = await gateOf(s);
 		expect(gate).toMatchObject({ pass: true, reasonCodes: [] });
 
+		// R8: each required check was run by Delta on the pushed files; beside them, the informational claims check.
 		const atHead = after.evidence.filter((e) => e.headSha === after.headSha);
-		expect(atHead.map((e) => e.check).sort()).toEqual(CHECKS);
-		for (const e of atHead) {
-			expect(e).toMatchObject({ pass: true, kind: "delta-claims-check" });
-			expect(e.output).toMatch(/NOT AN EXECUTED TEST/);
+		const ran = atHead.filter((e) => e.kind === "delta-run-check");
+		expect(ran.map((e) => e.check).sort()).toEqual(CHECKS);
+		for (const e of ran) {
+			expect(e).toMatchObject({ pass: true });
+			expect(e.output).toMatch(/Delta-run contract check .* at [0-9a-f]{7}, reading src\/index\.ts, src\/work\/wi-2\.ts/);
+			expect(e.output).not.toMatch(/NOT A TEST/);
 		}
+		expect(ran.find((e) => e.check === CHECKS[0])?.output).toContain('src/work/wi-2.ts: notifications.default = "opt-in" as accepted');
+		const claimsEvidence = atHead.filter((e) => e.kind === "delta-claims-check");
+		expect(claimsEvidence).toHaveLength(1);
+		expect(claimsEvidence[0]).toMatchObject({ check: "delta:claims-vs-receipt", pass: true });
+		expect(claimsEvidence[0].output).toMatch(/NOT A TEST/);
+		expect(atHead).toHaveLength(3);
 		expect(after.claims.status).toBe("ok");
 		expect(after.claims.claims.every((c: any) => c.basedOn === "notifications@2")).toBe(true);
 
@@ -235,6 +244,32 @@ describe("revalidate loop (M4)", () => {
 		expect((await gateOf(s)).pass).toBe(true);
 	}, 40_000);
 
+	it("a runtime that keeps answering 'a run is in flight' is waited for, not failed after five tries", async () => {
+		const s = await stale({ agent: { failDispatches: 8, failCode: "RUN_IN_PROGRESS" } });
+		await revalidate(s);
+		const done = await jobAt(s, "done", 30_000);
+		expect(done.error).toBeNull();
+		const calls = await w.world(s, { op: "agentCalls" });
+		expect(calls).toHaveLength(9);
+		expect(new Set(calls.map((c: { idempotencyKey: string }) => c.idempotencyKey)).size).toBe(1);
+		expect((await ledger(s)).filter((e) => e.type === "AgentRunStarted")).toHaveLength(1);
+		expect((await gateOf(s)).pass).toBe(true);
+	}, 45_000);
+
+	it("a revalidation recorded without a job (the cell stopped before queueing it) is picked up once the runtime exists", async () => {
+		const s = await stale({ agent: false });
+		expect((await revalidate(s)).res.status).toBe(200);
+		await new Promise((r) => setTimeout(r, 400));
+		expect(await jobs(s)).toEqual([]);
+		// The runtime comes up; nothing re-sends the effect, so only the sweep can find the owed dispatch.
+		await w.world(s, { op: "agent", behavior: {} });
+		const done = await jobAt(s, "done", 20_000);
+		expect(done.workItemId).toBe("WI-2");
+		expect(await jobs(s)).toHaveLength(1);
+		expect((await w.world(s, { op: "agentCalls" })).length).toBe(1);
+		expect((await gateOf(s)).pass).toBe(true);
+	}, 40_000);
+
 	it("a failed run leaves the work blocked, closes the run as a failure and records no evidence", async () => {
 		const s = await stale({ agent: { outcome: "fail" } });
 		await revalidate(s);
@@ -251,20 +286,51 @@ describe("revalidate loop (M4)", () => {
 		expect([promote.status, promote.body.error.code]).toEqual([409, "PROMOTION_BLOCKED"]);
 	}, 30_000);
 
-	it("a run that pushed code but never updated its claims fails the Worker's check and stays blocked", async () => {
+	it("a run that pushed the right code but never updated its claims passes the contract check and stays blocked on its claims", async () => {
 		const s = await stale({ agent: { outcome: "keep-old-claims" } });
 		await revalidate(s);
 		await jobAt(s, "done");
 		const wi2 = await workItem(s, "WI-2");
 		const atHead = wi2.evidence.filter((e) => e.headSha === wi2.headSha);
-		expect(atHead.length).toBeGreaterThan(0);
-		for (const e of atHead) {
-			expect(e).toMatchObject({ pass: false, kind: "delta-claims-check" });
-			expect(e.output).toMatch(/failed/);
-		}
+		expect(atHead.filter((e) => e.kind === "delta-run-check").every((e) => e.pass)).toBe(true);
+		expect(atHead.find((e) => e.kind === "delta-claims-check")).toMatchObject({ check: "delta:claims-vs-receipt", pass: false });
 		const gate = await gateOf(s);
 		expect(gate.pass).toBe(false);
-		expect(gate.reasonCodes).toEqual(expect.arrayContaining(["CLAIM_CONFLICT", "TEST_FAILED"]));
+		expect(gate.reasonCodes).toContain("CLAIM_CONFLICT");
+		expect(gate.reasonCodes).not.toContain("TEST_FAILED"); // the claims check is not a test
 		expect(gate.reasonCodes).not.toContain("STALE_RECEIPT"); // the receipt is current; the work is what is wrong
+	}, 30_000);
+
+	it("R8: claims that cite v2 over code that does not encode v2 fail the Delta-run contract check by its real name", async () => {
+		const s = await stale({ agent: { outcome: "wrong-code" } });
+		await revalidate(s);
+		await jobAt(s, "done");
+		const wi2 = await workItem(s, "WI-2");
+		const failed = wi2.evidence.filter((e) => e.headSha === wi2.headSha && e.kind === "delta-run-check" && !e.pass);
+		expect(failed.map((e) => e.check)).toEqual([CHECKS[0]]);
+		expect(failed[0].output).toMatch(/notifications contract failed/);
+		expect(failed[0].output).toContain('src/work/wi-2.ts: notifications.default = "previous", accepted is "opt-in"');
+		// The claims look right, so the claims check passes; it still cannot stand in for the test.
+		expect(wi2.evidence.find((e) => e.kind === "delta-claims-check")).toMatchObject({ pass: true });
+		const gate = await gateOf(s);
+		expect(gate.pass).toBe(false);
+		expect(gate.reasonCodes).toContain("TEST_FAILED");
+		const promote = await post(s, "/work-items/WI-2/promote", { expectedBaselineCommit: gate.baselineCommit, forkHeadSha: gate.forkHeadSha });
+		expect([promote.status, promote.body.error.code]).toEqual([409, "PROMOTION_BLOCKED"]);
+	}, 30_000);
+
+	it("R8: evidence the agent's own claims produced never satisfies the contract test, even recorded under the validation path", async () => {
+		const s = await stale({ agent: { hold: true } });
+		await revalidate(s);
+		await jobAt(s, "running");
+		await w.world(s, { op: "agentRelease" });
+		await jobAt(s, "done");
+		const wi2 = await workItem(s, "WI-2");
+		const head = wi2.headSha as string;
+		// A claims-check result under a validation path (as an earlier build wrote it) adds nothing and takes nothing away.
+		for (const check of CHECKS) {
+			await w.cell(s, "recordObservation", { type: "EvidenceRecorded", ts: "2026-10-13T16:00:00Z", repo: WI2, commitSha: head, runId: `run-${key("ev")}`, evidence: { workItemId: "WI-2", headSha: head, check, pass: false, output: "claims", kind: "delta-claims-check" } });
+		}
+		expect((await gateOf(s)).pass).toBe(true);
 	}, 30_000);
 });

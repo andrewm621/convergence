@@ -13,7 +13,7 @@ import {
 	type RecordSnapshot,
 	type WorkItemState,
 } from "contracts";
-import { analyze, findStale } from "./analysis";
+import { analyze, countsAsTest, findStale } from "./analysis";
 import { acceptedDependenciesOf, currentSnapshot, isPromoted, snapshotAt, workItemIds } from "./cell-state";
 import { refreshWorkItem } from "./conditions";
 import { effectsForChanges, noAction } from "./effects";
@@ -260,7 +260,8 @@ function onEvidenceRecorded(draft: CellState, event: Of<"EvidenceRecorded">, pol
 		return [noAction(["UNKNOWN_WORK_ITEM"], { workItemId: id, message: "Evidence does not match a registered work item and head." })];
 	}
 	if (isPromoted(wi)) return [noAction(["ALREADY_PROMOTED"], { workItemId: id })];
-	wi.evidence = [...wi.evidence.filter((e) => !(e.check === evidence.check && e.headSha === evidence.headSha)), evidence];
+	// A result replaces an earlier one for the same check and head only if it is the same kind of evidence: a claims check never overwrites a test result.
+	wi.evidence = [...wi.evidence.filter((e) => !(e.check === evidence.check && e.headSha === evidence.headSha && countsAsTest(e) === countsAsTest(evidence))), evidence];
 	if (evidence.headSha !== wi.headSha) {
 		return [noAction(["STALE_EVIDENCE"], { workItemId: id, message: `${evidence.check} ran at ${evidence.headSha}, but the current head is ${wi.headSha ?? "unset"}; it does not count.` })];
 	}

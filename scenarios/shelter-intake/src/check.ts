@@ -1,5 +1,6 @@
-import type { FacetValue } from "contracts";
-import { BRIEFING_PATH, SCHEDULE_PATH, SCRIPT_PATH } from "./documents";
+import type { ContractCheck, FacetValue } from "contracts";
+import { BRIEFING_PATH, SCHEDULE_PATH, SCRIPT_PATH, SIGNAGE_PATH, SUPPLIES_PATH } from "./documents";
+import { SHELTER_INTAKE_CHECK } from "./records";
 
 /**
  * The scenario's contract check (rule R8). Delta Convergence runs it at a fork head and records
@@ -79,3 +80,22 @@ export function runShelterIntakeCheck(path: string, doc: string, facets: Facets)
 	const head = `${path}: ${applied.length} assertion${applied.length === 1 ? "" : "s"}`;
 	return { pass, failures, output: pass ? `${head} passed` : `${head}, ${failures.length} failed. ${failures.join("; ")}` };
 }
+
+const DOCUMENT_PATHS = new Set([SCRIPT_PATH, SIGNAGE_PATH, BRIEFING_PATH, SUPPLIES_PATH, SCHEDULE_PATH]);
+
+/**
+ * The same check as a registry entry the Worker can run on a pushed head: every document of the scenario that
+ * the push contains, against the accepted facets. A push with none of them has nothing to assert and fails
+ * closed (the check cannot tell it is fine).
+ */
+export const contractChecks: Record<string, ContractCheck> = {
+	[SHELTER_INTAKE_CHECK]: {
+		reads: (path) => DOCUMENT_PATHS.has(path),
+		run(files, facets) {
+			const paths = Object.keys(files).sort();
+			if (paths.length === 0) return { pass: false, output: "none of the scenario documents is in the push, so nothing could be asserted" };
+			const results = paths.map((path) => runShelterIntakeCheck(path, files[path] as string, facets));
+			return { pass: results.every((r) => r.pass), output: results.map((r) => r.output).join(" | ") };
+		},
+	},
+};
