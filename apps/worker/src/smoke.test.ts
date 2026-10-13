@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SMOKE_LABEL_RE, SmokeDeleteRequest, deleteSmokeRepos, purgeSmokeRepos, seedLabelAllowed } from "./smoke";
+import { SEED_SCENARIOS, SMOKE_LABEL_RE, SmokeDeleteRequest, deleteSmokeRepos, purgeSmokeRepos, seedLabelAllowed, seedScenarioAllowed } from "./smoke";
 
 // A recorded demo's repos live beside every test run's `smoke-` repos. A run must delete its own by name and nothing else.
 
@@ -71,5 +71,19 @@ describe("seed label", () => {
 		expect(seedLabelAllowed("delta-convergence-build", "delta-convergence-build-live")).toBe(true);
 		expect(seedLabelAllowed("notifications", "notifications-demo")).toBe(true);
 		expect(seedLabelAllowed("notifications", undefined)).toBe(true);
+	});
+
+	it("lets the shelter seed take a shelter label, and refuses the build's labels there as for any other scenario", () => {
+		expect(seedLabelAllowed("shelter-intake", "shelter-intake-demo")).toBe(true);
+		expect(SMOKE_LABEL_RE.test("shelter-intake-demo")).toBe(true);
+		expect(seedLabelAllowed("shelter-intake", "delta-convergence-build-x")).toBe(false);
+	});
+});
+
+describe("seed scenario", () => {
+	it("accepts the three seeds and the plain default, and nothing else", () => {
+		expect([...SEED_SCENARIOS]).toEqual(["notifications", "shelter-intake", "delta-convergence-build"]);
+		for (const ok of [undefined, "notifications", "shelter-intake", "delta-convergence-build"]) expect(seedScenarioAllowed(ok), String(ok)).toBe(true);
+		for (const bad of ["", "sales-ops", "Shelter-Intake", "shelter", "toString", "__proto__", "notifications "]) expect(seedScenarioAllowed(bad), bad).toBe(false);
 	});
 });
