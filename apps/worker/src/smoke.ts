@@ -273,18 +273,26 @@ export async function seedForks(
 	const prefix = `${SMOKE_PREFIX}${label}-${Date.now()}`;
 	const baselineName = `${prefix}-baseline`;
 	const created = await env.ARTIFACTS.create(baselineName, { setDefaultBranch: BRANCH });
-	let allRevoked = await revokeToken(env, baselineName, created.token);
-	await commitFiles(env, baselineName, files, "seed: baseline context v1", { retryNotFound: true });
+	// Every name this seed may have created, so a failure part-way deletes them instead of leaving orphans the caller never hears about.
+	const attempted = [baselineName];
+	try {
+		let allRevoked = await revokeToken(env, baselineName, created.token);
+		await commitFiles(env, baselineName, files, "seed: baseline context v1", { retryNotFound: true });
 
-	const forks = await Promise.all(
-		Array.from({ length: count }, async (_, i) => {
+		// One fork at a time: seven concurrent forks of one baseline made Artifacts answer some with an internal error (live, Oct 13).
+		const forks: Array<{ name: string; remote: string }> = [];
+		for (let i = 0; i < count; i++) {
 			const name = `${prefix}-wi-${i + 1}`;
+			attempted.push(name);
 			const fork = await forkSmokeRepo(env, baselineName, name, forkCommits[i]);
 			allRevoked = fork.revoked && allRevoked;
-			return { name, remote: fork.remote };
-		}),
-	);
-	return { baseline: { name: baselineName, remote: created.remote }, forks, creationTokensRevoked: allRevoked };
+			forks.push({ name, remote: fork.remote });
+		}
+		return { baseline: { name: baselineName, remote: created.remote }, forks, creationTokensRevoked: allRevoked };
+	} catch (error) {
+		await deleteSmokeRepos(env, attempted).catch(() => undefined);
+		throw error;
+	}
 }
 
 /** Fork `baselineName` into `name`, wait until it is ready, revoke its creation token, and commit `commit` to it if given. */
