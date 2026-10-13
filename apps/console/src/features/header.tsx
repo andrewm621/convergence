@@ -70,7 +70,7 @@ export function ConnectionBadge({ state }: { state: ConnectionState }) {
 export function PollerBadge({ poller }: { poller: PollerHealth | null }) {
 	if (!poller || poller.healthy) return null;
 	const lines = poller.degraded.map((d) => `${d.kind} ${d.repo}: ${d.note ?? d.lastError ?? "failing"}`);
-	const hint = ["The poller that reads the repos is behind, so Delta Convergence cannot confirm that work is current. Nothing is shown as Fresh and Promote is closed until it recovers.", ...lines].join("\n");
+	const hint = ["The poller that reads the repos is behind, so Delta Convergence cannot confirm that work is current. Nothing is shown as Fresh and Merge is closed until it recovers.", ...lines].join("\n");
 	return (
 		<Badge tone="warning" title={hint} data-testid="poller-degraded" role="status" className="h-7 px-2.5 text-[13px]">
 			<TriangleAlert aria-hidden className="size-3.5" />

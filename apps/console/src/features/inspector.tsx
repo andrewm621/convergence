@@ -3,8 +3,9 @@ import { MousePointerClick } from "lucide-react";
 import { useMemo } from "react";
 import { ActorChip, RunningDot, SeededBadge, StatusChip, useDegraded } from "@/components/status";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { formatDateTime } from "@/lib/format";
 import { useConsole, type InspectorTab } from "@/state/console-context";
-import { agentModelOf, analysisOf, hasProblem, quietOf, runningAgents, workItemsSorted } from "@/state/derive";
+import { agentModelOf, analysisOf, hasProblem, mergeRecord, quietOf, readyByException, runningAgents, workItemsSorted } from "@/state/derive";
 import { useGate } from "@/state/use-gate";
 import { PaneHeader } from "./context-timeline";
 import { ActionsTab } from "./inspector-actions";
@@ -26,6 +27,7 @@ export function Inspector() {
 
 function NothingSelected() {
 	const { view, select } = useConsole();
+	const degraded = useDegraded();
 	const items = workItemsSorted(view).filter((wi) => wi.item.source !== "seeded");
 	return (
 		<div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
@@ -33,14 +35,14 @@ function NothingSelected() {
 				<MousePointerClick className="size-5" aria-hidden />
 			</div>
 			<p className="text-sm font-semibold">Pick a work item</p>
-			<p className="max-w-xs text-[13px] text-muted-foreground">Click one in the graph to see what it was given, what it claims, what Delta Convergence checked, and why Promote is open or closed.</p>
+			<p className="max-w-xs text-[13px] text-muted-foreground">Click one in the graph to see what it was given, what it claims, what Delta Convergence checked, and why Merge is open or closed.</p>
 			{items.length > 0 && (
 				<ul className="flex flex-wrap justify-center gap-2" aria-label="Work items">
 					{items.map((wi) => (
 						<li key={wi.item.id}>
 							<button type="button" onClick={() => select(wi.item.id)} className="flex items-center gap-2 rounded-lg border bg-card px-2.5 py-1.5 text-xs outline-none hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50">
 								<span className="font-mono font-semibold">{wi.item.id}</span>
-								<StatusChip status={wi.item.status} />
+								<StatusChip status={wi.item.status} excepted={!degraded && readyByException(view, wi)} />
 							</button>
 						</li>
 					))}
@@ -60,6 +62,9 @@ function WorkItemInspector({ wi }: { wi: WorkItemState }) {
 	const blocked = wi.item.status !== "promoted" && gate !== null && !gate.pass && analysis !== null && hasProblem(analysis);
 	const found = useMemo(() => quietOf(view, wi), [view, wi]);
 	const quiet = degraded ? null : found;
+	// Ready only because an accepted exception lifts a block: amber, and it says so.
+	const excepted = !degraded && readyByException(view, wi);
+	const merged = wi.item.status === "promoted" ? mergeRecord(view, wi.item.id) : null;
 	// A blocked item whose agent is still going would read "Blocked" and "agent running" at once: say what the agent is doing.
 	const stillWorking = running && (wi.item.status === "stale" || wi.item.status === "conflict");
 
@@ -73,10 +78,15 @@ function WorkItemInspector({ wi }: { wi: WorkItemState }) {
 				</div>
 				<h2 className="text-[15px] leading-snug font-semibold">{wi.item.title}</h2>
 				<div className="flex flex-wrap items-center gap-2">
-					<StatusChip status={wi.item.status} leftAlone={quiet !== null} />
+					<StatusChip status={wi.item.status} leftAlone={quiet !== null} excepted={excepted} />
 					<ActorChip actor={wi.item.actor} label={scenarioMeta(client.scenario, client.kind === "live").agentLabel ?? agentModelOf(view.ledger, wi.item.id) ?? undefined} />
 					<PromoteButton workItemId={wi.item.id} className="ml-auto" />
 				</div>
+				{merged && (
+					<p className="text-[13px] text-muted-foreground" data-testid="merged-by">
+						Merged{merged.by ? ` by ${merged.by}` : ""} at {formatDateTime(merged.ts)}
+					</p>
+				)}
 			</div>
 
 			<Tabs value={tab} onValueChange={(value) => setTab(value as InspectorTab)} className="min-h-0 flex-1">
