@@ -163,7 +163,7 @@ This is the **"no LLM required" proof**, and the README should say so.
 | Control plane | **Worker** (Hono) plus **Durable Object `WorkspaceCell`** with SQLite | One DO per scenario. It holds state and the ledger, runs `reconcile`, and fans out over WebSockets (hibernation API) |
 | Events | **Poll first** (the DO polls `log({limit:1})` every 2–5 seconds per repo), then upgrade to the **Queues event subscription** on `artifacts.repo` → `pushed` once it works | The subscription flags are unverified, so this order removes a Tuesday risk. Both paths feed the same deduplicated `DeltaEvent` (R9) |
 | Worker-side git writes | `isomorphic-git` plus the **patched `memory-fs.ts`** from the author's earlier Artifacts spike | Verified against the live service. Used to seed baselines and commit context changes |
-| Agent runtime | **Sandbox SDK container per agent**, running `claude` headless (Anthropic API via AI Gateway) | Follows the CF Claude Code tutorial. Allow `*.artifacts.cloudflare.net` outbound. **Fallback:** a local runner (`apps/runner`, Node + Claude Agent SDK) on Andrew's Mac that clones and pushes to the same forks |
+| Agent runtime | **Sandbox SDK container per agent**, running `claude` headless (Claude models via OpenRouter's Anthropic-compatible endpoint) | Follows the CF Claude Code tutorial. Allow `*.artifacts.cloudflare.net` outbound. **Fallback:** a local runner (`apps/runner`, Node + Claude Agent SDK) on Andrew's Mac that clones and pushes to the same forks |
 | Merge / promote | Real `git merge` inside a sandbox, or the local runner, then push to the baseline | Artifacts has no merge API. With one writer per repo, the DO serializes promotions |
 | Diff | Tree walk (`readCommit` → `readTree` → compare blob hashes), plus a unified text diff for the changed blobs | `readTree` returns direct children only, so walk it recursively |
 | UI | Vite + React 19 + Tailwind v4 + shadcn, React Flow + dagre | Standalone, with no local `link:` packages, so judges can `pnpm install` from a fresh clone |
@@ -339,7 +339,7 @@ All of this is Andrew's own prior code. Keep the contest repo's commit history e
 ## 13. Open decisions (need Andrew)
 
 1. ~~**Cloudflare account.**~~ **Decided (Oct 12):** Andrew's personal account; he will supply an API token. Account details live in the local untracked context file. Still to verify at M0: Workers Paid and Containers access (`wrangler whoami`).
-2. **Anthropic key for agents.** Use AI Gateway on the personal account (recommended), or a direct key.
+2. ~~**Model key for agents.**~~ **Decided (Oct 12):** OpenRouter. Agents reach Claude models through OpenRouter (`OPENROUTER_API_KEY`, set by Andrew as a Worker secret and in `.dev.vars`; model pinned by config). AI Gateway is optional on top and claimed only if used.
 3. **Team fields.** Solo entry, or a second attendee?
 4. **Video.** Who narrates, and should it be a screen recording or have a face cam?
 5. ~~**Ratify "Delta never needs an LLM"**~~ **Decided (Oct 12):** "No LLM is required to operate Delta; models propose, rules and humans decide."
