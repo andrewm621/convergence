@@ -761,6 +761,9 @@ export class AgentSandbox extends DurableObject<Env> {
 		// Credentials differ per run, so the intercepts are registered again (each replaces the earlier one). An abandoned launch
 		// must not register one: it would replace the retry's gateway with a revoked token and a dead run id.
 		if (launching.abandoned) throw new Error("the launch was given up on");
+		// interceptOutboundHttps takes no signal, so a registration already in flight when the launch is abandoned cannot be
+		// cancelled. The worst case is that it lands after the retry's and the retry's git calls fail with 403 (this run's meter
+		// is gone, so the gateway refuses it); it can never admit a request, so it is a failed retry and not an auth bypass.
 		await this.container.interceptOutboundHttps(
 			host,
 			this.ctx.exports.ArtifactsGateway({

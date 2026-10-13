@@ -6,8 +6,8 @@ import * as shelter from "scenario-shelter-intake";
 // drafts and hand-recorded results; the live act needs only two, because that is what two concurrent model runs can
 // carry on camera:
 //
-//   WI-1 front-desk intake script   scripts/front-desk.md           relies on pets, id_required   -> goes stale when v2 lands
-//   WI-2 cots and blankets list     supplies/cots-and-blankets.md   relies on capacity_note       -> stays green
+//   SH-1 front-desk intake script   scripts/front-desk.md           relies on pets, id_required   -> goes stale when v2 lands
+//   SH-2 cots and blankets list     supplies/cots-and-blankets.md   relies on capacity_note       -> stays green
 //
 // Both rely on the same record, so what separates them is the facets, not the record: that is the facet-level claim.
 // The stale document is a different file from the record that changed. Synthetic scenario. Not operational guidance.
@@ -39,7 +39,7 @@ export type ShelterWorkItem = {
 
 export const SHELTER_WORK_ITEMS: ShelterWorkItem[] = [
 	{
-		id: "WI-1",
+		id: "SH-1",
 		title: "Front-desk intake script",
 		agent: { id: "agent-script", displayName: "Script agent" },
 		path: shelter.SCRIPT_PATH,
@@ -49,7 +49,7 @@ export const SHELTER_WORK_ITEMS: ShelterWorkItem[] = [
 		dependencies: [{ recordId: "shelter-intake-policy", facetKeys: ["pets", "id_required"] }],
 	},
 	{
-		id: "WI-2",
+		id: "SH-2",
 		title: "Cots and blankets supply list",
 		agent: { id: "agent-supplies", displayName: "Supplies agent" },
 		path: shelter.SUPPLIES_PATH,
