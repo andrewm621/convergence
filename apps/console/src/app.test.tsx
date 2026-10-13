@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { App } from "./app";
 import { readRuntime, type Runtime } from "@/client/create-client";
+import { STATUS_META } from "@/components/status";
 import { ACTING_AS } from "@/config";
 
 const runtime: Runtime = { mock: true, scenario: "notifications", start: "seeded", drip: false, controls: true };
@@ -64,7 +65,11 @@ describe("the console, mock-driven end to end", () => {
 		expect(chips.length).toBeGreaterThan(0);
 		for (const chip of chips) {
 			if (chip.tagName === "BUTTON" || chip.getAttribute("data-slot") === "work-item-node") continue;
-			expect((chip.textContent ?? "").trim()).toBe(chip.getAttribute("data-status"));
+			// The word on the chip: the status's own label, or "Left alone" for work the last change did not touch.
+			const status = chip.getAttribute("data-status") as keyof typeof STATUS_META;
+			const text = (chip.textContent ?? "").trim();
+			// "Left alone" is only ever on a running item.
+			expect(text === "Left alone" ? status : text).toBe(text === "Left alone" ? "running" : STATUS_META[status].label);
 		}
 	});
 
@@ -100,12 +105,15 @@ describe("the console, mock-driven end to end", () => {
 		expect(within(graph).getByRole("button", { name: /WI-4 .*running/ })).toBeInTheDocument();
 		expect(within(graph).getByRole("button", { name: /WI-5 .*running/ })).toBeInTheDocument();
 		expect(screen.getByTestId("results-strip")).toHaveTextContent("5 items evaluated");
-		// The negative controls read as deliberate: the reason code is on the node, and stays when their drafts arrive.
-		for (const id of ["WI-4", "WI-5"]) expect(within(graph).getByTestId(`left-alone-${id}`)).toHaveTextContent("NO_DEPENDENCY_ON_CHANGED_FACETS");
+		// The negative controls read as deliberate: "Left alone" is on the node (the reason code is its tooltip), and stays when their drafts arrive.
+		for (const id of ["WI-4", "WI-5"]) {
+			expect(within(graph).getByTestId(`left-alone-${id}`)).toHaveTextContent("Left alone: no recorded dependency on what changed");
+			expect(within(graph).getByTestId(`left-alone-${id}`).getAttribute("title")).toContain("NO_DEPENDENCY_ON_CHANGED_FACETS");
+		}
 		for (const id of ["WI-1", "WI-2", "WI-3"]) expect(within(graph).queryByTestId(`left-alone-${id}`)).toBeNull();
 		await next(user, 1);
 		await waitFor(() => expect(within(graph).getByRole("button", { name: /WI-4 .*ready/ })).toBeInTheDocument());
-		expect(within(graph).getByTestId("left-alone-WI-4")).toHaveTextContent("NO_DEPENDENCY_ON_CHANGED_FACETS");
+		expect(within(graph).getByTestId("left-alone-WI-4")).toHaveTextContent("Left alone");
 		await user.click(screen.getByRole("radio", { name: /Notifications/ }));
 		expect(await screen.findByRole("heading", { name: "notifications" })).toBeInTheDocument();
 		expect(screen.queryByTestId("scenario-note")).toBeNull();

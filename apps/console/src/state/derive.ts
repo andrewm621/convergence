@@ -1,8 +1,8 @@
 import { parseRecordRef, type Claim, type Dependency, type FacetValue, type ReasonCode, type ReceiptEntry, type ReconciliationEvent, type RecordSnapshot, type Resolution, type WorkItemState } from "contracts";
-import { analyze, authorityFor, classifyExceptions, diffFacets, facetValuesEqual, findStale, type Analysis } from "delta-core";
+import { analyze, authorityFor, classifyExceptions, diffFacets, evaluateGate, facetValuesEqual, findStale, type Analysis } from "delta-core";
 import { DEMO_IDENTITY } from "@/config";
 import { describeCheck } from "@/lib/evidence";
-import { toCellState, type ViewState } from "./store";
+import { toCellState, type Evaluation, type ViewState } from "./store";
 
 /**
  * Read-only derivations over the view state. They run delta-core's pure analyses over what the
@@ -282,10 +282,23 @@ export function leftAlone(view: ViewState, workItemId: string, options: { sticky
 			const rec = event.records[0];
 			return { seq: entry.seq, ts: entry.ts, recordRef: rec ? `${rec.recordId}@${rec.version}` : null, reasonCodes: quiet.reasonCodes, message: quiet.message ?? "Left alone." };
 		}
+		// Work that went stale or conflicting afterwards is not "left alone" any more, however long the note is kept.
+		if (about.some((effect) => effect.type === "RECORD_CONDITION" && ["Stale", "ClaimConflict", "TestFailed", "Uncertain"].includes(effect.condition.type))) return null;
 		// A later effect on this item (a push, a check, a resolution) supersedes the old note.
 		if (!options.sticky && about.some((effect) => effect.type !== "NO_ACTION" || !effect.reasonCodes.includes("OBSERVATION_ONLY"))) return null;
 	}
 	return null;
+}
+
+/**
+ * The green "Left alone" note for a work item, or null. Only work that is still running, up to date or ready qualifies, and
+ * only while the rules find nothing wrong with it: a note from an earlier change never survives a later block.
+ */
+export function quietOf(view: ViewState, wi: WorkItemState): LeftAlone | null {
+	if (!["running", "fresh", "ready"].includes(wi.item.status)) return null;
+	const analysis = analysisOf(view, wi.item.id);
+	if (!analysis || hasProblem(analysis)) return null;
+	return leftAlone(view, wi.item.id, { sticky: true });
 }
 
 /** Facet keys a work item relies on for one record (empty means "the whole record"). */
@@ -370,4 +383,198 @@ export function exceptionStatus(view: ViewState, wi: WorkItemState, resolution: 
 					? `The granting actor is no longer the authority for ${binding.recordId}.`
 					: "It no longer applies.";
 	return { lapsed: true, version: binding.version, reason, reasonCode: "EXCEPTION_LAPSED" };
+}
+
+// ---------- the one-reason card ----------
+
+/** Who signs off on a record: the display label of its authority (the policy's, else the record's own). Null when nobody is named. */
+export function signerFor(view: ViewState, recordId: string): string | null {
+	if (!view.policy) return null;
+	const id = authorityFor(toCellState(view), view.policy, recordId);
+	return id ? actorLabel(view, id) : null;
+}
+
+export type ChangedSetting = {
+	recordId: string;
+	key: string;
+	/** The last part of the key, read as words: `id_required` is "id required". */
+	label: string;
+	kind: "changed" | "added" | "removed";
+	from: FacetValue | null;
+	to: FacetValue | null;
+	fromVersion: number;
+	toVersion: number;
+};
+
+/** A facet key as a person reads it: `notifications.default` is "default", `id_required` is "id required". */
+export function settingLabel(key: string): string {
+	return (key.split(".").pop() ?? key).replace(/[_-]+/g, " ");
+}
+
+/**
+ * The settings this work was built on that have since changed: for each stale finding, the facets
+ * of the version in its receipt that differ from the version now accepted. Only the settings the
+ * work relies on count (the finding already lists them), the same rule the engine applied.
+ */
+export function changedSettings(view: ViewState, analysis: Analysis): ChangedSetting[] {
+	const out: ChangedSetting[] = [];
+	for (const finding of analysis.stale) {
+		const held = view.records[finding.recordId]?.versions[String(finding.fromVersion)] ?? null;
+		const head = currentRecord(view, finding.recordId);
+		if (!held || !head) continue;
+		for (const change of diffFacets(held, head)) {
+			if (finding.facetKeys.length > 0 && !finding.facetKeys.includes(change.key)) continue;
+			out.push({
+				recordId: finding.recordId,
+				key: change.key,
+				label: settingLabel(change.key),
+				kind: change.kind,
+				from: change.from ?? null,
+				to: change.to ?? null,
+				fromVersion: finding.fromVersion,
+				toVersion: finding.toVersion,
+			});
+		}
+	}
+	return out;
+}
+
+const VALUE_CHARS = 60;
+
+function say(value: FacetValue | null): string {
+	const text = Array.isArray(value) ? `[${value.join(", ")}]` : value === null ? "nothing" : String(value);
+	return text.length > VALUE_CHARS ? `${text.slice(0, VALUE_CHARS - 1).trimEnd()}…` : text;
+}
+
+/**
+ * One plain sentence per reason an item is blocked: each changed setting it was built on, then a failing
+ * check or an unknown. The reason codes stay behind "Technical details"; this is what a person reads.
+ */
+export function reasonSentences(view: ViewState, analysis: Analysis): string[] {
+	const sentences: string[] = [];
+	const covered = new Set<string>();
+	for (const s of changedSettings(view, analysis)) {
+		covered.add(s.recordId);
+		if (s.kind === "changed") sentences.push(`Built on the old ${s.label} (${say(s.from)}). The decision now says ${say(s.to)}.`);
+		else if (s.kind === "added") sentences.push(`The decision added a ${s.label} setting (${say(s.to)}) after this work was built.`);
+		else sentences.push(`The decision dropped the ${s.label} setting (it was ${say(s.from)}).`);
+	}
+	// A stale finding with no setting to name (whole-record staleness, or a version the console never held).
+	for (const finding of analysis.stale) {
+		if (!covered.has(finding.recordId)) sentences.push(`Built on ${finding.recordId} v${finding.fromVersion}. ${finding.recordId} is now v${finding.toVersion}.`);
+	}
+	// A claim that contradicts the decision gets its own sentence, unless the changed setting above already says it.
+	const described = new Set(changedSettings(view, analysis).map((setting) => setting.key));
+	for (const conflict of analysis.conflicts) {
+		if (!described.has(conflict.subject)) sentences.push(conflict.message);
+	}
+	if (analysis.failedChecks.length > 0) sentences.push(`A check on this work is failing: ${analysis.failedChecks.map((c) => c.split("/").pop() ?? c).join(", ")}.`);
+	for (const finding of analysis.uncertain.slice(0, 2)) sentences.push(finding.message);
+	return sentences;
+}
+
+/**
+ * Who signs off: the authority of every record this work is stale or in conflict against (two records can have two authorities).
+ * Empty when no exception can lift what blocks it (a missing or malformed claim, an unknown, a failing check on its own).
+ */
+export function signOffFor(view: ViewState, analysis: Analysis): string[] {
+	const ids = [...new Set([...analysis.stale.map((f) => f.recordId), ...analysis.conflicts.map((f) => f.recordId)])];
+	return [...new Set(ids.map((id) => signerFor(view, id)).filter((name): name is string => name !== null))];
+}
+
+/** "Built on notifications v1 · now v2": one stamp per record this work is stale against. */
+export function builtOnStamps(analysis: Analysis): string[] {
+	return analysis.stale.map((f) => (f.fromVersion === 0 ? `Built without ${f.recordId} · now v${f.toVersion}` : `Built on ${f.recordId} v${f.fromVersion} · now v${f.toVersion}`));
+}
+
+/** The record to name the signer for: the first one this work is stale or in conflict against, else the first it relies on. */
+export function signerRecordId(view: ViewState, workItemId: string, analysis: Analysis): string | null {
+	const first = analysis.stale[0]?.recordId ?? analysis.conflicts[0]?.recordId ?? analysis.uncertain.find((u) => u.recordId)?.recordId ?? null;
+	if (first) return first;
+	return view.dependencies.find((d) => d.workItemId === workItemId && d.status === "accepted")?.recordId ?? null;
+}
+
+/** True when the rules found something actually wrong: stale, a conflict, a failing check or an unknown. Not merely "not finished". */
+export function hasProblem(analysis: Analysis): boolean {
+	return analysis.stale.length > 0 || analysis.conflicts.length > 0 || analysis.failedChecks.length > 0 || analysis.uncertain.length > 0;
+}
+
+// ---------- what an exception waives ----------
+
+export type CheckState = "failing" | "passing" | "not-run";
+
+export type ExceptionWaiver = {
+	recordId: string;
+	/** This work is stale or in conflict against the record, so an exception on it lifts something (rule R5's `waivable`). */
+	lifts: boolean;
+	/** The record's own validation check. Named only when the exception lifts something, because only then does it waive that check. */
+	check: string | null;
+	/** Whether that check is failing, passing at the current head, or has not run there yet. */
+	checkState: CheckState | null;
+	signer: string | null;
+	/** What would still block the work with this exception in place, from a dry run of the gate. Empty when nothing would. */
+	otherBlocks: string[];
+	/** Whether the gate would pass with this exception. Null when it cannot be told (nothing pushed yet, no authority named). */
+	wouldPass: boolean | null;
+};
+
+/** The gate, dry-run as if the record's authority had granted an exception on it now. Null when that cannot be built. */
+function gateWithException(view: ViewState, wi: WorkItemState, recordId: string) {
+	const record = currentRecord(view, recordId);
+	if (!view.policy || !record || wi.headSha === null) return null;
+	const state = toCellState(view);
+	const authority = authorityFor(state, view.policy, recordId);
+	if (!authority) return null;
+	const hypothetical: Resolution = {
+		kind: "accept-exception",
+		workItemId: wi.item.id,
+		actor: { kind: "human", id: authority, displayName: actorLabel(view, authority) },
+		rationale: "preview",
+		scope: "preview",
+		binding: { recordId, version: record.version, blobHash: record.blobHash, baseSha: view.baselineCommit, forkHeadSha: wi.headSha, contextSnapshotHash: view.snapshotHash },
+		ts: "1970-01-01T00:00:00.000Z",
+	};
+	const next = { ...state, workItems: { ...state.workItems, [wi.item.id]: { ...wi, resolutions: [...wi.resolutions, hypothetical] } } };
+	return evaluateGate(next, wi.item.id, view.policy);
+}
+
+/** What `accept-exception` on one record would waive for this work item, and what it would leave blocked, from the same facts the gate uses. */
+export function exceptionWaiver(view: ViewState, wi: WorkItemState, analysis: Analysis, recordId: string): ExceptionWaiver {
+	const lifts = analysis.stale.some((f) => f.recordId === recordId) || analysis.conflicts.some((f) => f.recordId === recordId);
+	const check = lifts ? (currentRecord(view, recordId)?.validation ?? null) : null;
+	const checkState: CheckState | null = check === null ? null : analysis.failedChecks.includes(check) ? "failing" : analysis.testEvidence.some((e) => e.check === check && e.pass) ? "passing" : "not-run";
+	const dry = gateWithException(view, wi, recordId);
+	return { recordId, lifts, check, checkState, signer: signerFor(view, recordId), otherBlocks: dry ? dry.blockers : [], wouldPass: dry ? dry.promotable : null };
+}
+
+/** The accepted exceptions that still hold for this work item (not lapsed), with who granted them and their scope. */
+export function validExceptions(view: ViewState, wi: WorkItemState): { recordId: string; scope: string | null; signer: string }[] {
+	return wi.resolutions
+		.filter((r) => r.kind === "accept-exception" && exceptionStatus(view, wi, r)?.lapsed === false)
+		.map((r) => ({ recordId: r.binding.recordId, scope: r.scope ?? null, signer: actorLabel(view, r.actor.id) }));
+}
+
+// ---------- the results strip, kept current ----------
+
+/** Work that is still blocked on a change: stale, in conflict, unknown, or being re-run. Merged, ready, up to date and rejected work is not. */
+export function stillBlocked(wi: WorkItemState | undefined): boolean {
+	return wi !== undefined && ["stale", "conflict", "uncertain", "revalidating"].includes(wi.item.status);
+}
+
+/**
+ * The last evaluation's counts, brought up to date with what has happened since: of the work the change
+ * made stale, how many still are, and how many have been merged, revalidated or ruled on in the meantime.
+ */
+export function currentEvaluation(view: ViewState): (Evaluation & { resolved: number }) | null {
+	const evaluation = view.evaluation;
+	if (!evaluation) return null;
+	const still = (ids: readonly string[]) => ids.filter((id) => stillBlocked(view.workItems[id])).length;
+	const stale = still(evaluation.staleIds);
+	const alreadyStale = still(evaluation.alreadyStaleIds);
+	return {
+		...evaluation,
+		stale,
+		alreadyStale,
+		resolved: evaluation.stale - stale + (evaluation.alreadyStale - alreadyStale),
+	};
 }

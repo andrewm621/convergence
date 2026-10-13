@@ -1,10 +1,10 @@
 import type { WorkItemState } from "contracts";
 import { MousePointerClick } from "lucide-react";
 import { useMemo } from "react";
-import { ActorChip, RunningDot, SeededBadge, StatusChip } from "@/components/status";
+import { ActorChip, RunningDot, SeededBadge, StatusChip, useDegraded } from "@/components/status";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useConsole, type InspectorTab } from "@/state/console-context";
-import { agentModelOf, runningAgents, workItemsSorted } from "@/state/derive";
+import { agentModelOf, analysisOf, hasProblem, quietOf, runningAgents, workItemsSorted } from "@/state/derive";
 import { useGate } from "@/state/use-gate";
 import { PaneHeader } from "./context-timeline";
 import { ActionsTab } from "./inspector-actions";
@@ -53,8 +53,15 @@ function NothingSelected() {
 function WorkItemInspector({ wi }: { wi: WorkItemState }) {
 	const { view, tab, setTab, client } = useConsole();
 	const { gate } = useGate(wi.item.id);
+	const degraded = useDegraded();
 	const running = useMemo(() => runningAgents(view.ledger).has(wi.item.id), [view.ledger, wi.item.id]);
-	const blocked = wi.item.status !== "promoted" && gate !== null && !gate.pass;
+	// "Why is this blocked?" only when the rules found something wrong; an item that has simply not pushed yet is not blocked.
+	const analysis = useMemo(() => analysisOf(view, wi.item.id), [view, wi.item.id]);
+	const blocked = wi.item.status !== "promoted" && gate !== null && !gate.pass && analysis !== null && hasProblem(analysis);
+	const found = useMemo(() => quietOf(view, wi), [view, wi]);
+	const quiet = degraded ? null : found;
+	// A blocked item whose agent is still going would read "Blocked" and "agent running" at once: say what the agent is doing.
+	const stillWorking = running && (wi.item.status === "stale" || wi.item.status === "conflict");
 
 	return (
 		<div className="flex min-h-0 flex-1 flex-col" data-testid="inspector" data-work-item={wi.item.id}>
@@ -62,11 +69,11 @@ function WorkItemInspector({ wi }: { wi: WorkItemState }) {
 				<div className="flex items-center gap-2">
 					<span className="font-mono text-xs font-semibold text-muted-foreground">{wi.item.id}</span>
 					{wi.item.source === "seeded" && <SeededBadge />}
-					{running && <RunningDot />}
+					{running && <RunningDot label={stillWorking ? "Agent still working" : "Agent working"} />}
 				</div>
 				<h2 className="text-[15px] leading-snug font-semibold">{wi.item.title}</h2>
 				<div className="flex flex-wrap items-center gap-2">
-					<StatusChip status={wi.item.status} />
+					<StatusChip status={wi.item.status} leftAlone={quiet !== null} />
 					<ActorChip actor={wi.item.actor} label={scenarioMeta(client.scenario, client.kind === "live").agentLabel ?? agentModelOf(view.ledger, wi.item.id) ?? undefined} />
 					<PromoteButton workItemId={wi.item.id} className="ml-auto" />
 				</div>

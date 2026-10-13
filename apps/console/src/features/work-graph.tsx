@@ -8,6 +8,7 @@ import { SeededBadge } from "@/components/status";
 import { UnavailableHint } from "@/components/unavailable-hint";
 import { formatMs, plural } from "@/lib/format";
 import { useConsole } from "@/state/console-context";
+import { currentEvaluation } from "@/state/derive";
 import type { Evaluation } from "@/state/store";
 import { PaneHeader } from "./context-timeline";
 import { BaselineNode, ClusterNode, DependencyEdge, RecordNode, WorkItemNode } from "./graph-nodes";
@@ -36,9 +37,10 @@ function useIsDark(): boolean {
  */
 export function WorkGraph() {
 	const { view, client, observed } = useConsole();
-	const evaluation = view.evaluation;
+	// The counts follow the work: once a stale item is merged, revalidated or ruled on, the strip stops calling it stale.
+	const evaluation = currentEvaluation(view);
 	const live = client.kind === "live";
-	const ms = live ? (evaluation && observed?.seq === evaluation.seq ? observed.ms : null) : (evaluation?.ms ?? null);
+	const ms = live ? (evaluation && observed && observed.seq === evaluation.seq ? observed.ms : null) : (evaluation?.ms ?? null);
 	return (
 		<section aria-label="Work graph" className="relative flex min-h-0 flex-1 flex-col">
 			<PaneHeader title="Work graph" subtitle="Who is building on which decision">
@@ -140,8 +142,11 @@ export function StartAgents({ onStart }: { onStart(): Promise<{ ok: boolean; mes
 	const [busy, setBusy] = useState(false);
 	return (
 		<div className="pointer-events-auto max-w-sm rounded-xl border bg-card/95 p-5 text-center shadow-md" data-testid="start-agents">
-			<p className="text-sm font-semibold">No work yet</p>
-			<p className="mt-1 text-xs text-muted-foreground">The decisions are accepted. Start the scenario and each agent gets a receipt of exactly what it was handed.</p>
+			<p className="text-sm font-semibold">Agents work in parallel. Then a decision changes.</p>
+			<p className="mt-1 text-xs text-muted-foreground">
+				Git won&apos;t notice: the files don&apos;t conflict.{" "}
+				{client.capabilities.start ? "Start to see what Delta Convergence catches." : "Delta Convergence catches the work that was built on the old decision."}
+			</p>
 			<UnavailableHint available={client.capabilities.start} reason="Starting is not available against the live Worker yet. Register the work items with POST /api/scenarios/:s/work-items; the agents start from there.">
 				<Button
 					className="mt-4"
@@ -166,7 +171,7 @@ export function StartAgents({ onStart }: { onStart(): Promise<{ ok: boolean; mes
  * alone work that was already stale from an earlier one, those are counted apart (`K newly stale · J already stale ·
  * M with no recorded dependency`), so the numbers add up to the red cards on the graph.
  */
-export function ResultsStrip({ evaluation, ms = evaluation?.ms ?? null, measuredHere = false }: { evaluation: Evaluation | null; ms?: number | null; measuredHere?: boolean }) {
+export function ResultsStrip({ evaluation, ms = evaluation?.ms ?? null, measuredHere = false }: { evaluation: (Evaluation & { resolved?: number }) | null; ms?: number | null; measuredHere?: boolean }) {
 	if (!evaluation) return null;
 	const time = ms === null ? null : formatMs(ms);
 	return (
@@ -174,9 +179,9 @@ export function ResultsStrip({ evaluation, ms = evaluation?.ms ?? null, measured
 			role="status"
 			aria-label="Last evaluation"
 			data-testid="results-strip"
-			className="flex items-center gap-3 rounded-lg border bg-card/95 px-3 py-1 text-sm shadow-xs"
+			className="flex items-center gap-2 rounded-lg border bg-card/95 px-3 py-1 text-[13px] shadow-xs"
 		>
-			<Zap className="size-4 text-primary" aria-hidden />
+			<Zap className="size-4 shrink-0 text-primary" aria-hidden />
 			{evaluation.proseOnly ? (
 				<>
 					<span className="font-medium">{evaluation.recordRef ?? "Context"}: prose only</span>
@@ -203,6 +208,14 @@ export function ResultsStrip({ evaluation, ms = evaluation?.ms ?? null, measured
 							<Dot />
 							<span className="text-danger tabular-nums" title="Not touched by this change, but stale from an earlier one.">
 								{evaluation.alreadyStale} already stale
+							</span>
+						</>
+					)}
+					{(evaluation.resolved ?? 0) > 0 && (
+						<>
+							<Dot />
+							<span className="text-success tabular-nums" data-testid="results-resolved" title="Went stale on this change, and has since been merged, revalidated or ruled on.">
+								{evaluation.resolved} resolved
 							</span>
 						</>
 					)}

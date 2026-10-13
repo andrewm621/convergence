@@ -32,13 +32,13 @@ type StatusMeta = { label: string; tone: Tone; icon: typeof Play; description: s
  * meaning alone.
  */
 export const STATUS_META: Record<WorkItemStatus, StatusMeta> = {
-	running: { label: "running", tone: "info", icon: Play, description: "The agent is working." },
-	fresh: { label: "fresh", tone: "success", icon: ShieldCheck, description: "No recorded dependency on a changed decision." },
-	stale: { label: "needs review", tone: "danger", icon: TriangleAlert, description: "Built on a decision that has since changed. A changed decision is not a verdict on the work." },
-	conflict: { label: "conflict", tone: "danger", icon: Swords, description: "Its claims or checks contradict an accepted decision." },
+	running: { label: "Agent working", tone: "info", icon: Play, description: "The agent is working." },
+	fresh: { label: "Up to date", tone: "success", icon: ShieldCheck, description: "Nothing it relies on has changed since it was built." },
+	stale: { label: "Blocked", tone: "danger", icon: TriangleAlert, description: "Stale: built on a decision that has since changed. A changed decision is not a verdict on the work." },
+	conflict: { label: "Blocked", tone: "danger", icon: Swords, description: "Conflict: its claims or checks contradict an accepted decision." },
 	revalidating: { label: "revalidating", tone: "info", icon: RefreshCw, description: "Re-running on the current decisions." },
-	ready: { label: "ready", tone: "primary", icon: CheckCheck, description: "Cleared by the gate. A human decides whether to promote." },
-	promoted: { label: "promoted", tone: "merged", icon: GitMerge, description: "Merged into the baseline." },
+	ready: { label: "Ready to merge", tone: "primary", icon: CheckCheck, description: "Cleared by the gate. A human decides whether to promote." },
+	promoted: { label: "Merged", tone: "merged", icon: GitMerge, description: "Promoted: merged into the baseline." },
 	uncertain: { label: "uncertain", tone: "warning", icon: HelpCircle, description: "Delta Convergence cannot tell: claims are missing or rely on something undeclared." },
 	rejected: { label: "rejected", tone: "neutral", icon: CircleSlash, description: "A human rejected this work." },
 };
@@ -55,16 +55,22 @@ export function useDegraded(): boolean {
  * trusted (a baseline change may be sitting unread; unknown is not unaffected), so it is shown as `unconfirmed`,
  * never Fresh and never "Cleared by the gate".
  */
-export function statusMeta(status: WorkItemStatus, degraded: boolean): StatusMeta {
+export function statusMeta(status: WorkItemStatus, degraded: boolean, leftAlone = false): StatusMeta {
 	if (degraded && (status === "fresh" || status === "ready")) {
 		return { label: "unconfirmed", tone: "warning", icon: HelpCircle, description: "The poller is degraded, so Delta Convergence cannot confirm that no decision it depends on has changed." };
+	}
+	// Work with no recorded dependency on what changed stays green, even while its agent is still working. Never while the
+	// poller is degraded: a baseline change may be sitting unread, and unknown is not unaffected.
+	if (status === "running" && leftAlone && !degraded) {
+		return { label: "Left alone", tone: "success", icon: ShieldCheck, description: "No recorded dependency on what the last decision change touched. Its agent is still working." };
 	}
 	return STATUS_META[status];
 }
 
-export function StatusChip({ status, className }: { status: WorkItemStatus; className?: string }) {
+/** `leftAlone`: the latest decision change was evaluated against this work and left it alone (rule R2). */
+export function StatusChip({ status, leftAlone = false, className }: { status: WorkItemStatus; leftAlone?: boolean; className?: string }) {
 	const degraded = useDegraded();
-	const meta = statusMeta(status, degraded);
+	const meta = statusMeta(status, degraded, leftAlone);
 	const Icon = meta.icon;
 	return (
 		<Badge tone={meta.tone} data-status={status} data-unconfirmed={meta.label === "unconfirmed" ? "" : undefined} title={meta.description} className={cn("font-semibold", className)}>
@@ -132,7 +138,7 @@ export function ReasonChip({ code, className }: { code: ReasonCode | string; cla
 	);
 }
 
-export function RunningDot({ label = "agent running" }: { label?: string }) {
+export function RunningDot({ label = "Agent working" }: { label?: string }) {
 	return (
 		<span className="inline-flex items-center gap-1.5 text-xs text-info">
 			<Loader className="size-3 motion-safe:animate-spin" aria-hidden />

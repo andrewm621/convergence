@@ -87,23 +87,23 @@ describe("poller degraded: visible, and never Fresh", () => {
 
 	it("shows a fresh or ready work item as unconfirmed, never as fresh or cleared, while degraded", () => {
 		const { rerender } = render(<StatusChip status="fresh" />);
-		expect(screen.getByText("fresh")).toBeInTheDocument();
+		expect(screen.getByText("Up to date")).toBeInTheDocument();
 		rerender(
 			<DegradedContext.Provider value>
 				<StatusChip status="fresh" />
 			</DegradedContext.Provider>,
 		);
-		expect(screen.queryByText("fresh")).toBeNull();
+		expect(screen.queryByText("Up to date")).toBeNull();
 		expect(screen.getByText("unconfirmed")).toBeInTheDocument();
 		// "Cleared by the gate" is a claim about current decisions too, so ready is downgraded the same way.
 		rerender(<StatusChip status="ready" />);
-		expect(screen.getByText("ready")).toBeInTheDocument();
+		expect(screen.getByText("Ready to merge")).toBeInTheDocument();
 		rerender(
 			<DegradedContext.Provider value>
 				<StatusChip status="ready" />
 			</DegradedContext.Provider>,
 		);
-		expect(screen.queryByText("ready")).toBeNull();
+		expect(screen.queryByText("Ready to merge")).toBeNull();
 		expect(screen.getByText("unconfirmed")).toBeInTheDocument();
 		expect(screen.getByText("unconfirmed").closest("[data-status]")).toHaveAttribute("title", expect.not.stringContaining("Cleared by the gate"));
 		// Other statuses are not rewritten.
@@ -112,7 +112,7 @@ describe("poller degraded: visible, and never Fresh", () => {
 				<StatusChip status="stale" />
 			</DegradedContext.Provider>,
 		);
-		expect(screen.getByText("needs review")).toBeInTheDocument();
+		expect(screen.getByText("Blocked")).toBeInTheDocument();
 	});
 
 	it("closes Promote while degraded even when the gate passes, and reopens when the poller recovers", async () => {
@@ -195,6 +195,7 @@ describe("live mode disables what the Worker does not have", () => {
 		);
 		expect(await screen.findByRole("button", { name: /Start the scenario/ })).toBeEnabled();
 		expect(screen.queryByTestId("unavailable-action")).toBeNull();
+		expect(screen.getByTestId("start-agents")).toHaveTextContent("Start to see what Delta Convergence catches.");
 		view.unmount();
 
 		render(
@@ -206,6 +207,9 @@ describe("live mode disables what the Worker does not have", () => {
 		);
 		const button = await screen.findByRole("button", { name: /Start the scenario/ });
 		expect(button).toBeDisabled();
+		// Where Start is not available the card must not tell the viewer to start.
+		expect(screen.getByTestId("start-agents")).not.toHaveTextContent("Start to see");
+		expect(screen.getByTestId("start-agents")).toHaveTextContent("Agents work in parallel. Then a decision changes.");
 		await user.hover(screen.getByTestId("unavailable-action"));
 		expect(await screen.findByRole("tooltip")).toHaveTextContent(/not available against the live Worker/);
 		expect(onStart).not.toHaveBeenCalled();

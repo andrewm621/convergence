@@ -58,9 +58,9 @@ export function ContextTimeline() {
 
 export function PaneHeader({ title, subtitle, meta, children }: { title: string; subtitle?: string; meta?: string; children?: ReactNode }) {
 	return (
-		<div className="flex h-11 shrink-0 items-center gap-2 border-b px-4">
-			<h2 className="text-[13px] font-semibold tracking-tight">{title}</h2>
-			{subtitle && <span className="truncate text-xs text-muted-foreground">{subtitle}</span>}
+		<div className="flex min-h-11 shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b px-4 py-1.5">
+			<h2 className="shrink-0 text-[13px] font-semibold tracking-tight whitespace-nowrap">{title}</h2>
+			{subtitle && <span className="min-w-0 truncate text-xs text-muted-foreground">{subtitle}</span>}
 			{meta && <span className="ml-auto shrink-0 font-mono text-xs text-muted-foreground">{meta}</span>}
 			{children && <div className="ml-auto flex shrink-0 items-center gap-2">{children}</div>}
 		</div>
@@ -146,7 +146,7 @@ function RecordCard({ recordId, history, editing, onEdit, onClose }: { recordId:
 				Accepted by {actorLabel(view, snapshot.acceptedBy)}
 				{snapshot.acceptedAt ? ` · ${formatDateTime(snapshot.acceptedAt)}` : ""}
 			</p>
-			<p className="text-xs text-muted-foreground">{dependents === 0 ? "No work relies on it yet" : `${plural(dependents, "work item")} rely on it`}</p>
+			<p className="text-xs text-muted-foreground">{dependents === 0 ? "No work relies on it yet" : dependents === 1 ? "1 work item relies on it" : `${dependents} work items rely on it`}</p>
 
 			{!editing && (
 				<dl className="mt-3 space-y-1.5">
@@ -347,23 +347,26 @@ export function ChangeEditor({ recordId, snapshot, onClose }: { recordId: string
 				/>
 			</div>
 
-			<p className={cn("rounded-md px-2.5 py-1.5 text-xs", changes.length > 0 ? "bg-warning-soft text-warning" : "bg-muted text-muted-foreground")} data-testid="editor-effect" aria-live="polite">
-				{nothingToCommit
-					? "Nothing changed yet."
-					: changes.length > 0
-						? `${plural(changes.length, "facet")} changed: this commits v${nextVersion} and re-evaluates every work item that relies on ${changes.length === 1 ? "it" : "them"}.`
-						: `Facets unchanged: this saves as a prose edit of v${snapshot.version}. Nothing is re-evaluated and nobody is paged.`}
-			</p>
-			{submitted && keyProblem && <p className="text-xs text-danger">Every facet needs a unique key.</p>}
-			{submitted && !keyProblem && changes.length > 0 && rationaleMissing && <p className="text-xs text-danger">Say why the decision changed.</p>}
+			{/* Sticky: the effect line and Commit stay in view however far the facets and prose push them down. */}
+			<div className="sticky bottom-0 z-10 -mx-3.5 -mb-3.5 space-y-2 border-t bg-card px-3.5 pt-2.5 pb-3.5" data-testid="editor-footer">
+				<p className={cn("rounded-md px-2.5 py-1.5 text-xs", changes.length > 0 ? "bg-warning-soft text-warning" : "bg-muted text-muted-foreground")} data-testid="editor-effect" aria-live="polite">
+					{nothingToCommit
+						? "Nothing changed yet."
+						: changes.length > 0
+							? `${plural(changes.length, "facet")} changed: this commits v${nextVersion} and re-evaluates every work item that relies on ${changes.length === 1 ? "it" : "them"}.`
+							: `Facets unchanged: this saves as a prose edit of v${snapshot.version}. Nothing is re-evaluated and nobody is paged.`}
+				</p>
+				{submitted && keyProblem && <p className="text-xs text-danger">Every facet needs a unique key.</p>}
+				{submitted && !keyProblem && changes.length > 0 && rationaleMissing && <p className="text-xs text-danger">Say why the decision changed.</p>}
 
-			<div className="flex items-center gap-2">
-				<Button type="submit" size="sm" disabled={submitting || nothingToCommit}>
-					{submitting ? "Committing" : changes.length > 0 ? `Commit v${nextVersion}` : "Save prose edit"}
-				</Button>
-				<Button type="button" variant="ghost" size="sm" onClick={onClose}>
-					Cancel
-				</Button>
+				<div className="flex items-center gap-2">
+					<Button type="submit" size="sm" disabled={submitting || nothingToCommit}>
+						{submitting ? "Committing" : changes.length > 0 ? `Commit v${nextVersion}` : "Save prose edit"}
+					</Button>
+					<Button type="button" variant="ghost" size="sm" onClick={onClose}>
+						Cancel
+					</Button>
+				</div>
 			</div>
 		</form>
 	);
