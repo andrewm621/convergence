@@ -74,7 +74,7 @@ describe("propose change", () => {
 		const value = await screen.findByLabelText("Value for notifications.default");
 		await user.clear(value);
 		await user.type(value, "opt-in");
-		expect(screen.getByTestId("editor-effect")).toHaveTextContent(/1 facet changed: this commits v2/);
+		expect(screen.getByTestId("editor-effect")).toHaveTextContent(/This makes v2 the decision\. Blocks 1 built on v1: Notification preferences and delivery\./);
 
 		// A decision change must say why.
 		await user.click(screen.getByRole("button", { name: "Commit v2" }));
@@ -84,6 +84,67 @@ describe("propose change", () => {
 		await user.click(screen.getByRole("button", { name: "Commit v2" }));
 		await waitFor(async () => expect((await mock.client.api.gate("WI-2")).reasonCodes).toContain("STALE_RECEIPT"));
 		expect(await screen.findByText("v2", { selector: "[data-slot=badge]" })).toBeInTheDocument();
+	});
+
+	it("names the work a change will block and the work it leaves alone, and follows the edit as it is typed", async () => {
+		const user = userEvent.setup();
+		await renderWithMock(<ContextTimeline />, { beats: 1 });
+		const card = (await screen.findByRole("heading", { name: "notifications" })).closest("article") as HTMLElement;
+		await user.click(within(card).getByRole("button", { name: /Propose change/ }));
+		const effect = await screen.findByTestId("editor-effect");
+		expect(effect).toHaveTextContent("Nothing changed yet, so nothing is blocked.");
+
+		// WI-2 relies on the default and the cadence, not on the channel.
+		const channel = screen.getByLabelText("Value for notifications.channel");
+		await user.clear(channel);
+		await user.type(channel, "email");
+		expect(effect).toHaveTextContent("This makes v2 the decision. Blocks nothing. Leaves 2 alone: Status badges and the status-change API, Notification preferences and delivery.");
+		expect(effect).toHaveAttribute("data-blocked", "");
+
+		const value = screen.getByLabelText("Value for notifications.default");
+		await user.clear(value);
+		await user.type(value, "opt-in");
+		expect(effect).toHaveTextContent("This makes v2 the decision. Blocks 1 built on v1: Notification preferences and delivery. Leaves 1 alone: Status badges and the status-change API.");
+		expect(effect).toHaveAttribute("data-blocked", "WI-2");
+		expect(effect).toHaveAttribute("data-left-alone", "WI-1");
+		expect(effect).not.toHaveTextContent(/facet|record|receipt|stale/i);
+
+		// Put it back and the line goes back to saying nothing changed.
+		await user.clear(value);
+		await user.type(value, "on");
+		await user.clear(channel);
+		await user.type(channel, "in-app");
+		expect(effect).toHaveTextContent("Nothing changed yet, so nothing is blocked.");
+	});
+
+	it("shows long values and long keys in full: they wrap and grow instead of being cut off", async () => {
+		const user = userEvent.setup();
+		const scrollHeight = vi.spyOn(HTMLTextAreaElement.prototype, "scrollHeight", "get").mockReturnValue(84);
+		try {
+			await renderWithMock(<ContextTimeline />, { beats: 1 });
+			const card = (await screen.findByRole("heading", { name: "notifications" })).closest("article") as HTMLElement;
+			await user.click(within(card).getByRole("button", { name: /Propose change/ }));
+
+			// The three keys that share a prefix are all there in full, so the part that tells them apart is visible.
+			const keys = screen.getAllByLabelText("Facet key").map((el) => (el as HTMLTextAreaElement).value);
+			expect(keys).toEqual(["notifications.default", "notifications.cadence", "notifications.channel"]);
+			for (const field of [...screen.getAllByLabelText("Facet key"), screen.getByLabelText("Value for notifications.default")]) {
+				expect(field.tagName).toBe("TEXTAREA");
+				expect(field.className).not.toMatch(/truncate|text-ellipsis|whitespace-nowrap/);
+				expect(field).toHaveStyle({ height: "84px" });
+			}
+
+			const long = "weekly digest on Monday mornings, except in the first week of the month, when it goes out on the Friday before";
+			const value = screen.getByLabelText("Value for notifications.cadence");
+			await user.clear(value);
+			await user.type(value, long);
+			expect((value as HTMLTextAreaElement).value).toBe(long);
+			// Enter does not add a line to a setting.
+			await user.type(value, "{Enter}");
+			expect((value as HTMLTextAreaElement).value).toBe(long);
+		} finally {
+			scrollHeight.mockRestore();
+		}
 	});
 
 	it("sends the baseline commit it opened on, and says so when another tab moved the decisions first", async () => {
