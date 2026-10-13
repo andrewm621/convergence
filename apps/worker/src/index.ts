@@ -4,6 +4,8 @@ import { redactDeep, redactText } from "./artifacts/tokens";
 import { DispatchError, dispatchAgent, presentRun } from "./agents/dispatch";
 import { DispatchRequest, IdempotencyKey, REPO_NAME_RE, RefName, WORK_ITEM_ID_RE } from "./agents/protocol";
 import { purgeSmokeRepos, runSmoke, seedForks } from "./smoke";
+import { bearerGuard } from "./cell/auth";
+import { cellApi } from "./cell/routes";
 
 export { WorkspaceCell } from "./workspace-cell";
 export { AgentSandbox } from "./agents/sandbox";
@@ -14,15 +16,7 @@ const app = new Hono<{ Bindings: Env }>();
 app.get("/health", (c) => c.json({ ok: true, version: c.env.APP_VERSION }));
 
 // Everything under /api needs the bearer secret. Fails closed when DEV_TOKEN is unset.
-app.use("/api/*", async (c, next) => {
-	const expected = c.env.DEV_TOKEN;
-	const header = c.req.header("Authorization") ?? "";
-	const given = header.startsWith("Bearer ") ? header.slice("Bearer ".length) : "";
-	if (!expected || !given || !(await safeEqual(given, expected))) {
-		return c.json({ error: { code: "UNAUTHORIZED", message: "missing or invalid bearer token" } }, 401);
-	}
-	await next();
-});
+app.use("/api/*", bearerGuard);
 
 // Smoke endpoints create and delete real repos. Off unless ENABLE_SMOKE=1.
 app.use("/api/smoke/*", requireSmoke);
@@ -128,6 +122,8 @@ app.get("/api/cell/:name", async (c) => {
 	return c.json({ id: await stub.getId() });
 });
 
+app.route("/api", cellApi); // WorkspaceCell API: scenarios, work items, resolutions, promote, WebSocket (docs/control-loop.md)
+
 app.onError((err, c) => {
 	const code = errorCode(err);
 	const status = code === "NOT_FOUND" ? 404 : 500;
@@ -140,15 +136,6 @@ async function requireSmoke(c: Context<{ Bindings: Env }>, next: Next) {
 		return c.json({ error: { code: "SMOKE_DISABLED", message: "smoke endpoints are disabled (set ENABLE_SMOKE=1)" } }, 404);
 	}
 	await next();
-}
-
-async function safeEqual(a: string, b: string): Promise<boolean> {
-	const enc = new TextEncoder();
-	const [ha, hb] = await Promise.all([
-		crypto.subtle.digest("SHA-256", enc.encode(a)),
-		crypto.subtle.digest("SHA-256", enc.encode(b)),
-	]);
-	return crypto.subtle.timingSafeEqual(ha, hb);
 }
 
 export default app;

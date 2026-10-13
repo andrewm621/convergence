@@ -32,7 +32,12 @@
     // Pause between stub steps so concurrent runs visibly overlap.
     "STUB_STEP_MS": "2500",
     // Container size. "lite" runs the stub but is CPU-starved (about 2x slower end to end); claude needs standard-1 or larger.
-    "SANDBOX_INSTANCE": "standard-1"
+    "SANDBOX_INSTANCE": "standard-1",
+    // How often a WorkspaceCell polls its repos through the Artifacts binding (ms, 100-60000).
+    "POLL_INTERVAL_MS": "3000",
+    // The one human the bearer secret stands for. Must match the authority in the scenario's policy.
+    "DEMO_ACTOR_ID": "decision-owner",
+    "DEMO_ACTOR_NAME": "Decision owner (demo identity)"
   },
   "artifacts": [{ "binding": "ARTIFACTS", "namespace": "default" }],
   "durable_objects": {

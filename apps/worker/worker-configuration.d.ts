@@ -18,6 +18,9 @@ interface __BaseEnv_Env {
 	AGENT_MAX_COST_USD: string;
 	STUB_STEP_MS: string;
 	SANDBOX_INSTANCE: string;
+	POLL_INTERVAL_MS: string;
+	DEMO_ACTOR_ID: string;
+	DEMO_ACTOR_NAME: string;
 	DEV_TOKEN: string;
 	OPENROUTER_API_KEY: string;
 	WORKSPACE_CELL: DurableObjectNamespace<import("./src/index").WorkspaceCell>;
@@ -35,7 +38,7 @@ type StringifyValues<EnvType extends Record<string, unknown>> = {
 	[Binding in keyof EnvType]: EnvType[Binding] extends string ? EnvType[Binding] : string;
 };
 declare namespace NodeJS {
-	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "APP_VERSION" | "ENABLE_SMOKE" | "AGENT_MODE" | "AGENT_MODEL" | "AGENT_MODELS" | "AGENT_MAX_TURNS" | "AGENT_MAX_BUDGET_USD" | "AGENT_TIMEOUT_S" | "AGENT_MAX_MODEL_REQUESTS" | "AGENT_MAX_GIT_REQUESTS" | "AGENT_MAX_TOTAL_TOKENS" | "AGENT_MAX_OUTPUT_TOKENS" | "AGENT_MAX_COST_USD" | "STUB_STEP_MS" | "SANDBOX_INSTANCE" | "DEV_TOKEN" | "OPENROUTER_API_KEY">> {}
+	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "APP_VERSION" | "ENABLE_SMOKE" | "AGENT_MODE" | "AGENT_MODEL" | "AGENT_MODELS" | "AGENT_MAX_TURNS" | "AGENT_MAX_BUDGET_USD" | "AGENT_TIMEOUT_S" | "AGENT_MAX_MODEL_REQUESTS" | "AGENT_MAX_GIT_REQUESTS" | "AGENT_MAX_TOTAL_TOKENS" | "AGENT_MAX_OUTPUT_TOKENS" | "AGENT_MAX_COST_USD" | "STUB_STEP_MS" | "SANDBOX_INSTANCE" | "POLL_INTERVAL_MS" | "DEMO_ACTOR_ID" | "DEMO_ACTOR_NAME" | "DEV_TOKEN" | "OPENROUTER_API_KEY">> {}
 }
 declare module "*.txt" {
 	const value: string;
