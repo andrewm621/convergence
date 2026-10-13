@@ -156,13 +156,13 @@ describe("the evaluation strip's timing", () => {
 	it("reads as before when nothing was already stale", () => {
 		render(<ResultsStrip evaluation={evaluation} />);
 		const strip = screen.getByTestId("results-strip");
-		expect(strip).toHaveTextContent("2 items evaluated·1 stale·1 untouched");
+		expect(strip).toHaveTextContent("2 items evaluated·1 stale·1 with no recorded dependency");
 		expect(strip).not.toHaveTextContent("already");
 	});
 
 	it("counts work that was already stale apart, so the numbers add up to the red cards", () => {
 		render(<ResultsStrip evaluation={{ ...evaluation, evaluated: 7, stale: 3, alreadyStale: 2, untouched: 2 }} />);
-		expect(screen.getByTestId("results-strip")).toHaveTextContent("7 items evaluated·3 newly stale·2 already stale·2 untouched");
+		expect(screen.getByTestId("results-strip")).toHaveTextContent("7 items evaluated·3 newly stale·2 already stale·2 with no recorded dependency");
 	});
 
 	it("shows no time at all when there is no honest number", () => {

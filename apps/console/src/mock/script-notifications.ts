@@ -66,7 +66,7 @@ export function notificationsScript(bundle: NotificationsScenario): MockScript {
 		},
 		{
 			id: "commit-v2",
-			title: "v2 lands: WI-2 stale, WI-1 untouched",
+			title: "v2 lands: WI-2 stale, WI-1 has no recorded dependency",
 			caption: "Exactly one edge turns red. WI-1 is left alone, with a reason code.",
 			async run({ session, drip }) {
 				const record = currentSnapshot(await session.cell.state(), "notifications");
@@ -102,7 +102,7 @@ export function notificationsScript(bundle: NotificationsScenario): MockScript {
 		{
 			id: "promote-wi1",
 			title: "WI-1 promotes",
-			caption: "Unaffected work is not slowed down: WI-1 passes the gate and merges.",
+			caption: "Work with no recorded dependency on the change is not slowed down: WI-1 passes the gate and merges.",
 			async run({ session }) {
 				await session.promoteNow("WI-1");
 				return { select: "WI-1", tab: "actions" };

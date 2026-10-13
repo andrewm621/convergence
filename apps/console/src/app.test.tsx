@@ -47,7 +47,7 @@ describe("the console, mock-driven end to end", () => {
 		const strip = await screen.findByTestId("results-strip");
 		expect(strip).toHaveTextContent("2 items evaluated");
 		expect(strip).toHaveTextContent("1 stale");
-		expect(strip).toHaveTextContent("1 untouched");
+		expect(strip).toHaveTextContent("1 with no recorded dependency");
 		expect(strip).toHaveTextContent(/ms/);
 
 		// The inspector follows the beat, and its default tab is the question.

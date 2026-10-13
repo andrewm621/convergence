@@ -162,9 +162,9 @@ export function StartAgents({ onStart }: { onStart(): Promise<{ ok: boolean; mes
 }
 
 /**
- * `N evaluated · K stale · M untouched · time`: what the last decision change did, and how fast. When the change left
+ * `N evaluated · K stale · M with no recorded dependency · time`: what the last decision change did, and how fast. When the change left
  * alone work that was already stale from an earlier one, those are counted apart (`K newly stale · J already stale ·
- * M untouched`), so the numbers add up to the red cards on the graph.
+ * M with no recorded dependency`), so the numbers add up to the red cards on the graph.
  */
 export function ResultsStrip({ evaluation, ms = evaluation?.ms ?? null, measuredHere = false }: { evaluation: Evaluation | null; ms?: number | null; measuredHere?: boolean }) {
 	if (!evaluation) return null;
@@ -207,7 +207,7 @@ export function ResultsStrip({ evaluation, ms = evaluation?.ms ?? null, measured
 						</>
 					)}
 					<Dot />
-					<span className="tabular-nums">{evaluation.untouched} untouched</span>
+					<span className="tabular-nums">{evaluation.untouched} with no recorded dependency</span>
 					{time && (
 						<>
 							<Dot />
