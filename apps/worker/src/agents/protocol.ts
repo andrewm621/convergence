@@ -55,6 +55,23 @@ export const RefName = z
 	.regex(/^[A-Za-z0-9][A-Za-z0-9._\/-]{0,199}$/, "invalid ref")
 	.refine((r) => !r.includes("..") && !r.endsWith("/") && !r.endsWith(".lock"), "invalid ref");
 
+/** An OpenRouter model slug: `vendor/name`, optionally `:variant` (or a `~vendor/name-latest` alias). */
+export const ModelSlug = z
+	.string()
+	.regex(/^~?[A-Za-z0-9][A-Za-z0-9._-]{0,60}\/[A-Za-z0-9][A-Za-z0-9._:-]{0,80}$/, "model must be an OpenRouter slug like vendor/name");
+
+/** Comma-separated slugs -> the allowlist, with the default first and duplicates removed. Throws on a bad slug. */
+export function parseModelAllowlist(csv: string | undefined, defaultModel: string): string[] {
+	const parts = [defaultModel, ...(csv ?? "").split(",").map((s) => s.trim()).filter(Boolean)];
+	return [...new Set(parts.map((m) => ModelSlug.parse(m)))];
+}
+
+/** The model for a run: the requested one if it is allowlisted, the default when none is requested. */
+export function resolveModel(requested: string | undefined, defaultModel: string, allowlist: string[]): { ok: true; model: string } | { ok: false; error: string } {
+	const model = requested ?? defaultModel;
+	return allowlist.includes(model) ? { ok: true, model } : { ok: false, error: `model ${model} is not in the allowlist (${allowlist.join(", ")})` };
+}
+
 export const DispatchRequest = z.strictObject({
 	forkRepo: z
 		.string()
@@ -66,6 +83,8 @@ export const DispatchRequest = z.strictObject({
 	/** Hold the response until the run finishes (fine for the stub). Otherwise it returns 202 and the caller polls. */
 	wait: z.boolean().default(false),
 	revalidate: Revalidate.optional(),
+	/** Which allowlisted model runs this work item. Defaults to AGENT_MODEL. */
+	model: ModelSlug.optional(),
 });
 export type DispatchRequest = z.infer<typeof DispatchRequest>;
 
@@ -109,7 +128,7 @@ export function buildAgentPrompt(workItemId: string, prompt: string): string {
 }
 
 /** Claude Code through OpenRouter's Anthropic-compatible endpoint. The key itself never enters the container. */
-export function claudeEnv(model: string): Record<string, string> {
+export function claudeEnv(model: string, maxOutputTokens = 8192): Record<string, string> {
 	return {
 		ANTHROPIC_BASE_URL: "https://openrouter.ai/api",
 		// Claude Code needs a credential to start; ModelGateway replaces this header with the real key.
@@ -121,34 +140,14 @@ export function claudeEnv(model: string): Record<string, string> {
 		ANTHROPIC_DEFAULT_OPUS_MODEL: model,
 		ANTHROPIC_DEFAULT_SONNET_MODEL: model,
 		ANTHROPIC_DEFAULT_HAIKU_MODEL: model,
+		ANTHROPIC_SMALL_FAST_MODEL: model,
 		CLAUDE_CODE_SUBAGENT_MODEL: model,
+		// Keep Claude Code under the gateway's own ceiling so normal requests are never clamped.
+		CLAUDE_CODE_MAX_OUTPUT_TOKENS: String(maxOutputTokens),
 		CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1",
 		IS_SANDBOX: "1",
 	};
 }
-
-/** The only model call Claude Code makes through ModelGateway: the Anthropic Messages endpoint (`?beta=true` is allowed). */
-export function isModelRequest(method: string, url: URL): boolean {
-	return method === "POST" && url.pathname === "/api/v1/messages";
-}
-
-/** Plain https on the default port, with no embedded credentials: the only URL shape a credential may be added to. */
-function isPlainHttps(url: URL, host: string): boolean {
-	return url.protocol === "https:" && url.hostname === host && url.port === "" && url.username === "" && url.password === "";
-}
-
-/** May the Artifacts token be added to this request? Exact host, exact repo, git smart-HTTP endpoints only. */
-export function allowGitCredential(method: string, url: URL, host: string, repoPath: string): boolean {
-	return isPlainHttps(url, host) && isRepoGitRequest(method, url, repoPath);
-}
-
-/** May the model key be added to this request? Exact host, the Messages endpoint only. */
-export function allowModelCredential(method: string, url: URL): boolean {
-	return isPlainHttps(url, "openrouter.ai") && isModelRequest(method, url);
-}
-
-/** Largest model request body ModelGateway will buffer to check the model. */
-export const MAX_MODEL_BODY_BYTES = 8 * 1024 * 1024;
 
 /** The `model` a request body asks for, or null when the body is not a JSON object with a string model. */
 export function requestedModel(bodyText: string): string | null {
@@ -162,11 +161,14 @@ export function requestedModel(bodyText: string): string | null {
 }
 
 /** Stable SHA-256 over the parts of a dispatch that define it, so a replayed key can be told from a reused one. */
-export async function dispatchFingerprint(req: Pick<DispatchRequest, "forkRepo" | "workItemId" | "prompt" | "revalidate">): Promise<string> {
+export async function dispatchFingerprint(
+	req: Pick<DispatchRequest, "forkRepo" | "workItemId" | "prompt" | "revalidate" | "model">,
+): Promise<string> {
 	const canonical = JSON.stringify([
 		req.forkRepo,
 		req.workItemId,
 		req.prompt,
+		req.model ?? null,
 		req.revalidate
 			? [req.revalidate.changes, Object.entries(req.revalidate.context).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))]
 			: null,
@@ -180,20 +182,6 @@ export function remoteParts(remote: string): { host: string; path: string } {
 	const url = new URL(remote);
 	if (url.protocol !== "https:") throw new Error("remote must be https");
 	return { host: url.hostname, path: url.pathname.replace(/\/+$/, "") };
-}
-
-/**
- * Is this request a git smart-HTTP call against exactly this repo? Anything else (other repos, other
- * paths, other methods) is refused, so a sandbox cannot use the injected token elsewhere.
- */
-export function isRepoGitRequest(method: string, url: URL, repoPath: string): boolean {
-	if (method === "GET" && url.pathname === `${repoPath}/info/refs`) {
-		const service = url.searchParams.get("service");
-		return service === "git-upload-pack" || service === "git-receive-pack";
-	}
-	return (
-		method === "POST" && (url.pathname === `${repoPath}/git-upload-pack` || url.pathname === `${repoPath}/git-receive-pack`)
-	);
 }
 
 // ---- Everything the container writes is untrusted: validate, cap, strip, and never let it decide state. ----
@@ -293,9 +281,13 @@ export async function readCappedText(body: ReadableStream<Uint8Array> | null, ma
 	return new TextDecoder().decode(all);
 }
 
+const SHA_RE = /^[0-9a-f]{40}$/;
+const isSha = (v: unknown): v is string => typeof v === "string" && SHA_RE.test(v);
+
 export interface HeadCommit {
 	hash: string;
 	author: string;
+	parents: string[];
 }
 
 export type PushVerdict = { ok: true; commit: string | null } | { ok: false; error: string };
@@ -303,6 +295,10 @@ export type PushVerdict = { ok: true; commit: string | null } | { ok: false; err
 /**
  * Decide what a run actually did from the fork's real history (read through the Artifacts binding), using the
  * container's claim only as something to check. `recent` is newest first; `baseHead` was read before the run.
+ *
+ * Fails closed: every input must be present and well-formed, the base head must be visible in `recent` (so a
+ * truncated or rewritten history can't pass), and the new commits must be a plain linear chain from the head
+ * down to the base, all authored by the work item. Anything else is a failure, never a pass.
  */
 export function verifyPush(input: {
 	baseHead: string | null;
@@ -310,22 +306,115 @@ export function verifyPush(input: {
 	expectedAuthor: string;
 	claimedSha: string | null;
 }): PushVerdict {
-	const head = input.recent[0];
-	if (!head) return { ok: false, error: "could not read the fork history to verify the push" };
+	const fail = (error: string): PushVerdict => ({ ok: false, error });
+	if (typeof input.expectedAuthor !== "string" || input.expectedAuthor === "") return fail("no expected author to verify against");
+	if (!isSha(input.baseHead)) return fail("the fork head before the run is unknown");
+	if (input.claimedSha !== null && !isSha(input.claimedSha)) return fail("runner reported a malformed push");
+	const recent = input.recent;
+	if (!Array.isArray(recent) || recent.length === 0) return fail("could not read the fork history to verify the push");
+	for (const c of recent) {
+		const ok =
+			c !== null &&
+			typeof c === "object" &&
+			isSha(c.hash) &&
+			typeof c.author === "string" &&
+			Array.isArray(c.parents) &&
+			c.parents.every(isSha);
+		if (!ok) return fail("the fork history is malformed");
+	}
 
+	const head = recent[0] as HeadCommit;
 	if (head.hash === input.baseHead) {
-		return input.claimedSha
-			? { ok: false, error: "runner reported a push but the fork head did not move" }
-			: { ok: true, commit: null };
+		return input.claimedSha ? fail("runner reported a push but the fork head did not move") : { ok: true, commit: null };
 	}
 
-	const baseIndex = input.baseHead ? input.recent.findIndex((c) => c.hash === input.baseHead) : -1;
-	const added = baseIndex >= 0 ? input.recent.slice(0, baseIndex) : input.recent;
-	if (added.some((c) => c.author !== input.expectedAuthor)) {
-		return { ok: false, error: `fork head moved with a commit not authored by ${input.expectedAuthor}` };
+	const baseIndex = recent.findIndex((c) => c.hash === input.baseHead);
+	if (baseIndex < 0) return fail("the fork head before the run is not in its recent history (truncated or rewritten)");
+	for (let i = 0; i < baseIndex; i++) {
+		const c = recent[i] as HeadCommit;
+		if (c.author !== input.expectedAuthor) return fail(`fork head moved with a commit not authored by ${input.expectedAuthor}`);
+		if (c.parents.length !== 1 || c.parents[0] !== (recent[i + 1] as HeadCommit).hash) {
+			return fail("the new commits are not a plain linear chain from the base");
+		}
 	}
-	if (input.claimedSha && input.claimedSha !== head.hash) {
-		return { ok: false, error: "runner reported a push that does not match the fork head" };
-	}
+	if (input.claimedSha && input.claimedSha !== head.hash) return fail("runner reported a push that does not match the fork head");
 	return { ok: true, commit: head.hash };
+}
+
+export type ReceiptVerdict = { ok: true } | { ok: false; error: string };
+
+const MAX_RECEIPT_BYTES = 64 * 1024;
+
+const ReceiptSchema = z.strictObject({
+	kind: z.literal("revalidation"),
+	workItemId: z.string(),
+	baseCommit: z.string().regex(SHA_RE),
+	changes: z.array(z.strictObject({ recordId: z.string(), fromVersion: z.number().int(), toVersion: z.number().int() })),
+	delivered: z.array(
+		z.strictObject({ file: z.string(), recordId: z.string(), version: z.number().int(), sha256: z.string().regex(/^[0-9a-f]{64}$/) }),
+	),
+});
+
+/**
+ * Check the `.delta/receipt.json` found at the pushed commit against the receipt the Worker computed from what it
+ * sent. They must be identical: a missing, malformed, oversized or altered receipt fails.
+ */
+export function verifyReceiptText(text: string | null | undefined, expected: z.input<typeof ReceiptSchema>): ReceiptVerdict {
+	const fail = (error: string): ReceiptVerdict => ({ ok: false, error });
+	if (typeof text !== "string" || text === "") return fail("the revalidation receipt is missing from the pushed commit");
+	if (text.length > MAX_RECEIPT_BYTES) return fail("the revalidation receipt is too large");
+	let actual: z.infer<typeof ReceiptSchema>;
+	let want: z.infer<typeof ReceiptSchema>;
+	try {
+		const a = ReceiptSchema.safeParse(JSON.parse(text));
+		const w = ReceiptSchema.safeParse(expected);
+		if (!a.success) return fail("the revalidation receipt is malformed");
+		if (!w.success) return fail("no valid expected receipt to check against");
+		actual = a.data;
+		want = w.data;
+	} catch {
+		return fail("the revalidation receipt is not valid JSON");
+	}
+	return JSON.stringify(actual) === JSON.stringify(want) ? { ok: true } : fail("the revalidation receipt does not match what was delivered");
+}
+
+export type RunOutcome = { state: "succeeded" | "failed" | "lost"; error: string | null; commit: string | null; pushVerified: boolean | null };
+
+/**
+ * The single place a run can become `succeeded`: the runner said so, the fork history verified, and (for a
+ * revalidation) the receipt matched. A verification that threw, timed out or never ran (`undefined`) is a failure.
+ */
+export function decideRun(input: {
+	runner: "succeeded" | "failed" | "lost";
+	runnerError: string | null;
+	verification: PushVerdict | undefined;
+	receipt: { required: boolean; result: ReceiptVerdict | undefined };
+}): RunOutcome {
+	if (input.runner !== "succeeded") return { state: input.runner, error: input.runnerError, commit: null, pushVerified: null };
+	const failed = (error: string): RunOutcome => ({ state: "failed", error, commit: null, pushVerified: false });
+	const v = input.verification;
+	if (!v) return failed("could not verify the push against the fork history");
+	if (!v.ok) return failed(v.error);
+	if (input.receipt.required) {
+		if (v.commit === null) return failed("revalidation produced no commit");
+		const r = input.receipt.result;
+		if (!r) return failed("could not verify the revalidation receipt");
+		if (!r.ok) return failed(r.error);
+	}
+	return { state: "succeeded", error: null, commit: v.commit, pushVerified: true };
+}
+
+/** Reject if `work` doesn't settle in time. The timer is cleared either way. */
+export async function withTimeout<T>(work: Promise<T>, ms: number, what: string): Promise<T> {
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	try {
+		return await Promise.race([
+			work,
+			new Promise<never>((_, reject) => {
+				timer = setTimeout(() => reject(new Error(`${what} timed out after ${ms}ms`)), ms);
+			}),
+		]);
+	} finally {
+		if (timer !== undefined) clearTimeout(timer);
+	}
 }

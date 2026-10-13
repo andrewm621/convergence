@@ -1,7 +1,18 @@
 import { Files, SandboxFileError } from "@cloudflare/sandbox";
 import { DurableObject } from "cloudflare:workers";
+import { buildRevalidationReceipt, type Receipt } from "../../container/receipt-lib";
 import { errorCode } from "../artifacts/git-write";
 import { redactText } from "../artifacts/tokens";
+import {
+	admit,
+	deactivate,
+	newMeter,
+	recordUsage,
+	type Admission,
+	type AdmitRequest,
+	type Meter,
+	type RunLimits,
+} from "./gateway-logic";
 import {
 	authorFor,
 	buildAgentPrompt,
@@ -9,16 +20,20 @@ import {
 	claimedPushSha,
 	claudeEnv,
 	commitSubject,
+	decideRun,
 	parseActivity,
 	parseExitCode,
 	readCappedText,
 	remoteParts,
 	sanitizeText,
 	verifyPush,
+	verifyReceiptText,
+	withTimeout,
 	MAX_EVENTS_BYTES,
 	type ActivityLine,
 	type AgentMode,
 	type PushVerdict,
+	type ReceiptVerdict,
 	type Revalidate,
 	type SandboxInstance,
 } from "./protocol";
@@ -47,6 +62,10 @@ const POLL_INTERVAL_MS = 500;
 const ALARM_INTERVAL_MS = 3_000;
 const STDERR_READ_BYTES = 64 * 1024;
 const RUN_KEY = "run";
+const METER_KEY = "meter";
+/** How long to wait on each Artifacts read while verifying a run. A read that hangs fails the run. */
+const VERIFY_TIMEOUT_MS = 15_000;
+const VERIFY_LOG_LIMIT = 10;
 const IDEMPOTENCY_KEY = "idempotency";
 const IDEMPOTENCY_KEEP = 20;
 
@@ -87,6 +106,8 @@ export interface StartRunInput {
 	maxTurns: number;
 	maxBudgetUsd: number;
 	timeoutS: number;
+	/** Enforced by the gateways, not by the agent: request counts, token ceiling, output ceiling. */
+	limits: RunLimits;
 	/** Caller's Idempotency-Key and the fingerprint of the request it was first used with. */
 	idempotencyKey: string;
 	fingerprint: string;
@@ -97,9 +118,13 @@ export interface StartRunInput {
 export type RunState = "running" | "succeeded" | "failed" | "lost" | "none";
 
 export interface RunRecord {
+	/** Identifies this run to the gateways; a stale registration from an earlier run is refused. */
+	runId: string;
 	workItemId: string;
 	forkRepo: string;
 	mode: AgentMode;
+	/** The model this run is pinned to at the gateway. */
+	model: string;
 	author: string;
 	tokenId: string;
 	state: RunState;
@@ -118,10 +143,24 @@ export interface RunRecord {
 	tokenRevoked: boolean | null;
 	/** Present on a revalidation run: which decisions changed. */
 	revalidation: Revalidate["changes"] | null;
+	/** The receipt the pushed commit must carry, computed here from what was sent. Null unless revalidating. */
+	expectedReceipt: Receipt | null;
 	/** DO clock minus container clock when the run started. The container clock can run seconds behind. */
 	clockSkewMs: number;
+	/** What the gateways metered for this run (requests, tokens, dollars as reported by the upstream). Null before it ends. */
+	usage: RunUsage | null;
 	/** Agent-reported activity: display only, never evidence. */
 	activity: ActivityLine[];
+}
+
+export interface RunUsage {
+	modelRequests: number;
+	gitRequests: number;
+	inputTokens: number;
+	outputTokens: number;
+	costUsd: number;
+	/** Set when a gateway budget ended the run. */
+	budgetExceeded: string | null;
 }
 
 export type StartOutcome =
@@ -183,7 +222,7 @@ export class AgentSandbox extends DurableObject<Env> {
 
 	/** Current record, refreshed from the container while a run is in flight. */
 	async readRun(): Promise<RunRecord | null> {
-		return this.refresh();
+		return this.withLiveUsage(await this.refresh());
 	}
 
 	/** Hold until the run ends (or `timeoutMs`), then return the record. */
@@ -191,7 +230,7 @@ export class AgentSandbox extends DurableObject<Env> {
 		const deadline = Date.now() + timeoutMs;
 		for (;;) {
 			const run = await this.refresh();
-			if (!run || run.state !== "running" || Date.now() >= deadline) return run;
+			if (!run || run.state !== "running" || Date.now() >= deadline) return this.withLiveUsage(run);
 			await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
 		}
 	}
@@ -201,6 +240,55 @@ export class AgentSandbox extends DurableObject<Env> {
 		if (run?.state === "running") await this.ctx.storage.setAlarm(Date.now() + ALARM_INTERVAL_MS);
 	}
 
+	// ---- gateway metering (called by ArtifactsGateway / ModelGateway, never by the container) ----
+
+	/** Admit or refuse one outbound request against this run's meter. A call from a stale or ended run is refused. */
+	admitRequest(runId: string, req: AdmitRequest): Admission {
+		const meter = this.storedMeter();
+		if (!meter || meter.runId !== runId) return { ok: false, status: 403, reason: "unknown run" };
+		const was = meter.exceeded;
+		const { meter: next, admission } = admit(meter, req);
+		this.ctx.storage.kv.put(METER_KEY, next);
+		if (!was && next.exceeded) this.failFast();
+		return admission;
+	}
+
+	/** Replace a model request's reservation with its real (or conservative) usage. */
+	recordModelUsage(runId: string, usage: { reserved: number; input: number; output: number; cost?: number }): void {
+		const meter = this.storedMeter();
+		if (!meter || meter.runId !== runId) return;
+		const was = meter.exceeded;
+		const next = recordUsage(meter, usage);
+		this.ctx.storage.kv.put(METER_KEY, next);
+		if (!was && next.exceeded) this.failFast();
+	}
+
+	private storedMeter(): Meter | null {
+		return (this.ctx.storage.kv.get(METER_KEY) as Meter | undefined) ?? null;
+	}
+
+	/** A budget was exceeded: have the alarm fail the run right away instead of waiting for the next poll. */
+	private failFast(): void {
+		void this.ctx.storage.setAlarm(Date.now());
+	}
+
+	/** Usage reports can land just after a run ends (they are sent after the response streams); show the latest meter. */
+	private withLiveUsage(run: RunRecord | null): RunRecord | null {
+		const meter = this.storedMeter();
+		if (!run || !meter || meter.runId !== run.runId) return run;
+		return {
+			...run,
+			usage: {
+				modelRequests: meter.modelRequests,
+				gitRequests: meter.gitRequests,
+				inputTokens: meter.inputTokens,
+				outputTokens: meter.outputTokens,
+				costUsd: meter.costUsd,
+				budgetExceeded: meter.exceeded,
+			},
+		};
+	}
+
 	// ---- launching ----
 
 	private async launch(input: StartRunInput): Promise<RunRecord> {
@@ -208,10 +296,13 @@ export class AgentSandbox extends DurableObject<Env> {
 		const { host, path } = remoteParts(input.remote);
 
 		// Record the run as `running` and the key as used before touching the container.
+		const runId = crypto.randomUUID();
 		const provisional: RunRecord = {
+			runId,
 			workItemId: input.workItemId,
 			forkRepo: input.forkRepo,
 			mode: input.mode,
+			model: input.model,
 			author: author.name,
 			tokenId: input.tokenId,
 			state: "running",
@@ -224,15 +315,28 @@ export class AgentSandbox extends DurableObject<Env> {
 			baseHead: null,
 			tokenRevoked: null,
 			revalidation: input.revalidate?.changes ?? null,
+			expectedReceipt: null,
 			clockSkewMs: 0,
+			usage: null,
 			activity: [],
 		};
 		this.ctx.storage.kv.put(RUN_KEY, provisional);
+		this.ctx.storage.kv.put(METER_KEY, newMeter(runId, input.limits));
 		this.rememberKey({ key: input.idempotencyKey, fingerprint: input.fingerprint });
 
 		try {
 			const baseHead = await this.readForkHead(input.forkRepo);
-			await this.startContainer(input, host, path);
+			// Verification needs a known starting point; a fork with no history can't be verified, so don't run.
+			if (!baseHead) throw new Error("the fork has no commits to start from");
+			const expectedReceipt = input.revalidate
+				? await buildRevalidationReceipt({
+						workItemId: input.workItemId,
+						baseCommit: baseHead,
+						changes: input.revalidate.changes,
+						contextFiles: input.revalidate.context,
+					})
+				: null;
+			await this.startContainer(input, runId, host, path);
 			await this.files.remove(REPO_DIR, { recursive: true, force: true });
 			await this.files.remove(TASK_DIR, { recursive: true, force: true });
 			await this.files.mkdir(INBOX_DIR, { recursive: true });
@@ -271,7 +375,7 @@ export class AgentSandbox extends DurableObject<Env> {
 				REPO_DIR,
 				TASK_DIR,
 				EVENTS_FILE: EVENTS_PATH,
-				...(input.mode === "claude" ? claudeEnv(input.model) : {}),
+				...(input.mode === "claude" ? claudeEnv(input.model, input.limits.maxOutputTokens) : {}),
 			};
 
 			const clockSkewMs = await this.measureClockSkew();
@@ -283,13 +387,14 @@ export class AgentSandbox extends DurableObject<Env> {
 				stderr: "ignore",
 			});
 
-			const run: RunRecord = { ...provisional, startedAt, baseHead, clockSkewMs };
+			const run: RunRecord = { ...provisional, startedAt, baseHead, clockSkewMs, expectedReceipt };
 			this.ctx.storage.kv.put(RUN_KEY, run);
 			await this.ctx.storage.setAlarm(Date.now() + ALARM_INTERVAL_MS);
 			return run;
 		} catch (e) {
 			// The run never launched: close the record, free the key so the caller can retry, and let the caller revoke the token.
 			this.forgetKey(input.idempotencyKey);
+			this.deactivateMeter();
 			this.ctx.storage.kv.put(RUN_KEY, {
 				...provisional,
 				state: "failed",
@@ -340,6 +445,11 @@ export class AgentSandbox extends DurableObject<Env> {
 		// Still launching: the container isn't ready to be inspected yet.
 		if (this.starting) return run;
 
+		// The gateways tripped a budget (requests, tokens): fail the run now and cut the container off.
+		const meter = this.storedMeter();
+		if (meter?.exceeded && meter.runId === run.runId) {
+			return this.finish(run, { state: "failed", exitCode: null, error: `run budget exceeded: ${meter.exceeded}` });
+		}
 		if (Date.now() - Date.parse(run.startedAt) > RUN_TIMEOUT_MS) {
 			return this.finish(run, { state: "failed", exitCode: null, error: "run exceeded the time limit" });
 		}
@@ -375,49 +485,106 @@ export class AgentSandbox extends DurableObject<Env> {
 		outcome: { state: Exclude<RunState, "running" | "none">; exitCode: number | null; error: string | null },
 	): Promise<RunRecord> {
 		const finishedAt = new Date().toISOString();
-		const activity = this.container.running ? await this.readActivity(run) : run.activity;
+		const activity = await this.readActivitySafely(run);
 
-		let { state, error } = outcome;
-		let commit: string | null = null;
-		let pushVerified: boolean | null = null;
-		if (outcome.state === "succeeded") {
-			// The runner says it succeeded. Believe it only if the fork's real history agrees.
-			const verdict = await this.verifyFork(run, claimedPushSha(activity));
-			pushVerified = verdict.ok;
-			if (verdict.ok) commit = verdict.commit;
-			else {
-				state = "failed";
-				error = verdict.error;
-			}
-		}
+		const meter = this.storedMeter();
+		const usage: RunUsage | null =
+			meter && meter.runId === run.runId
+				? {
+						modelRequests: meter.modelRequests,
+						gitRequests: meter.gitRequests,
+						inputTokens: meter.inputTokens,
+						outputTokens: meter.outputTokens,
+						costUsd: meter.costUsd,
+						budgetExceeded: meter.exceeded,
+					}
+				: null;
 
-		const tokenRevoked = await this.revokeToken(run.forkRepo, run.tokenId);
-		const done: RunRecord = { ...run, state, error, exitCode: outcome.exitCode, finishedAt, commit, pushVerified, tokenRevoked, activity };
-		this.ctx.storage.kv.put(RUN_KEY, done);
-		// The run's output is stored above; free the container. The next dispatch starts a fresh one.
+		// Cut the container off before judging it: clear the gateway registration (nothing more is admitted), stop the
+		// container, and revoke the write token. The fork history is then frozen while it is verified.
+		this.deactivateMeter();
 		if (this.container.running) await this.container.destroy().catch(() => undefined);
 		this.setup = undefined;
+		const tokenRevoked = await this.revokeToken(run.forkRepo, run.tokenId);
+
+		// The runner's word is never enough: the outcome comes from the fork's real history (and receipt).
+		const { verification, receipt } =
+			outcome.state === "succeeded" ? await this.verifyOutcome(run, claimedPushSha(activity)) : { verification: undefined, receipt: { required: false, result: undefined } };
+		const decided = decideRun({ runner: outcome.state, runnerError: outcome.error, verification, receipt });
+
+		const done: RunRecord = {
+			...run,
+			state: decided.state,
+			error: decided.error,
+			exitCode: outcome.exitCode,
+			finishedAt,
+			commit: decided.commit,
+			pushVerified: decided.pushVerified,
+			tokenRevoked,
+			usage,
+			activity,
+		};
+		this.ctx.storage.kv.put(RUN_KEY, done);
 		return done;
 	}
 
-	private async verifyFork(run: RunRecord, claimedSha: string | null): Promise<PushVerdict> {
+	private deactivateMeter(): void {
+		const meter = this.storedMeter();
+		if (meter) this.ctx.storage.kv.put(METER_KEY, deactivate(meter));
+	}
+
+	private async readActivitySafely(run: RunRecord): Promise<ActivityLine[]> {
+		if (!this.container.running) return run.activity;
 		try {
-			using repo = await this.env.ARTIFACTS.get(run.forkRepo);
-			const log = await repo.log({ ref: "main", limit: 10 });
-			return verifyPush({
-				baseHead: run.baseHead,
-				recent: log.map((m) => ({ hash: m.hash, author: m.author.name })),
-				expectedAuthor: run.author,
-				claimedSha,
-			});
-		} catch (e) {
-			return { ok: false, error: `could not verify the push: ${errorCode(e) ?? "error"}` };
+			return await this.readActivity(run);
+		} catch {
+			return run.activity;
 		}
 	}
 
+	/**
+	 * Read the fork's history (and, for a revalidation, the receipt at the pushed commit) through the Artifacts
+	 * binding. Any read that throws, hangs or comes back short leaves the result `undefined`, which decideRun fails.
+	 */
+	private async verifyOutcome(
+		run: RunRecord,
+		claimedSha: string | null,
+	): Promise<{ verification: PushVerdict | undefined; receipt: { required: boolean; result: ReceiptVerdict | undefined } }> {
+		const required = run.expectedReceipt !== null;
+		let verification: PushVerdict | undefined;
+		let result: ReceiptVerdict | undefined;
+		try {
+			using repo = await withTimeout(this.env.ARTIFACTS.get(run.forkRepo), VERIFY_TIMEOUT_MS, "opening the fork");
+			const log = await withTimeout(repo.log({ ref: "main", limit: VERIFY_LOG_LIMIT }), VERIFY_TIMEOUT_MS, "reading the fork log");
+			verification = verifyPush({
+				baseHead: run.baseHead,
+				recent: log.map((m) => ({ hash: m.hash, author: m.author?.name as string, parents: m.parents as string[] })),
+				expectedAuthor: run.author,
+				claimedSha,
+			});
+			if (required && verification.ok && verification.commit && run.expectedReceipt) {
+				try {
+					const blob = await withTimeout(
+						repo.readFile({ ref: verification.commit, path: ".delta/receipt.json" }),
+						VERIFY_TIMEOUT_MS,
+						"reading the receipt",
+					);
+					const text = blob ? await withTimeout(blob.text(), VERIFY_TIMEOUT_MS, "reading the receipt") : null;
+					result = verifyReceiptText(text, run.expectedReceipt);
+				} catch {
+					result = undefined;
+				}
+			}
+		} catch (e) {
+			console.error(`push verification failed for ${run.forkRepo}: ${errorCode(e) ?? "error"}`);
+			verification = undefined;
+		}
+		return { verification, receipt: { required, result } };
+	}
+
 	private async readForkHead(forkRepo: string): Promise<string | null> {
-		using repo = await this.env.ARTIFACTS.get(forkRepo);
-		return (await repo.log({ ref: "main", limit: 1 }))[0]?.hash ?? null;
+		using repo = await withTimeout(this.env.ARTIFACTS.get(forkRepo), VERIFY_TIMEOUT_MS, "opening the fork");
+		return (await withTimeout(repo.log({ ref: "main", limit: 1 }), VERIFY_TIMEOUT_MS, "reading the fork log"))[0]?.hash ?? null;
 	}
 
 	private async revokeToken(forkRepo: string, tokenId: string): Promise<boolean> {
@@ -432,7 +599,7 @@ export class AgentSandbox extends DurableObject<Env> {
 
 	// ---- container plumbing ----
 
-	private async startContainer(input: StartRunInput, host: string, repoPath: string): Promise<void> {
+	private async startContainer(input: StartRunInput, runId: string, host: string, repoPath: string): Promise<void> {
 		if (this.setup === undefined || !this.container.running) {
 			this.setup = this.setUp(input).catch((error) => {
 				this.setup = undefined;
@@ -443,10 +610,14 @@ export class AgentSandbox extends DurableObject<Env> {
 		// Credentials differ per run, so the intercepts are registered again (each replaces the earlier one).
 		await this.container.interceptOutboundHttps(
 			host,
-			this.ctx.exports.ArtifactsGateway({ props: { host, repoPath, secret: input.token } }),
+			this.ctx.exports.ArtifactsGateway({
+				props: { host, repoPath, secret: input.token, workItemId: input.workItemId, runId },
+			}),
 		);
 		if (input.mode === "claude") {
-			await this.container.interceptOutboundHttps("openrouter.ai", this.ctx.exports.ModelGateway({ props: { model: input.model } }));
+			await this.container.interceptOutboundHttps("openrouter.ai", this.ctx.exports.ModelGateway({
+					props: { model: input.model, workItemId: input.workItemId, runId, maxOutputTokens: input.limits.maxOutputTokens },
+				}),);
 		}
 	}
 

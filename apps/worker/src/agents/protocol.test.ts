@@ -5,7 +5,6 @@ import {
 	buildAgentPrompt,
 	claudeEnv,
 	commitSubject,
-	isRepoGitRequest,
 	parseActivity,
 	remoteParts,
 	IdempotencyKey,
@@ -14,8 +13,6 @@ import {
 	MAX_EVENT_LINE_CHARS,
 	RefName,
 	Revalidate,
-	allowGitCredential,
-	allowModelCredential,
 	buildRevalidationPrompt,
 	claimedPushSha,
 	dispatchFingerprint,
@@ -24,7 +21,10 @@ import {
 	requestedModel,
 	sanitizeText,
 	stripControl,
+	decideRun,
 	verifyPush,
+	verifyReceiptText,
+	withTimeout,
 } from "./protocol";
 
 const valid = { forkRepo: "notifications-wi-1", workItemId: "wi-1", prompt: "Add status badges" };
@@ -92,6 +92,11 @@ describe("claudeEnv", () => {
 		expect(env.ANTHROPIC_API_KEY).toBe("");
 	});
 
+	it("keeps Claude Code's own output ceiling at the gateway's, so normal calls are not clamped", () => {
+		expect(claudeEnv("a/b", 4096).CLAUDE_CODE_MAX_OUTPUT_TOKENS).toBe("4096");
+		expect(env.CLAUDE_CODE_MAX_OUTPUT_TOKENS).toBe("8192");
+	});
+
 	it("carries only a placeholder credential; the real key is added by the Worker", () => {
 		expect(env.ANTHROPIC_AUTH_TOKEN).toBe("provided-by-worker");
 		expect(Object.keys(env).some((k) => k.includes("OPENROUTER"))).toBe(false);
@@ -107,14 +112,14 @@ describe("claudeEnv", () => {
 		]) {
 			expect(env[key]).toBe("anthropic/claude-sonnet-5.5");
 		}
+		expect(env.ANTHROPIC_SMALL_FAST_MODEL).toBe("anthropic/claude-sonnet-5.5");
 		expect(env.IS_SANDBOX).toBe("1");
 	});
 });
 
-describe("git egress rules", () => {
+describe("remote parts", () => {
 	const remote = "https://acct.artifacts.cloudflare.net/git/default/notifications-wi-1.git";
 	const { host, path } = remoteParts(remote);
-	const u = (p: string) => new URL(`https://${host}${p}`);
 
 	it("splits a remote into host and repo path", () => {
 		expect(host).toBe("acct.artifacts.cloudflare.net");
@@ -124,64 +129,9 @@ describe("git egress rules", () => {
 	it("rejects a non-https remote", () => {
 		expect(() => remoteParts("http://h/git/a.git")).toThrow();
 	});
-
-	it("allows clone and push for exactly this repo", () => {
-		expect(isRepoGitRequest("GET", u(`${path}/info/refs?service=git-upload-pack`), path)).toBe(true);
-		expect(isRepoGitRequest("GET", u(`${path}/info/refs?service=git-receive-pack`), path)).toBe(true);
-		expect(isRepoGitRequest("POST", u(`${path}/git-upload-pack`), path)).toBe(true);
-		expect(isRepoGitRequest("POST", u(`${path}/git-receive-pack`), path)).toBe(true);
-	});
-
-	it("refuses other repos, paths, services and methods", () => {
-		expect(isRepoGitRequest("GET", u("/git/default/other.git/info/refs?service=git-upload-pack"), path)).toBe(false);
-		expect(isRepoGitRequest("GET", u(`${path}/info/refs?service=other`), path)).toBe(false);
-		expect(isRepoGitRequest("GET", u(`${path}/info/refs`), path)).toBe(false);
-		expect(isRepoGitRequest("POST", u(`${path}/info/refs`), path)).toBe(false);
-		expect(isRepoGitRequest("DELETE", u(`${path}/git-receive-pack`), path)).toBe(false);
-		expect(isRepoGitRequest("POST", u(`${path}x/git-receive-pack`), path)).toBe(false);
-		expect(isRepoGitRequest("GET", u(`${path}/../other/info/refs?service=git-upload-pack`), path)).toBe(false);
-	});
 });
 
-describe("gateway credential rules", () => {
-	const host = "acct.artifacts.cloudflare.net";
-	const path = "/git/default/wi-1.git";
-	const git = (method: string, rest: string) => allowGitCredential(method, new URL(`https://${host}${rest}`), host, path);
-
-	it("adds the Artifacts token only for this repo's smart-HTTP endpoints", () => {
-		expect(git("POST", `${path}/git-receive-pack`)).toBe(true);
-		expect(git("GET", `${path}/info/refs?service=git-upload-pack`)).toBe(true);
-	});
-
-	it("refuses a plain-http, wrong-host, wrong-port or credentialed URL even for the right path", () => {
-		const ok = `${path}/git-receive-pack`;
-		expect(allowGitCredential("POST", new URL(`http://${host}${ok}`), host, path)).toBe(false);
-		expect(allowGitCredential("POST", new URL(`https://evil.example${ok}`), host, path)).toBe(false);
-		expect(allowGitCredential("POST", new URL(`https://${host}:8443${ok}`), host, path)).toBe(false);
-		expect(allowGitCredential("POST", new URL(`https://u:p@${host}${ok}`), host, path)).toBe(false);
-	});
-
-	it("refuses encoded or dotted paths that are not exactly this repo", () => {
-		expect(git("POST", "/git/default/wi-1.git/%2e%2e/other.git/git-receive-pack")).toBe(false);
-		expect(git("POST", "/git/default/wi-2.git/git-receive-pack")).toBe(false);
-		expect(git("POST", `${path}/git-receive-pack/extra`)).toBe(false);
-	});
-
-	it("adds the model key only for POST https://openrouter.ai/api/v1/messages", () => {
-		const m = (method: string, u: string) => allowModelCredential(method, new URL(u));
-		expect(m("POST", "https://openrouter.ai/api/v1/messages")).toBe(true);
-		expect(m("POST", "https://openrouter.ai/api/v1/messages?beta=true")).toBe(true);
-		expect(m("GET", "https://openrouter.ai/api/v1/messages")).toBe(false);
-		expect(m("GET", "https://openrouter.ai/api/v1/models")).toBe(false);
-		expect(m("POST", "https://openrouter.ai/api/v1/chat/completions")).toBe(false);
-		expect(m("POST", "https://openrouter.ai/api/v1/messages/count_tokens")).toBe(false);
-		expect(m("POST", "https://openrouter.ai/api/v1/credits")).toBe(false);
-		expect(m("POST", "http://openrouter.ai/api/v1/messages")).toBe(false);
-		expect(m("POST", "https://openrouter.ai.evil.example/api/v1/messages")).toBe(false);
-		expect(m("POST", "https://openrouter.ai:444/api/v1/messages")).toBe(false);
-		expect(m("POST", "https://x:y@openrouter.ai/api/v1/messages")).toBe(false);
-	});
-
+describe("requestedModel", () => {
 	it("reads the requested model out of a body, or null", () => {
 		expect(requestedModel('{"model":"anthropic/claude-sonnet-5.5","messages":[]}')).toBe("anthropic/claude-sonnet-5.5");
 		expect(requestedModel('{"messages":[]}')).toBeNull();
@@ -267,46 +217,183 @@ describe("untrusted container output", () => {
 	describe("verifyPush", () => {
 		const base = "b".repeat(40);
 		const real = "c".repeat(40);
+		const mid = "d".repeat(40);
 		const author = "workitem-wi-1";
-		const recent = (...c: [string, string][]) => c.map(([hash, a]) => ({ hash, author: a }));
+		// Newest first; each commit's parent is the next one in the list, like a real linear history.
+		const history = (...c: [string, string][]) =>
+			c.map(([hash, a], i) => ({ hash, author: a, parents: c[i + 1] ? [c[i + 1]![0]] : [] }));
+		const verify = (over: Partial<Parameters<typeof verifyPush>[0]> = {}) =>
+			verifyPush({ baseHead: base, recent: history([real, author], [base, "seed"]), expectedAuthor: author, claimedSha: real, ...over });
 
 		it("accepts a real push by the right author and reports the real head", () => {
-			expect(verifyPush({ baseHead: base, recent: recent([real, author], [base, "seed"]), expectedAuthor: author, claimedSha: real })).toEqual({
-				ok: true,
-				commit: real,
-			});
+			expect(verify()).toEqual({ ok: true, commit: real });
 		});
 
 		it("accepts a real push even when the runner reported nothing", () => {
-			expect(verifyPush({ baseHead: base, recent: recent([real, author], [base, "seed"]), expectedAuthor: author, claimedSha: null }).ok).toBe(true);
+			expect(verify({ claimedSha: null }).ok).toBe(true);
+		});
+
+		it("accepts several linear commits by the right author", () => {
+			expect(verify({ recent: history([real, author], [mid, author], [base, "seed"]) })).toEqual({ ok: true, commit: real });
 		});
 
 		it("rejects a forged push SHA that does not match the fork head", () => {
-			const v = verifyPush({ baseHead: base, recent: recent([real, author], [base, "seed"]), expectedAuthor: author, claimedSha: sha });
-			expect(v.ok).toBe(false);
+			expect(verify({ claimedSha: sha }).ok).toBe(false);
 		});
 
 		it("rejects a claimed push when the fork head never moved", () => {
-			const v = verifyPush({ baseHead: base, recent: recent([base, "seed"]), expectedAuthor: author, claimedSha: sha });
-			expect(v).toMatchObject({ ok: false });
+			expect(verify({ recent: history([base, "seed"]), claimedSha: sha })).toMatchObject({ ok: false });
 		});
 
 		it("accepts a run that changed nothing and claimed nothing", () => {
-			expect(verifyPush({ baseHead: base, recent: recent([base, "seed"]), expectedAuthor: author, claimedSha: null })).toEqual({ ok: true, commit: null });
+			expect(verify({ recent: history([base, "seed"]), claimedSha: null })).toEqual({ ok: true, commit: null });
 		});
 
 		it("rejects a head commit authored by someone else", () => {
-			const v = verifyPush({ baseHead: base, recent: recent([real, "workitem-wi-2"], [base, "seed"]), expectedAuthor: author, claimedSha: real });
-			expect(v.ok).toBe(false);
+			expect(verify({ recent: history([real, "workitem-wi-2"], [base, "seed"]) }).ok).toBe(false);
 		});
 
 		it("rejects when any new commit has a foreign author", () => {
-			const v = verifyPush({ baseHead: base, recent: recent([real, author], ["d".repeat(40), "intruder"], [base, "seed"]), expectedAuthor: author, claimedSha: real });
-			expect(v.ok).toBe(false);
+			expect(verify({ recent: history([real, author], [mid, "intruder"], [base, "seed"]) }).ok).toBe(false);
 		});
 
 		it("fails closed when the fork history could not be read", () => {
-			expect(verifyPush({ baseHead: base, recent: [], expectedAuthor: author, claimedSha: real }).ok).toBe(false);
+			expect(verify({ recent: [] }).ok).toBe(false);
+		});
+
+		it("fails closed when the base head is unknown", () => {
+			expect(verify({ baseHead: null }).ok).toBe(false);
+			expect(verify({ baseHead: null, recent: history([real, author]) }).ok).toBe(false);
+		});
+
+		it("fails closed when the base head is not in the recent history (truncated or rewritten)", () => {
+			// Ten agent-authored commits and no sight of the base: the history is cut off or was replaced.
+			const many = Array.from({ length: 10 }, (_, i) => [`${i}`.repeat(40), author] as [string, string]);
+			expect(verify({ recent: history(...many), claimedSha: many[0]![0] }).ok).toBe(false);
+			expect(verify({ recent: history([real, author], ["e".repeat(40), "seed"]) }).ok).toBe(false);
+		});
+
+		it("fails closed on a merge commit among the new commits", () => {
+			const merge = { hash: real, author, parents: [mid, "f".repeat(40)] };
+			expect(verify({ recent: [merge, { hash: mid, author, parents: [base] }, { hash: base, author: "seed", parents: [] }] }).ok).toBe(false);
+		});
+
+		it("fails closed when the new commits do not chain down to the base", () => {
+			const broken = [
+				{ hash: real, author, parents: ["9".repeat(40)] },
+				{ hash: base, author: "seed", parents: [] },
+			];
+			expect(verify({ recent: broken }).ok).toBe(false);
+		});
+
+		it("fails closed on a missing or malformed field", () => {
+			const good = history([real, author], [base, "seed"]);
+			const bad = (patch: object) => [{ ...good[0]!, ...patch }, good[1]!];
+			expect(verify({ recent: bad({ author: undefined }) }).ok).toBe(false);
+			expect(verify({ recent: bad({ author: 5 }) }).ok).toBe(false);
+			expect(verify({ recent: bad({ parents: undefined }) }).ok).toBe(false);
+			expect(verify({ recent: bad({ parents: "x" }) }).ok).toBe(false);
+			expect(verify({ recent: bad({ hash: "not-a-sha" }) }).ok).toBe(false);
+			expect(verify({ recent: bad({ hash: undefined }) }).ok).toBe(false);
+			expect(verify({ recent: [undefined as never] }).ok).toBe(false);
+			expect(verify({ claimedSha: "NOT-A-SHA" }).ok).toBe(false);
+		});
+
+		it("fails closed on a malformed base head or expected author", () => {
+			expect(verify({ baseHead: "xyz" }).ok).toBe(false);
+			expect(verify({ expectedAuthor: "" }).ok).toBe(false);
+		});
+	});
+
+	describe("receipt verification (revalidation runs)", () => {
+		const expected = {
+			kind: "revalidation" as const,
+			workItemId: "wi-2",
+			baseCommit: "a".repeat(40),
+			changes: [{ recordId: "notifications", fromVersion: 1, toVersion: 2 }],
+			delivered: [{ file: "notifications.md", recordId: "notifications", version: 2, sha256: "9".repeat(64) }],
+		};
+		const text = (patch: object = {}) => JSON.stringify({ ...expected, ...patch });
+
+		it("accepts the receipt the Worker expects, whatever the key order", () => {
+			expect(verifyReceiptText(text(), expected)).toEqual({ ok: true });
+			expect(verifyReceiptText(JSON.stringify({ delivered: expected.delivered, changes: expected.changes, baseCommit: expected.baseCommit, workItemId: "wi-2", kind: "revalidation" }), expected).ok).toBe(true);
+		});
+
+		it.each([
+			["missing", null],
+			["undefined", undefined],
+			["empty", ""],
+			["not JSON", "{nope"],
+			["an array", "[]"],
+			["the wrong kind", text({ kind: "other" })],
+			["another work item", text({ workItemId: "wi-3" })],
+			["another base commit", text({ baseCommit: "b".repeat(40) })],
+			["different changes", text({ changes: [{ recordId: "notifications", fromVersion: 1, toVersion: 3 }] })],
+			["no delivered records", text({ delivered: [] })],
+			["a wrong version", text({ delivered: [{ ...expected.delivered[0], version: 1 }] })],
+			["a wrong hash", text({ delivered: [{ ...expected.delivered[0], sha256: "0".repeat(64) }] })],
+			["an extra delivered record", text({ delivered: [...expected.delivered, { file: "x.md", recordId: "x", version: 1, sha256: "1".repeat(64) }] })],
+			["an unknown field", text({ extra: true })],
+			["oversized junk", `${text()}${" ".repeat(100_000)}`],
+		])("fails closed on a receipt that is %s", (_n, body) => {
+			expect(verifyReceiptText(body as string | null | undefined, expected).ok).toBe(false);
+		});
+	});
+
+	describe("decideRun", () => {
+		const verdictOk = { ok: true as const, commit: "c".repeat(40) };
+		const noReceipt = { required: false, result: undefined };
+
+		it("succeeds only when the runner succeeded and the fork history verified", () => {
+			expect(decideRun({ runner: "succeeded", runnerError: null, verification: verdictOk, receipt: noReceipt })).toEqual({
+				state: "succeeded",
+				error: null,
+				commit: "c".repeat(40),
+				pushVerified: true,
+			});
+		});
+
+		it("fails closed when verification threw, timed out or never ran", () => {
+			const r = decideRun({ runner: "succeeded", runnerError: null, verification: undefined, receipt: noReceipt });
+			expect(r).toMatchObject({ state: "failed", pushVerified: false, commit: null });
+			expect(r.error).toBeTruthy();
+		});
+
+		it("fails when verification says the push is not real", () => {
+			expect(decideRun({ runner: "succeeded", runnerError: null, verification: { ok: false, error: "forged" }, receipt: noReceipt })).toMatchObject({
+				state: "failed",
+				error: "forged",
+				pushVerified: false,
+				commit: null,
+			});
+		});
+
+		it("never turns a failed or lost runner into success, and does not claim a commit", () => {
+			for (const runner of ["failed", "lost"] as const) {
+				expect(decideRun({ runner, runnerError: "boom", verification: verdictOk, receipt: noReceipt })).toEqual({
+					state: runner,
+					error: "boom",
+					commit: null,
+					pushVerified: null,
+				});
+			}
+		});
+
+		it("requires a verified commit and a matching receipt for a revalidation", () => {
+			const base = { runner: "succeeded" as const, runnerError: null };
+			expect(decideRun({ ...base, verification: verdictOk, receipt: { required: true, result: { ok: true } } }).state).toBe("succeeded");
+			expect(decideRun({ ...base, verification: verdictOk, receipt: { required: true, result: undefined } })).toMatchObject({ state: "failed", pushVerified: false });
+			expect(decideRun({ ...base, verification: verdictOk, receipt: { required: true, result: { ok: false, error: "bad receipt" } } })).toMatchObject({ state: "failed", error: "bad receipt", pushVerified: false });
+			expect(decideRun({ ...base, verification: { ok: true, commit: null }, receipt: { required: true, result: { ok: true } } })).toMatchObject({ state: "failed", pushVerified: false });
+		});
+	});
+
+	describe("withTimeout", () => {
+		it("rejects when the work is slower than the limit and passes through when it is not", async () => {
+			await expect(withTimeout(new Promise(() => {}), 20, "log")).rejects.toThrow(/log timed out/);
+			await expect(withTimeout(Promise.resolve(7), 1000, "log")).resolves.toBe(7);
+			await expect(withTimeout(Promise.reject(new Error("boom")), 1000, "log")).rejects.toThrow("boom");
 		});
 	});
 });

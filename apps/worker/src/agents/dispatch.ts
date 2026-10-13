@@ -1,30 +1,43 @@
 import { z } from "zod";
 import { errorCode, getRepo } from "../artifacts/git-write";
+import { DEFAULT_LIMITS, type RunLimits } from "./gateway-logic";
 import { parseContextRecord } from "../../container/stub-agent-lib";
-import { AgentMode, SandboxInstance, dispatchFingerprint, type DispatchRequest, type Revalidate } from "./protocol";
+import { AgentMode, ModelSlug, SandboxInstance, dispatchFingerprint, parseModelAllowlist, resolveModel, type DispatchRequest, type Revalidate } from "./protocol";
 import type { AgentSandbox, RunRecord, StartOutcome } from "./sandbox";
 
 const RUN_WAIT_MS = 150_000;
 
 const AgentConfig = z.object({
 	AGENT_MODE: AgentMode.default("stub"),
-	AGENT_MODEL: z.string().min(1).default("anthropic/claude-sonnet-5.5"),
+	AGENT_MODEL: ModelSlug.default("anthropic/claude-sonnet-5.5"),
+	// Comma-separated OpenRouter slugs a dispatch may ask for. AGENT_MODEL is always allowed.
+	AGENT_MODELS: z.string().default(""),
 	STUB_STEP_MS: z.coerce.number().int().min(0).max(60_000).default(2500),
 	SANDBOX_INSTANCE: SandboxInstance.default("lite"),
 	// Hard caps for AGENT_MODE=claude: turns, dollars and wall clock.
 	AGENT_MAX_TURNS: z.coerce.number().int().min(1).max(100).default(15),
 	AGENT_MAX_BUDGET_USD: z.coerce.number().positive().max(20).default(1),
 	AGENT_TIMEOUT_S: z.coerce.number().int().min(30).max(3600).default(600),
+	// Enforced by the gateways on every run, whatever flags the agent runs with.
+	AGENT_MAX_MODEL_REQUESTS: z.coerce.number().int().min(1).max(500).default(DEFAULT_LIMITS.maxModelRequests),
+	AGENT_MAX_GIT_REQUESTS: z.coerce.number().int().min(1).max(500).default(DEFAULT_LIMITS.maxGitRequests),
+	AGENT_MAX_TOTAL_TOKENS: z.coerce.number().int().min(1000).max(20_000_000).default(DEFAULT_LIMITS.maxTotalTokens),
+	AGENT_MAX_OUTPUT_TOKENS: z.coerce.number().int().min(256).max(64_000).default(DEFAULT_LIMITS.maxOutputTokens),
+	AGENT_MAX_COST_USD: z.coerce.number().positive().max(50).default(DEFAULT_LIMITS.maxCostUsd),
 });
 
 export interface AgentConfig {
 	mode: AgentMode;
+	/** The default model. */
 	model: string;
+	/** Every model a dispatch may select, default first. */
+	models: string[];
 	stubStepMs: number;
 	instance: SandboxInstance;
 	maxTurns: number;
 	maxBudgetUsd: number;
 	timeoutS: number;
+	limits: RunLimits;
 }
 
 /** A dispatch problem with a stable code the API maps to an HTTP status. */
@@ -43,24 +56,44 @@ export function readAgentConfig(env: Env): AgentConfig {
 	const parsed = AgentConfig.safeParse({
 		AGENT_MODE: env.AGENT_MODE,
 		AGENT_MODEL: env.AGENT_MODEL,
+		AGENT_MODELS: env.AGENT_MODELS,
 		STUB_STEP_MS: env.STUB_STEP_MS,
 		SANDBOX_INSTANCE: env.SANDBOX_INSTANCE,
 		AGENT_MAX_TURNS: env.AGENT_MAX_TURNS,
 		AGENT_MAX_BUDGET_USD: env.AGENT_MAX_BUDGET_USD,
 		AGENT_TIMEOUT_S: env.AGENT_TIMEOUT_S,
+		AGENT_MAX_MODEL_REQUESTS: env.AGENT_MAX_MODEL_REQUESTS,
+		AGENT_MAX_GIT_REQUESTS: env.AGENT_MAX_GIT_REQUESTS,
+		AGENT_MAX_TOTAL_TOKENS: env.AGENT_MAX_TOTAL_TOKENS,
+		AGENT_MAX_OUTPUT_TOKENS: env.AGENT_MAX_OUTPUT_TOKENS,
+		AGENT_MAX_COST_USD: env.AGENT_MAX_COST_USD,
 	});
 	if (!parsed.success) {
 		throw new DispatchError(500, "AGENT_CONFIG_INVALID", parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; "));
 	}
 	const c = parsed.data;
+	let models: string[];
+	try {
+		models = parseModelAllowlist(c.AGENT_MODELS, c.AGENT_MODEL);
+	} catch {
+		throw new DispatchError(500, "AGENT_CONFIG_INVALID", "AGENT_MODELS must be comma-separated OpenRouter model slugs");
+	}
 	return {
 		mode: c.AGENT_MODE,
 		model: c.AGENT_MODEL,
+		models,
 		stubStepMs: c.STUB_STEP_MS,
 		instance: c.SANDBOX_INSTANCE,
 		maxTurns: c.AGENT_MAX_TURNS,
 		maxBudgetUsd: c.AGENT_MAX_BUDGET_USD,
 		timeoutS: c.AGENT_TIMEOUT_S,
+		limits: {
+			maxModelRequests: c.AGENT_MAX_MODEL_REQUESTS,
+			maxGitRequests: c.AGENT_MAX_GIT_REQUESTS,
+			maxTotalTokens: c.AGENT_MAX_TOTAL_TOKENS,
+			maxOutputTokens: c.AGENT_MAX_OUTPUT_TOKENS,
+			maxCostUsd: c.AGENT_MAX_COST_USD,
+		},
 	};
 }
 
@@ -70,6 +103,7 @@ export function presentRun(run: RunRecord) {
 		workItemId: run.workItemId,
 		forkRepo: run.forkRepo,
 		mode: run.mode,
+		model: run.model,
 		author: run.author,
 		state: run.state,
 		AgentRunStarted: { type: "AgentRunStarted", workItemId: run.workItemId, ts: run.startedAt },
@@ -84,6 +118,7 @@ export function presentRun(run: RunRecord) {
 		exitCode: run.exitCode,
 		error: run.error,
 		tokenRevoked: run.tokenRevoked,
+		usage: run.usage,
 		clockSkewMs: run.clockSkewMs,
 		activity: run.activity,
 	};
@@ -124,7 +159,9 @@ export async function dispatchAgent(
 		throw new DispatchError(503, "OPENROUTER_API_KEY_MISSING", "AGENT_MODE=claude needs the OPENROUTER_API_KEY secret");
 	}
 
-	const fingerprint = await dispatchFingerprint(req);
+	const resolved = resolveModel(req.model, cfg.model, cfg.models);
+	if (!resolved.ok) throw new DispatchError(400, "MODEL_NOT_ALLOWED", resolved.error);
+	const fingerprint = await dispatchFingerprint({ ...req, model: resolved.model });
 	const sandbox = env.AGENT_SANDBOX.getByName(req.workItemId);
 	const seen = await sandbox.peekIdempotency(idempotencyKey, fingerprint);
 	if (seen === "reused") {
@@ -135,7 +172,7 @@ export async function dispatchAgent(
 	if (seen === "replay") {
 		run = await sandbox.readRun();
 	}
-	if (!run) run = await startNewRun(env, sandbox, req, cfg, idempotencyKey, fingerprint);
+	if (!run) run = await startNewRun(env, sandbox, req, { ...cfg, model: resolved.model }, idempotencyKey, fingerprint);
 
 	if (req.wait && run.state === "running") run = (await sandbox.waitForRun(RUN_WAIT_MS)) ?? run;
 	// Still running (not waiting, or the wait timed out): the caller polls GET /agents/runs/:id.
@@ -178,6 +215,7 @@ async function startNewRun(
 			maxTurns: cfg.maxTurns,
 			maxBudgetUsd: cfg.maxBudgetUsd,
 			timeoutS: cfg.timeoutS,
+			limits: cfg.limits,
 			idempotencyKey,
 			fingerprint,
 			revalidate: req.revalidate,
