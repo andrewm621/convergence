@@ -63,7 +63,7 @@ describe("honest evidence labels", () => {
 
 		const run = summarizeLedgerLine(evidenceLine(mock.view.ledger, "delta-run-check"));
 		expect(run.label).toBe("Delta Convergence contract check");
-		expect(run.hint).toBe("Delta Convergence ran its own deterministic check on the pushed code at this commit. Not the project's test suite.");
+		expect(run.hint).toBe("Delta Convergence ran its own deterministic check on the pushed files at this commit. Not the project's test suite.");
 
 		for (const kind of ["executed-test", undefined] as const) {
 			const line = summarizeLedgerLine(evidenceLine(mock.view.ledger, kind));

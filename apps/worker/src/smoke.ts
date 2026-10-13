@@ -7,6 +7,7 @@ import { redactDeep } from "./artifacts/tokens";
 import { NOTIFICATIONS_V1, STATUS_MODEL_V1 } from "scenario-notifications";
 import { POINTER_SCENARIO } from "./cell/pointer-scenario";
 import { pointerCommitMessage, pointerFiles } from "./smoke-build";
+import { SHELTER_SCENARIO } from "./smoke-shelter";
 import { NOTIFICATIONS_V2, SEED_FILES, recordVersion } from "./smoke-fixtures";
 
 const BRANCH = "main";
@@ -252,6 +253,13 @@ export const SMOKE_PREFIX = "smoke-";
 
 /** An optional name for a seeded set of repos (`smoke-<label>-<time>-...`), so a demo's repos can be told apart. */
 export const SMOKE_LABEL_RE = /^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/;
+
+/** The `?scenario=` values POST /api/smoke/seed accepts. No scenario seeds the plain two-file baseline of the agent-runtime smoke. */
+export const SEED_SCENARIOS = ["notifications", SHELTER_SCENARIO, POINTER_SCENARIO] as const;
+
+export function seedScenarioAllowed(scenario: string | undefined): boolean {
+	return scenario === undefined || (SEED_SCENARIOS as readonly string[]).includes(scenario);
+}
 
 /** Repos named after the build cell are reachable by the pointer routes, so only the build seed may use that label. */
 export function seedLabelAllowed(scenario: string | undefined, label: string | undefined): boolean {
