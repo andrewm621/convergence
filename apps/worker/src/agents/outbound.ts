@@ -6,10 +6,14 @@ import {
 	UsageTracker,
 	allowGitCredential,
 	allowModelCredential,
+	forwardModelHeaders,
 	limitStream,
 	prepareModelBody,
+	settleModelCall,
 	tapUsage,
+	worstCaseCostUsd,
 } from "./gateway-logic";
+import { modelPrice } from "./model-prices";
 
 // Outbound handlers for the agent container. They run in the Worker, outside the sandbox, so the
 // credentials they add are never in the container's environment, files or process list.
@@ -71,16 +75,24 @@ function modelError(status: number, message: string): Response {
 	return Response.json({ type: "error", error: { type: status === 429 ? "rate_limit_error" : "invalid_request_error", message } }, { status });
 }
 
+/** The one upstream URL the model key is ever sent to; the container's own URL (and its query) is never forwarded. */
+const MODEL_UPSTREAM_URL = "https://openrouter.ai/api/v1/messages";
+
 /**
  * Model access for AGENT_MODE=claude: forwards Anthropic Messages calls to OpenRouter with the Worker's key,
- * only for the run's pinned model, with max_tokens clamped, and only while the run's meter admits it. Claude Code
- * holds a placeholder credential, replaced here.
+ * only for the run's pinned model, with max_tokens clamped and only whitelisted body fields and headers passed on,
+ * and only while the run's meter admits it. Claude Code holds a placeholder credential, replaced here.
+ *
+ * Every admitted call is settled exactly once, whatever happens to it: real usage when the response was a clean 2xx
+ * with complete usage, the priced worst case otherwise (non-2xx, no usage, truncated or aborted stream, a failed
+ * fetch). A call is never forwarded unless the meter admitted it, and the meter refuses a run it doesn't know.
  */
 export class ModelGateway extends WorkerEntrypoint<Env_, ModelGatewayProps> {
 	override async fetch(request: Request): Promise<Response> {
 		const { model, workItemId, runId, maxOutputTokens } = this.ctx.props;
 		const key = (this.env as { OPENROUTER_API_KEY?: string }).OPENROUTER_API_KEY;
-		if (!key || !allowModelCredential(request.method, request.url)) return new Response("Forbidden", { status: 403 });
+		const price = modelPrice(model);
+		if (!key || !price || !allowModelCredential(request.method, request.url)) return new Response("Forbidden", { status: 403 });
 
 		const declared = request.headers.get("content-length");
 		if (declared !== null && !(Number(declared) <= MAX_MODEL_BODY_BYTES)) return modelError(413, "request too large");
@@ -91,29 +103,66 @@ export class ModelGateway extends WorkerEntrypoint<Env_, ModelGatewayProps> {
 		if (!prep.ok) return modelError(prep.status, prep.reason);
 
 		const sandbox = this.env.AGENT_SANDBOX.getByName(workItemId);
-		const reserve = prep.estInputTokens + prep.maxTokens;
-		const admission = await sandbox.admitRequest(runId, { kind: "model", reserve });
+		const requestId = crypto.randomUUID();
+		const reserveTokens = prep.estInputTokens + prep.maxTokens;
+		const reserveCostUsd = worstCaseCostUsd(price, prep.worstInputTokens, prep.maxTokens);
+		// Reserve before forwarding. If the meter can't be reached, or doesn't know this run, nothing is forwarded.
+		let admission: Awaited<ReturnType<typeof sandbox.admitRequest>>;
+		try {
+			admission = await sandbox.admitRequest(runId, { kind: "model", requestId, reserveTokens, reserveCostUsd });
+		} catch {
+			return modelError(503, "run meter unavailable");
+		}
 		if (!admission.ok) return modelError(admission.status, admission.reason);
 
-		const headers = new Headers(request.headers);
-		headers.delete("x-api-key");
-		headers.delete("content-length");
-		headers.set("Authorization", `Bearer ${key}`);
-		const upstream = await fetch(new Request(request.url, { method: "POST", headers, body: prep.body, redirect: "manual" }));
-
-		// Real usage replaces the reservation. A response with no usage is charged the worst case; an upstream error
-		// response consumed nothing.
-		const tracker = new UsageTracker();
-		const report = () => {
-			const seen: { input: number; output: number; cost?: number } = upstream.ok
-				? (tracker.result() ?? { input: prep.estInputTokens, output: prep.maxTokens })
-				: { input: 0, output: 0 };
-			this.ctx.waitUntil(sandbox.recordModelUsage(runId, { reserved: reserve, ...seen }));
+		// From here the call holds a reservation, so it must be settled on every path.
+		let settled = false;
+		const settle = (outcome: "end" | "aborted", upstreamOk: boolean, tracker?: UsageTracker) => {
+			if (settled) return;
+			settled = true;
+			const charge = settleModelCall({
+				upstreamOk,
+				outcome,
+				seen: tracker?.result() ?? null,
+				worstInputTokens: prep.worstInputTokens,
+				maxTokens: prep.maxTokens,
+				price,
+			});
+			this.ctx.waitUntil(reportUsage(sandbox, runId, { requestId, ...charge }));
 		};
+
+		const headers = forwardModelHeaders(request.headers);
+		headers.set("Authorization", `Bearer ${key}`);
+		let upstream: Response;
+		try {
+			upstream = await fetch(new Request(MODEL_UPSTREAM_URL, { method: "POST", headers, body: prep.body, redirect: "manual" }));
+		} catch {
+			settle("aborted", false);
+			return modelError(502, "upstream unavailable");
+		}
+
+		const tracker = new UsageTracker();
 		if (!upstream.body) {
-			report();
+			settle("end", upstream.ok, tracker);
 			return upstream;
 		}
-		return new Response(tapUsage(upstream.body, tracker, report), upstream);
+		return new Response(
+			tapUsage(upstream.body, tracker, (outcome) => settle(outcome, upstream.ok, tracker)),
+			upstream,
+		);
+	}
+}
+
+type Sandbox = ReturnType<Env_["AGENT_SANDBOX"]["getByName"]>;
+
+/** Report a settled call to the run's meter; one retry, because a lost report would leave the call charged only at the run's end. */
+async function reportUsage(sandbox: Sandbox, runId: string, usage: { requestId: string; input: number; output: number; cost: number }): Promise<void> {
+	for (let attempt = 0; attempt < 2; attempt++) {
+		try {
+			await sandbox.recordModelUsage(runId, usage);
+			return;
+		} catch {
+			// Retry once; the run's end charges anything still unsettled at its reserved worst case.
+		}
 	}
 }

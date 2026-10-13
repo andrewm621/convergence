@@ -58,7 +58,9 @@ export const RefName = z
 /** An OpenRouter model slug: `vendor/name`, optionally `:variant` (or a `~vendor/name-latest` alias). */
 export const ModelSlug = z
 	.string()
-	.regex(/^~?[A-Za-z0-9][A-Za-z0-9._-]{0,60}\/[A-Za-z0-9][A-Za-z0-9._:-]{0,80}$/, "model must be an OpenRouter slug like vendor/name");
+	// Exact slugs only: no `:variant` suffix (:online, :nitro, :floor, :thinking...) and no `~alias`, either of which
+	// can make OpenRouter serve a different model or add features than the one that was priced and approved.
+	.regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,60}\/[A-Za-z0-9][A-Za-z0-9._-]{0,80}$/, "model must be an exact OpenRouter slug like vendor/name (no :suffix, no ~alias)");
 
 /** Comma-separated slugs -> the allowlist, with the default first and duplicates removed. Throws on a bad slug. */
 export function parseModelAllowlist(csv: string | undefined, defaultModel: string): string[] {

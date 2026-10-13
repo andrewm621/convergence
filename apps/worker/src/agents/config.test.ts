@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DispatchError, readAgentConfig } from "./dispatch";
+import { DispatchError, dispatchAgent, readAgentConfig } from "./dispatch";
 import { DispatchRequest, dispatchFingerprint, parseModelAllowlist, resolveModel } from "./protocol";
 
 const DEFAULT = "openai/gpt-6-luna";
@@ -20,6 +20,14 @@ describe("model allowlist", () => {
 			expect(() => parseModelAllowlist(bad, DEFAULT)).toThrow();
 		}
 		expect(() => parseModelAllowlist("a/b", "bad")).toThrow();
+	});
+
+	it("refuses variant suffixes and aliases outright, in the list, the default and a dispatch request", () => {
+		for (const bad of ["openai/gpt-6-luna:online", "openai/gpt-6-luna:nitro", "openai/gpt-6-luna:floor", "z-ai/glm-5.3-flash:thinking", "~openai/gpt-6-luna"]) {
+			expect(() => parseModelAllowlist(bad, DEFAULT)).toThrow();
+			expect(() => parseModelAllowlist("", bad)).toThrow();
+			expect(DispatchRequest.safeParse({ ...base, model: bad }).success).toBe(false);
+		}
 	});
 
 	it("resolves the requested model only if allowlisted, else the default", () => {
@@ -75,5 +83,13 @@ describe("readAgentConfig", () => {
 		["an absurd request cap", { AGENT_MAX_MODEL_REQUESTS: "100000" }],
 	])("fails loudly on %s", (_n, vars) => {
 		expect(() => readAgentConfig(env(vars))).toThrow(DispatchError);
+	});
+});
+
+describe("claude mode needs a price for the model", () => {
+	it("refuses a dispatch for an allowlisted model with no price, before touching any sandbox", async () => {
+		const e = env({ AGENT_MODE: "claude", OPENROUTER_API_KEY: "k", AGENT_MODEL: "vendor/unpriced" });
+		const req = DispatchRequest.parse(base);
+		await expect(dispatchAgent(e, req, "key-1")).rejects.toMatchObject({ status: 400, code: "MODEL_NOT_ALLOWED" });
 	});
 });

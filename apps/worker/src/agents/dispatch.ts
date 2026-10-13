@@ -2,6 +2,7 @@ import { z } from "zod";
 import { errorCode, getRepo } from "../artifacts/git-write";
 import { DEFAULT_LIMITS, type RunLimits } from "./gateway-logic";
 import { parseContextRecord } from "../../container/stub-agent-lib";
+import { modelPrice } from "./model-prices";
 import { AgentMode, ModelSlug, SandboxInstance, dispatchFingerprint, parseModelAllowlist, resolveModel, type DispatchRequest, type Revalidate } from "./protocol";
 import type { AgentSandbox, RunRecord, StartOutcome } from "./sandbox";
 
@@ -161,6 +162,10 @@ export async function dispatchAgent(
 
 	const resolved = resolveModel(req.model, cfg.model, cfg.models);
 	if (!resolved.ok) throw new DispatchError(400, "MODEL_NOT_ALLOWED", resolved.error);
+	// Without a price there is no worst case to charge, so the gateway would refuse every call: say so up front.
+	if (cfg.mode === "claude" && !modelPrice(resolved.model)) {
+		throw new DispatchError(400, "MODEL_NOT_ALLOWED", `model ${resolved.model} has no entry in the price table, so its cost cannot be bounded`);
+	}
 	const fingerprint = await dispatchFingerprint({ ...req, model: resolved.model });
 	const sandbox = env.AGENT_SANDBOX.getByName(req.workItemId);
 	const seen = await sandbox.peekIdempotency(idempotencyKey, fingerprint);

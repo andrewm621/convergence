@@ -6,8 +6,10 @@ import { redactText } from "../artifacts/tokens";
 import {
 	admit,
 	deactivate,
+	isSaneMeter,
 	newMeter,
 	recordUsage,
+	settleOutstanding,
 	type Admission,
 	type AdmitRequest,
 	type Meter,
@@ -253,8 +255,8 @@ export class AgentSandbox extends DurableObject<Env> {
 		return admission;
 	}
 
-	/** Replace a model request's reservation with its real (or conservative) usage. */
-	recordModelUsage(runId: string, usage: { reserved: number; input: number; output: number; cost?: number }): void {
+	/** Replace a model request's reservation with what it was charged. Settling a request twice, or after the run's end, does nothing. */
+	recordModelUsage(runId: string, usage: { requestId: string; input: number; output: number; cost?: number }): void {
 		const meter = this.storedMeter();
 		if (!meter || meter.runId !== runId) return;
 		const was = meter.exceeded;
@@ -263,8 +265,10 @@ export class AgentSandbox extends DurableObject<Env> {
 		if (!was && next.exceeded) this.failFast();
 	}
 
+	/** The persisted meter, or null when there is none or it is not intact (an unreadable meter refuses everything, it never reads as "unused"). */
 	private storedMeter(): Meter | null {
-		return (this.ctx.storage.kv.get(METER_KEY) as Meter | undefined) ?? null;
+		const stored = this.ctx.storage.kv.get(METER_KEY);
+		return isSaneMeter(stored) ? stored : null;
 	}
 
 	/** A budget was exceeded: have the alarm fail the run right away instead of waiting for the next poll. */
@@ -447,7 +451,10 @@ export class AgentSandbox extends DurableObject<Env> {
 
 		// The gateways tripped a budget (requests, tokens): fail the run now and cut the container off.
 		const meter = this.storedMeter();
-		if (meter?.exceeded && meter.runId === run.runId) {
+		if (!meter || meter.runId !== run.runId) {
+			return this.finish(run, { state: "failed", exitCode: null, error: "run budget could not be read (the run's meter is missing or damaged)" });
+		}
+		if (meter.exceeded) {
 			return this.finish(run, { state: "failed", exitCode: null, error: `run budget exceeded: ${meter.exceeded}` });
 		}
 		if (Date.now() - Date.parse(run.startedAt) > RUN_TIMEOUT_MS) {
@@ -482,12 +489,15 @@ export class AgentSandbox extends DurableObject<Env> {
 
 	private async finish(
 		run: RunRecord,
-		outcome: { state: Exclude<RunState, "running" | "none">; exitCode: number | null; error: string | null },
+		runnerOutcome: { state: Exclude<RunState, "running" | "none">; exitCode: number | null; error: string | null },
 	): Promise<RunRecord> {
 		const finishedAt = new Date().toISOString();
 		const activity = await this.readActivitySafely(run);
 
-		const meter = this.storedMeter();
+		// Charge any call whose report never arrived at its reserved worst case, then freeze the meter.
+		const stored = this.storedMeter();
+		const meter = stored && stored.runId === run.runId ? settleOutstanding(stored) : stored;
+		if (meter && meter !== stored) this.ctx.storage.kv.put(METER_KEY, meter);
 		const usage: RunUsage | null =
 			meter && meter.runId === run.runId
 				? {
@@ -499,6 +509,12 @@ export class AgentSandbox extends DurableObject<Env> {
 						budgetExceeded: meter.exceeded,
 					}
 				: null;
+
+		// A budget crossed on the last calls (or by the worst-case charge for a report that never came) fails the run too.
+		const outcome =
+			runnerOutcome.state === "succeeded" && meter?.exceeded
+				? { ...runnerOutcome, state: "failed" as const, error: `run budget exceeded: ${meter.exceeded}` }
+				: runnerOutcome;
 
 		// Cut the container off before judging it: clear the gateway registration (nothing more is admitted), stop the
 		// container, and revoke the write token. The fork history is then frozen while it is verified.

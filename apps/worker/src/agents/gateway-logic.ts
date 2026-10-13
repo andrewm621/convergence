@@ -4,6 +4,8 @@
 // None of this trusts the container. It controls Claude Code's flags, its environment and every byte of every
 // request, so the caps below are enforced by the gateways, not requested of the agent.
 
+import { priceTokens, type ModelPrice } from "./model-prices";
+
 // ---- URL allowlist: a request is matched in exactly one canonical form ----
 
 const HOSTNAME_RE = /^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/;
@@ -75,16 +77,74 @@ export function allowModelCredential(method: string, rawUrl: string): boolean {
 export const MAX_MODEL_BODY_BYTES = 8 * 1024 * 1024;
 export const MAX_GIT_BODY_BYTES = 64 * 1024 * 1024;
 
-export type ModelPrep =
-	| { ok: true; body: string; maxTokens: number; estInputTokens: number }
-	| { ok: false; status: 400 | 403; reason: string };
+/**
+ * The only top-level keys of a Messages request that reach the upstream. Anything else is dropped (or, for the
+ * keys that can reroute or upgrade a call, refused outright).
+ */
+const BODY_KEYS: ReadonlySet<string> = new Set([
+	"model",
+	"messages",
+	"system",
+	"max_tokens",
+	"metadata",
+	"stop_sequences",
+	"stream",
+	"temperature",
+	"top_p",
+	"top_k",
+	"tools",
+	"tool_choice",
+	"thinking",
+]);
 
 /**
- * Check a model request body against the run's pin and output ceiling: the model must be exactly the pinned one,
+ * OpenRouter extensions (and Anthropic server features) that change which model, provider or capability serves a
+ * call: fallback model lists, provider routing, presets, plugins and web search, prompt transforms, MCP servers.
+ * Claude Code sends none of them, so a request that carries one is refused rather than quietly trimmed.
+ */
+const REROUTING_KEYS: ReadonlySet<string> = new Set([
+	"models",
+	"provider",
+	"route",
+	"preset",
+	"plugins",
+	"web_search_options",
+	"transforms",
+	"mcp_servers",
+	"session_id",
+	"trace",
+	"usage",
+]);
+
+/** A pinned slug is `vendor/name` with no `:variant` suffix and no `~alias`: the model string must be an exact match. */
+const EXACT_SLUG_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,60}\/[A-Za-z0-9][A-Za-z0-9._-]{0,80}$/;
+export function isExactModelSlug(slug: string): boolean {
+	return typeof slug === "string" && EXACT_SLUG_RE.test(slug);
+}
+
+export type ModelPrep =
+	| { ok: true; body: string; maxTokens: number; estInputTokens: number; worstInputTokens: number }
+	| { ok: false; status: 400 | 403; reason: string };
+
+/** A client tool has no `type` (or "custom"). Typed tools are server-side features (web search, code execution, computer use). */
+function toolsAllowed(tools: unknown): boolean {
+	if (tools === undefined) return true;
+	if (!Array.isArray(tools)) return false;
+	return tools.every((t) => {
+		if (!t || typeof t !== "object" || Array.isArray(t)) return false;
+		const type = (t as { type?: unknown }).type;
+		return type === undefined || type === "custom";
+	});
+}
+
+/**
+ * Check a model request body against the run's pin and output ceiling. The model must be exactly the pinned slug
+ * (no suffix, no alias), only whitelisted top-level keys are forwarded, rerouting keys and server tools are refused,
  * `max_tokens` must be a positive integer and is clamped to the ceiling (with any extended-thinking budget kept
- * below it). Returns the body to forward, which is rewritten only when something was clamped.
+ * below it). Returns the body to forward, which is re-serialized whenever something was dropped or clamped.
  */
 export function prepareModelBody(bodyText: string, bodyBytes: number, pinnedModel: string, maxOutputTokens: number): ModelPrep {
+	if (!isExactModelSlug(pinnedModel)) return { ok: false, status: 403, reason: "model not allowed for this run" };
 	let json: unknown;
 	try {
 		json = JSON.parse(bodyText);
@@ -95,14 +155,25 @@ export function prepareModelBody(bodyText: string, bodyBytes: number, pinnedMode
 	const body = json as Record<string, unknown>;
 
 	if (typeof body.model !== "string" || body.model !== pinnedModel) return { ok: false, status: 403, reason: "model not allowed for this run" };
+	for (const key of Object.keys(body)) {
+		if (REROUTING_KEYS.has(key)) return { ok: false, status: 400, reason: `request field not allowed: ${key}` };
+	}
+	if (!toolsAllowed(body.tools)) return { ok: false, status: 400, reason: "only client tools are allowed" };
 	const requested = body.max_tokens;
 	if (typeof requested !== "number" || !Number.isInteger(requested) || requested < 1) {
 		return { ok: false, status: 400, reason: "max_tokens must be a positive integer" };
 	}
 
+	let rewrite = false;
+	for (const key of Object.keys(body)) {
+		if (!BODY_KEYS.has(key)) {
+			delete body[key];
+			rewrite = true;
+		}
+	}
 	const maxTokens = Math.min(requested, maxOutputTokens);
-	let text = bodyText;
 	if (maxTokens !== requested) {
+		rewrite = true;
 		body.max_tokens = maxTokens;
 		const thinking = body.thinking;
 		if (thinking && typeof thinking === "object") {
@@ -113,9 +184,29 @@ export function prepareModelBody(bodyText: string, bodyBytes: number, pinnedMode
 				else delete body.thinking;
 			}
 		}
-		text = JSON.stringify(body);
 	}
-	return { ok: true, body: text, maxTokens, estInputTokens: Math.ceil(bodyBytes / 3) };
+	// A token is at least one byte, so the body's size bounds its input tokens from above. The cheaper estimate
+	// (a third of that) sizes reservations; the bound is what a call with unknown usage is charged.
+	return {
+		ok: true,
+		body: rewrite ? JSON.stringify(body) : bodyText,
+		maxTokens,
+		estInputTokens: Math.ceil(bodyBytes / 3),
+		worstInputTokens: bodyBytes,
+	};
+}
+
+/** The only headers that cross to the upstream; everything else the container set (routing hints, cookies, its own auth) is dropped. */
+const FORWARD_HEADERS = ["content-type", "accept", "anthropic-version", "anthropic-beta", "user-agent"] as const;
+const HEADER_VALUE_RE = /^[\x20-\x7e]{0,512}$/;
+
+export function forwardModelHeaders(incoming: Headers): Headers {
+	const out = new Headers();
+	for (const name of FORWARD_HEADERS) {
+		const value = incoming.get(name);
+		if (value !== null && HEADER_VALUE_RE.test(value)) out.set(name, value);
+	}
+	return out;
 }
 
 // ---- Per-run meter ----
@@ -127,7 +218,7 @@ export interface RunLimits {
 	maxTotalTokens: number;
 	/** Ceiling on a single request's max_tokens. */
 	maxOutputTokens: number;
-	/** Dollars, summed from the `usage.cost` OpenRouter reports. */
+	/** Dollars, summed from the `usage.cost` OpenRouter reports (or the priced worst case when it reports none). */
 	maxCostUsd: number;
 }
 
@@ -139,6 +230,12 @@ export const DEFAULT_LIMITS: RunLimits = {
 	maxCostUsd: 0.25,
 };
 
+/** What an admitted but not yet settled model request holds against the budget. */
+export interface Reservation {
+	tokens: number;
+	costUsd: number;
+}
+
 export interface Meter {
 	runId: string;
 	/** False once the run has ended: the gateway registration is cleared and nothing is admitted. */
@@ -149,19 +246,51 @@ export interface Meter {
 	gitRequests: number;
 	inputTokens: number;
 	outputTokens: number;
-	/** Dollars reported by the upstream so far. */
+	/** Dollars charged so far. */
 	costUsd: number;
-	/** Worst-case tokens held for requests that have been admitted but not yet reported. */
-	reserved: number;
+	/** Admitted model requests that have not been settled yet, by request id. Each holds its worst case. */
+	inflight: Record<string, Reservation>;
 	limits: RunLimits;
 }
 
 export type Admission = { ok: true } | { ok: false; status: 403 | 429; reason: string };
 
-export type AdmitRequest = { kind: "model"; reserve: number } | { kind: "git" };
+export type AdmitRequest = { kind: "model"; requestId: string; reserveTokens: number; reserveCostUsd: number } | { kind: "git" };
 
 export function newMeter(runId: string, limits: RunLimits): Meter {
-	return { runId, active: true, exceeded: null, modelRequests: 0, gitRequests: 0, inputTokens: 0, outputTokens: 0, costUsd: 0, reserved: 0, limits };
+	return { runId, active: true, exceeded: null, modelRequests: 0, gitRequests: 0, inputTokens: 0, outputTokens: 0, costUsd: 0, inflight: {}, limits };
+}
+
+function sum(inflight: Record<string, Reservation>, key: keyof Reservation): number {
+	return Object.values(inflight).reduce((a, r) => a + r[key], 0);
+}
+
+/** Tokens held by in-flight requests. */
+export function reservedTokens(meter: Meter): number {
+	return sum(meter.inflight, "tokens");
+}
+
+/** Dollars held by in-flight requests. */
+export function reservedCostUsd(meter: Meter): number {
+	return sum(meter.inflight, "costUsd");
+}
+
+const isCount = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && v >= 0;
+
+/**
+ * Is a stored meter intact? A value that fails this (a missing field, NaN, a negative, a wrong type) must be treated
+ * as no meter at all, which refuses everything, rather than read as "nothing used yet".
+ */
+export function isSaneMeter(m: unknown): m is Meter {
+	if (!m || typeof m !== "object") return false;
+	const x = m as Partial<Meter>;
+	const l = x.limits as Partial<RunLimits> | undefined;
+	if (typeof x.runId !== "string" || typeof x.active !== "boolean") return false;
+	if (x.exceeded !== null && typeof x.exceeded !== "string") return false;
+	if (![x.modelRequests, x.gitRequests, x.inputTokens, x.outputTokens, x.costUsd].every(isCount)) return false;
+	if (!l || ![l.maxModelRequests, l.maxGitRequests, l.maxTotalTokens, l.maxOutputTokens, l.maxCostUsd].every(isCount)) return false;
+	if (!x.inflight || typeof x.inflight !== "object" || Array.isArray(x.inflight)) return false;
+	return Object.values(x.inflight).every((r) => !!r && isCount((r as Reservation).tokens) && isCount((r as Reservation).costUsd));
 }
 
 /** Admit or refuse one request. Once any cap is crossed the meter is exceeded for good and everything gets 429. */
@@ -178,31 +307,110 @@ export function admit(meter: Meter, req: AdmitRequest): { meter: Meter; admissio
 		if (meter.gitRequests + 1 > meter.limits.maxGitRequests) return trip("git request cap");
 		return { meter: { ...meter, gitRequests: meter.gitRequests + 1 }, admission: { ok: true } };
 	}
+	// A reservation that isn't a finite non-negative figure can't be held against the budget, so it can't be admitted.
+	if (!isCount(req.reserveTokens) || !isCount(req.reserveCostUsd) || req.requestId === "" || Object.hasOwn(meter.inflight, req.requestId)) {
+		return { meter, admission: { ok: false, status: 403, reason: "request cannot be metered" } };
+	}
 	if (meter.modelRequests + 1 > meter.limits.maxModelRequests) return trip("model request cap");
 	const used = meter.inputTokens + meter.outputTokens;
-	if (used + meter.reserved + req.reserve > meter.limits.maxTotalTokens) return trip("token ceiling");
+	if (used + reservedTokens(meter) + req.reserveTokens > meter.limits.maxTotalTokens) return trip("token ceiling");
+	if (meter.costUsd + reservedCostUsd(meter) + req.reserveCostUsd > meter.limits.maxCostUsd) return trip("cost ceiling");
 	return {
-		meter: { ...meter, modelRequests: meter.modelRequests + 1, reserved: meter.reserved + req.reserve },
+		meter: {
+			...meter,
+			modelRequests: meter.modelRequests + 1,
+			inflight: { ...meter.inflight, [req.requestId]: { tokens: req.reserveTokens, costUsd: req.reserveCostUsd } },
+		},
 		admission: { ok: true },
 	};
 }
 
-/** Replace a request's reservation with what it really used (or the conservative count when none was reported). */
-export function recordUsage(meter: Meter, u: { reserved: number; input: number; output: number; cost?: number }): Meter {
+/**
+ * Replace an in-flight request's reservation with what it used. Settling an id that isn't in flight (already settled,
+ * or folded in at the end of the run) changes nothing, so a repeated report can't be counted twice. A figure that is
+ * not a finite non-negative number is replaced by the reservation's worst case, never by zero.
+ */
+export function recordUsage(meter: Meter, u: { requestId: string; input: number; output: number; cost?: number }): Meter {
+	const held = Object.hasOwn(meter.inflight, u.requestId) ? meter.inflight[u.requestId] : undefined;
+	if (!held) return meter;
+	const { [u.requestId]: _settled, ...inflight } = meter.inflight;
+	const usable = isCount(u.input) && isCount(u.output);
 	const next: Meter = {
 		...meter,
-		reserved: Math.max(0, meter.reserved - u.reserved),
-		inputTokens: meter.inputTokens + Math.max(0, u.input),
-		outputTokens: meter.outputTokens + Math.max(0, u.output),
-		costUsd: meter.costUsd + (Number.isFinite(u.cost) ? Math.max(0, u.cost ?? 0) : 0),
+		inflight,
+		inputTokens: meter.inputTokens + (usable ? u.input : held.tokens),
+		outputTokens: meter.outputTokens + (usable ? u.output : 0),
+		costUsd: meter.costUsd + (isCount(u.cost) ? u.cost : held.costUsd),
 	};
-	if (!next.exceeded && next.inputTokens + next.outputTokens >= next.limits.maxTotalTokens) next.exceeded = "token ceiling";
-	if (!next.exceeded && next.costUsd >= next.limits.maxCostUsd) next.exceeded = "cost ceiling";
-	return next;
+	return tripIfOver(next);
+}
+
+function tripIfOver(m: Meter): Meter {
+	if (m.exceeded) return m;
+	if (m.inputTokens + m.outputTokens >= m.limits.maxTotalTokens) return { ...m, exceeded: "token ceiling" };
+	if (m.costUsd >= m.limits.maxCostUsd) return { ...m, exceeded: "cost ceiling" };
+	return m;
+}
+
+/**
+ * Charge every request still in flight at its reserved worst case, once, and forget it. Used when a run ends: a
+ * report that never arrived (an isolate that died after forwarding the call) is paid for, not forgotten.
+ */
+export function settleOutstanding(meter: Meter): Meter {
+	const held = Object.values(meter.inflight);
+	if (held.length === 0) return meter;
+	return tripIfOver({
+		...meter,
+		inflight: {},
+		inputTokens: meter.inputTokens + held.reduce((a, r) => a + r.tokens, 0),
+		costUsd: meter.costUsd + held.reduce((a, r) => a + r.costUsd, 0),
+	});
 }
 
 export function deactivate(meter: Meter): Meter {
 	return { ...meter, active: false };
+}
+
+// ---- Settling a model call ----
+
+/** The dollar cost to reserve for a call: its worst case at the model's top rates. */
+export function worstCaseCostUsd(price: ModelPrice, worstInputTokens: number, maxTokens: number): number {
+	return priceTokens(price, worstInputTokens, maxTokens);
+}
+
+export interface SettleInput {
+	/** The upstream answered 2xx. */
+	upstreamOk: boolean;
+	/** How the response body ended: all the way, or aborted/errored before the end. */
+	outcome: "end" | "aborted";
+	/** What the tracker read, or null when there was no usage at all. */
+	seen: { input: number; output: number; cost?: number; complete: boolean } | null;
+	worstInputTokens: number;
+	maxTokens: number;
+	price: ModelPrice;
+}
+
+/**
+ * What to charge for one model call. The reported usage is used only when the response was a 2xx that ended
+ * cleanly and carried a complete usage block; every other case (a non-2xx, an aborted or truncated stream, a body
+ * with no usage or unparseable) is charged the worst case: the whole request body as input and max_tokens as output,
+ * at the model's top rates. Whatever was seen can only raise a charge. A missing, NaN, zero or negative `cost` is
+ * replaced by tokens times the price table.
+ */
+export function settleModelCall(i: SettleInput): { input: number; output: number; cost: number } {
+	const worstCost = worstCaseCostUsd(i.price, i.worstInputTokens, i.maxTokens);
+	const worst = { input: i.worstInputTokens, output: i.maxTokens, cost: worstCost };
+	const seen = i.seen;
+	if (!i.upstreamOk || i.outcome !== "end" || !seen || !seen.complete) {
+		return {
+			input: Math.max(worst.input, seen?.input ?? 0),
+			output: Math.max(worst.output, seen?.output ?? 0),
+			cost: Math.max(worst.cost, isCount(seen?.cost) ? (seen?.cost ?? 0) : 0),
+		};
+	}
+	const priced = priceTokens(i.price, seen.input, seen.output);
+	const cost = isCount(seen.cost) && seen.cost > 0 ? seen.cost : priced;
+	return { input: seen.input, output: seen.output, cost };
 }
 
 // ---- Streams ----
@@ -237,6 +445,10 @@ export class UsageTracker {
 	private input: number | null = null;
 	private output: number | null = null;
 	private cost: number | null = null;
+	/** Saw the stream's closing event (`message_stop`, or a `message_delta` carrying a stop reason). */
+	private finished = false;
+	/** A plain JSON body parsed as a whole. */
+	private parsedWhole = false;
 
 	feed(chunk: string): void {
 		if (this.plain.length < MAX_PLAIN_USAGE_BYTES) this.plain += chunk;
@@ -249,7 +461,7 @@ export class UsageTracker {
 	private line(line: string): void {
 		const trimmed = line.trim();
 		if (!trimmed.startsWith("data:")) return;
-		let event: { type?: unknown; message?: { usage?: unknown }; usage?: unknown };
+		let event: { type?: unknown; message?: { usage?: unknown }; usage?: unknown; delta?: { stop_reason?: unknown } };
 		try {
 			event = JSON.parse(trimmed.slice(5));
 		} catch {
@@ -258,7 +470,10 @@ export class UsageTracker {
 		if (!event || typeof event !== "object") return;
 		// OpenRouter reports 0 input tokens in message_start and the real figures (and cost) in message_delta.
 		if (event.type === "message_start") this.take(event.message?.usage);
-		else if (event.type === "message_delta") this.take(event.usage);
+		else if (event.type === "message_delta") {
+			this.take(event.usage);
+			if (typeof event.delta?.stop_reason === "string") this.finished = true;
+		} else if (event.type === "message_stop") this.finished = true;
 	}
 
 	private take(usage: unknown): void {
@@ -273,36 +488,65 @@ export class UsageTracker {
 		if (typeof cost === "number" && Number.isFinite(cost) && cost >= 0 && cost < 1e6) this.cost = Math.max(this.cost ?? 0, cost);
 	}
 
-	/** Tokens seen, or null when the response carried no usage at all (the caller then counts conservatively). */
-	result(): { input: number; output: number; cost?: number } | null {
+	/**
+	 * Tokens seen, or null when the response carried no usage at all (the caller then charges the worst case).
+	 * `complete` is false for a stream that never reached its closing event: its usage is partial.
+	 */
+	result(): { input: number; output: number; cost?: number; complete: boolean } | null {
 		if (this.buffer) this.line(this.buffer);
 		this.buffer = "";
 		if (this.input === null && this.output === null && this.plain.trimStart().startsWith("{")) {
 			try {
 				const body = JSON.parse(this.plain) as { usage?: unknown };
 				this.take(body.usage);
+				this.parsedWhole = true;
 			} catch {
 				// Not a JSON body.
 			}
 		}
 		if (this.input === null && this.output === null) return null;
-		return { input: this.input ?? 0, output: this.output ?? 0, ...(this.cost !== null ? { cost: this.cost } : {}) };
+		const complete = (this.finished || this.parsedWhole) && this.input !== null && this.output !== null;
+		return { input: this.input ?? 0, output: this.output ?? 0, complete, ...(this.cost !== null ? { cost: this.cost } : {}) };
 	}
 }
 
-/** Pass a response body through unchanged while a tracker reads it; `onDone` runs once the stream ends. */
-export function tapUsage(body: ReadableStream<Uint8Array>, tracker: UsageTracker, onDone: () => void): ReadableStream<Uint8Array> {
+/**
+ * Pass a response body through unchanged while a tracker reads it. `onDone` runs exactly once: "end" when the body
+ * finished, "aborted" when the reader cancelled it (the container hung up) or the upstream errored mid-stream.
+ */
+export function tapUsage(
+	body: ReadableStream<Uint8Array>,
+	tracker: UsageTracker,
+	onDone: (outcome: "end" | "aborted") => void,
+): ReadableStream<Uint8Array> {
 	const decoder = new TextDecoder();
-	return body.pipeThrough(
-		new TransformStream<Uint8Array, Uint8Array>({
-			transform(chunk, controller) {
-				tracker.feed(decoder.decode(chunk, { stream: true }));
-				controller.enqueue(chunk);
-			},
-			flush() {
-				tracker.feed(decoder.decode());
-				onDone();
-			},
-		}),
-	);
+	const reader = body.getReader();
+	let done = false;
+	const finish = (outcome: "end" | "aborted") => {
+		if (done) return;
+		done = true;
+		onDone(outcome);
+	};
+	return new ReadableStream<Uint8Array>({
+		async pull(controller) {
+			try {
+				const { done: eof, value } = await reader.read();
+				if (eof) {
+					tracker.feed(decoder.decode());
+					finish("end");
+					controller.close();
+					return;
+				}
+				tracker.feed(decoder.decode(value, { stream: true }));
+				controller.enqueue(value);
+			} catch (e) {
+				finish("aborted");
+				controller.error(e);
+			}
+		},
+		async cancel(reason) {
+			finish("aborted");
+			await reader.cancel(reason).catch(() => undefined);
+		},
+	});
 }

@@ -7,11 +7,21 @@ import {
 	allowModelCredential,
 	canonicalUrl,
 	deactivate,
+	forwardModelHeaders,
+	isExactModelSlug,
+	isSaneMeter,
 	limitStream,
 	newMeter,
 	prepareModelBody,
 	recordUsage,
+	reservedCostUsd,
+	reservedTokens,
+	settleModelCall,
+	settleOutstanding,
+	tapUsage,
+	worstCaseCostUsd,
 } from "./gateway-logic";
+import { modelPrice, priceTokens } from "./model-prices";
 
 const HOST = "acct.artifacts.cloudflare.net";
 const REPO = "/git/default/wi-1.git";
@@ -57,6 +67,16 @@ describe("Artifacts credential allowlist: one canonical form", () => {
 		["GET", `${ok}/info/refs?service=git-upload-pack&x=1`],
 		["GET", `${ok}/info/refs?x=1&service=git-upload-pack`],
 		["GET", `${ok}/info/refs?service=git-upload-pack&service=git-receive-pack`],
+		["GET", `${ok}/info/refs?service=git-upload-pack&service=git-upload-pack`],
+		["GET", `${ok}/info/refs?service=git-upload-pack&`],
+		["GET", `${ok}/info/refs?&service=git-upload-pack`],
+		["GET", `${ok}/info/refs?service=git-upload-pack,git-receive-pack`],
+		["GET", `${ok}/info/refs?service=git-upload-pack%00`],
+		["GET", `${ok}/info/refs?service=git%2dupload-pack`],
+		["GET", `${ok}/info/refs?service=GIT-UPLOAD-PACK`],
+		["GET", `${ok}/info/refs?Service=git-upload-pack`],
+		["GET", `${ok}/info/refs?service=`],
+		["GET", `${ok}/info/refs?service`],
 		["POST", `${ok}/git-upload-pack?x=1`],
 		["POST", `${ok}/git-receive-pack?`],
 		// fragments
@@ -149,6 +169,19 @@ describe("model credential allowlist: one canonical form", () => {
 		["post", ok],
 		["POST", `${ok}?beta=false`],
 		["POST", `${ok}?beta=true&x=1`],
+		["POST", `${ok}?beta=true&beta=true`],
+		["POST", `${ok}?beta=true&beta=false`],
+		["POST", `${ok}?beta=false&beta=true`],
+		["POST", `${ok}?beta=true&`],
+		["POST", `${ok}?&beta=true`],
+		["POST", `${ok}?beta`],
+		["POST", `${ok}?beta=`],
+		["POST", `${ok}?beta=TRUE`],
+		["POST", `${ok}?BETA=true`],
+		["POST", `${ok}?beta=true%00`],
+		["POST", `${ok}?beta=tru%65`],
+		["POST", `${ok}?models=other%2Fmodel`],
+		["POST", `${ok}?provider=x`],
 		["POST", `${ok}?x=1`],
 		["POST", `${ok}?`],
 		["POST", `${ok}#frag`],
@@ -245,9 +278,124 @@ describe("prepareModelBody: the model and its output budget are enforced in the 
 	});
 });
 
+describe("prepareModelBody: nothing in the body can reroute or upgrade the pinned model", () => {
+	const pinned = "vendor/model-a";
+	const base = { model: pinned, max_tokens: 1024, messages: [{ role: "user", content: "hi" }] };
+	const prep = (o: object, model = pinned) => {
+		const text = JSON.stringify(o);
+		return prepareModelBody(text, new TextEncoder().encode(text).byteLength, model, 8192);
+	};
+
+	it.each([
+		["a fallback model list", { models: ["other/model"] }],
+		["provider routing preferences", { provider: { order: ["x"], allow_fallbacks: true } }],
+		["a route", { route: "fallback" }],
+		["a preset", { preset: "other" }],
+		["plugins", { plugins: [{ id: "web" }] }],
+		["web search options", { web_search_options: {} }],
+		["transforms", { transforms: ["middle-out"] }],
+		["mcp servers", { mcp_servers: [{ type: "url", url: "https://x.example" }] }],
+		["a session id", { session_id: "s" }],
+	])("refuses %s", (_name, extra) => {
+		expect(prep({ ...base, ...extra })).toMatchObject({ ok: false, status: 400 });
+	});
+
+	it.each([
+		":online",
+		":nitro",
+		":floor",
+		":thinking",
+		":free",
+		":exacto",
+		":extended",
+	])("refuses the model with the %s suffix, and a pin that already carries one", (suffix) => {
+		expect(prep({ ...base, model: `${pinned}${suffix}` })).toMatchObject({ ok: false, status: 403 });
+		expect(prep({ ...base, model: `${pinned}${suffix}` }, `${pinned}${suffix}`)).toMatchObject({ ok: false, status: 403 });
+	});
+
+	it.each(["~vendor/model-a", "VENDOR/model-a", "vendor/model-a ", " vendor/model-a", "vendor//model-a", "vendor/model-a\n", "vendor/model-b"])(
+		"refuses the near-miss model %j (exact string match only)",
+		(model) => {
+			expect(prep({ ...base, model })).toMatchObject({ ok: false, status: 403 });
+		},
+	);
+
+	it("refuses server tools and malformed tools lists, and accepts client tools", () => {
+		for (const tools of [
+			[{ type: "web_search_20250305", name: "web_search" }],
+			[{ type: "code_execution_20250522", name: "code_execution" }],
+			[{ type: "computer_20250124", name: "computer" }],
+			[{ type: "openrouter:web_search" }],
+			[{ name: "ok", input_schema: {} }, { type: "web_fetch_20250910", name: "web_fetch" }],
+			"web_search",
+			{ name: "x" },
+			[null],
+			["web_search"],
+		]) {
+			expect(prep({ ...base, tools })).toMatchObject({ ok: false, status: 400 });
+		}
+		expect(prep({ ...base, tools: [{ name: "Read", description: "d", input_schema: { type: "object" } }, { type: "custom", name: "x", input_schema: {} }] })).toMatchObject({ ok: true });
+	});
+
+	it("drops top-level keys outside the whitelist and forwards only the whitelist", () => {
+		const r = prep({ ...base, stream: true, system: "s", temperature: 0.2, metadata: { user_id: "u" }, tool_choice: { type: "auto" }, output_config: { effort: "high" }, context_management: {}, service_tier: "auto", user: "u", include_reasoning: true, anything: 1 });
+		expect(r.ok).toBe(true);
+		if (!r.ok) return;
+		expect(Object.keys(JSON.parse(r.body)).sort()).toEqual(["max_tokens", "messages", "metadata", "model", "stream", "system", "temperature", "tool_choice"]);
+	});
+
+	it("does not treat an inherited or prototype key as part of the body", () => {
+		const text = '{"model":"vendor/model-a","max_tokens":5,"messages":[],"__proto__":{"models":["x"]},"constructor":1}';
+		const r = prepareModelBody(text, text.length, pinned, 8192);
+		expect(r.ok).toBe(true);
+		if (!r.ok) return;
+		expect(JSON.parse(r.body).models).toBeUndefined();
+		expect(Object.keys(JSON.parse(r.body))).not.toContain("constructor");
+	});
+
+	it("bounds input tokens by the body size and reserves a third of it", () => {
+		const text = JSON.stringify(base);
+		const r = prepareModelBody(text, 3000, pinned, 8192);
+		expect(r).toMatchObject({ ok: true, estInputTokens: 1000, worstInputTokens: 3000 });
+	});
+
+	it("recognises only exact slugs", () => {
+		expect(isExactModelSlug("vendor/model-a")).toBe(true);
+		for (const bad of ["vendor/model:online", "~vendor/model", "vendor", "", "a/b/c", "vendor/model a"]) expect(isExactModelSlug(bad)).toBe(false);
+	});
+});
+
+describe("forwardModelHeaders: only a short whitelist crosses to the upstream", () => {
+	it("keeps the Messages headers and drops everything else, including auth and routing hints", () => {
+		const out = forwardModelHeaders(
+			new Headers({
+				"content-type": "application/json",
+				accept: "text/event-stream",
+				"anthropic-version": "2023-06-01",
+				"anthropic-beta": "interleaved-thinking-2025-05-14",
+				"user-agent": "claude-cli",
+				authorization: "Bearer placeholder",
+				"x-api-key": "placeholder",
+				cookie: "a=b",
+				"http-referer": "https://x.example",
+				"x-title": "x",
+				"x-openrouter-provider": "evil",
+				"x-forwarded-for": "1.2.3.4",
+			}),
+		);
+		expect([...out.keys()].sort()).toEqual(["accept", "anthropic-beta", "anthropic-version", "content-type", "user-agent"]);
+	});
+
+	it("drops a whitelisted header whose value is not plain printable ASCII or is huge", () => {
+		const out = forwardModelHeaders(new Headers({ "anthropic-beta": "x".repeat(600), "user-agent": "café" }));
+		expect([...out.keys()]).toEqual([]);
+	});
+});
+
 describe("per-run meter", () => {
-	const limits = { ...DEFAULT_LIMITS, maxModelRequests: 3, maxGitRequests: 2, maxTotalTokens: 10_000, maxOutputTokens: 1000 };
-	const model1 = (reserve = 1000) => ({ kind: "model" as const, reserve });
+	const limits = { ...DEFAULT_LIMITS, maxModelRequests: 3, maxGitRequests: 2, maxTotalTokens: 10_000, maxOutputTokens: 1000, maxCostUsd: 0.25 };
+	let n = 0;
+	const model1 = (reserveTokens = 1000, reserveCostUsd = 0.001, requestId = `req-${++n}`) => ({ kind: "model" as const, requestId, reserveTokens, reserveCostUsd });
 
 	it("admits requests under the caps and counts them", () => {
 		let m = newMeter("run-1", limits);
@@ -277,37 +425,97 @@ describe("per-run meter", () => {
 		expect(second.meter.exceeded).toMatch(/token ceiling/);
 	});
 
+	it("reserves worst-case dollars for in-flight requests so concurrent calls can't overshoot the cost ceiling", () => {
+		let m = newMeter("run-1", limits);
+		m = admit(m, model1(100, 0.15)).meter;
+		expect(reservedCostUsd(m)).toBeCloseTo(0.15);
+		const second = admit(m, model1(100, 0.15));
+		expect(second.admission).toMatchObject({ ok: false, status: 429 });
+		expect(second.meter.exceeded).toMatch(/cost ceiling/);
+	});
+
+	it("releases a reservation when the call settles, so sequential calls are not blocked by earlier ones", () => {
+		let m = newMeter("run-1", limits);
+		m = admit(m, model1(100, 0.15, "a")).meter;
+		m = recordUsage(m, { requestId: "a", input: 10, output: 10, cost: 0.01 });
+		expect(reservedCostUsd(m)).toBe(0);
+		expect(admit(m, model1(100, 0.15, "b")).admission.ok).toBe(true);
+	});
+
 	it("replaces a reservation with the real usage, and trips once real usage reaches the ceiling", () => {
 		let m = newMeter("run-1", limits);
-		m = admit(m, model1(4000)).meter;
-		m = recordUsage(m, { reserved: 4000, input: 1000, output: 500 });
-		expect(m.reserved).toBe(0);
+		m = admit(m, model1(4000, 0.001, "a")).meter;
+		m = recordUsage(m, { requestId: "a", input: 1000, output: 500, cost: 0.001 });
+		expect(reservedTokens(m)).toBe(0);
 		expect(m.inputTokens + m.outputTokens).toBe(1500);
 		expect(m.exceeded).toBeNull();
-		m = admit(m, model1(100)).meter;
-		m = recordUsage(m, { reserved: 100, input: 9000, output: 0 });
+		m = admit(m, model1(100, 0.001, "b")).meter;
+		m = recordUsage(m, { requestId: "b", input: 9000, output: 0, cost: 0.001 });
 		expect(m.exceeded).toMatch(/token ceiling/);
 	});
 
-	it("adds up the reported dollar cost and trips the cost ceiling", () => {
-		const capped = { ...limits, maxCostUsd: 0.25 };
-		let m = newMeter("run-1", capped);
-		m = admit(m, model1(100)).meter;
-		m = recordUsage(m, { reserved: 100, input: 10, output: 10, cost: 0.1 });
+	it("adds up the charged dollars and trips the cost ceiling", () => {
+		let m = newMeter("run-1", limits);
+		m = admit(m, model1(100, 0.01, "a")).meter;
+		m = recordUsage(m, { requestId: "a", input: 10, output: 10, cost: 0.1 });
 		expect(m.costUsd).toBeCloseTo(0.1);
 		expect(m.exceeded).toBeNull();
-		m = admit(m, model1(100)).meter;
-		m = recordUsage(m, { reserved: 100, input: 10, output: 10, cost: 0.2 });
+		m = admit(m, model1(100, 0.01, "b")).meter;
+		m = recordUsage(m, { requestId: "b", input: 10, output: 10, cost: 0.2 });
 		expect(m.exceeded).toMatch(/cost ceiling/);
 		expect(admit(m, model1(1)).admission).toMatchObject({ ok: false, status: 429 });
 	});
 
+	it("charges the reservation's worst case, never zero, when the reported figures are NaN, negative or missing", () => {
+		for (const bad of [Number.NaN, -5, Number.POSITIVE_INFINITY, undefined as unknown as number]) {
+			let m = admit(newMeter("run-1", limits), model1(3000, 0.05, "a")).meter;
+			m = recordUsage(m, { requestId: "a", input: bad, output: 5, cost: bad });
+			expect(Number.isFinite(m.inputTokens) && Number.isFinite(m.outputTokens) && Number.isFinite(m.costUsd)).toBe(true);
+			expect(m.inputTokens + m.outputTokens).toBe(3000);
+			expect(m.costUsd).toBeCloseTo(0.05);
+		}
+	});
+
 	it("never lets a bad cost reduce the total", () => {
 		let m = newMeter("run-1", limits);
-		m = recordUsage(m, { reserved: 0, input: 1, output: 1, cost: 0.05 });
-		m = recordUsage(m, { reserved: 0, input: 1, output: 1, cost: -5 });
-		m = recordUsage(m, { reserved: 0, input: 1, output: 1, cost: Number.NaN });
-		expect(m.costUsd).toBeCloseTo(0.05);
+		for (const [id, cost] of [["a", 0.05], ["b", -5], ["c", Number.NaN]] as const) {
+			m = admit(m, model1(10, 0.02, id)).meter;
+			m = recordUsage(m, { requestId: id, input: 1, output: 1, cost });
+		}
+		expect(m.costUsd).toBeCloseTo(0.05 + 0.02 + 0.02);
+	});
+
+	it("counts a settlement once: a repeated or unknown request id changes nothing", () => {
+		let m = admit(newMeter("run-1", limits), model1(100, 0.01, "a")).meter;
+		m = recordUsage(m, { requestId: "a", input: 10, output: 10, cost: 0.1 });
+		const again = recordUsage(m, { requestId: "a", input: 10, output: 10, cost: 0.1 });
+		expect(again).toEqual(m);
+		expect(recordUsage(m, { requestId: "never-admitted", input: 1e6, output: 1e6, cost: 99 })).toEqual(m);
+	});
+
+	it("refuses a request id that is already in flight and reservations that are not finite numbers", () => {
+		const m = admit(newMeter("run-1", limits), model1(100, 0.01, "a")).meter;
+		expect(admit(m, model1(100, 0.01, "a")).admission).toMatchObject({ ok: false, status: 403 });
+		expect(admit(m, model1(Number.NaN)).admission).toMatchObject({ ok: false, status: 403 });
+		expect(admit(m, model1(100, Number.NaN)).admission).toMatchObject({ ok: false, status: 403 });
+		expect(admit(m, model1(-1)).admission).toMatchObject({ ok: false, status: 403 });
+		expect(admit(m, model1(100, 0.01, "")).admission).toMatchObject({ ok: false, status: 403 });
+	});
+
+	it("charges calls still in flight at the end of the run at their reserved worst case, once", () => {
+		let m = admit(newMeter("run-1", limits), model1(3000, 0.05, "a")).meter;
+		m = admit(m, model1(2000, 0.04, "b")).meter;
+		const done = settleOutstanding(m);
+		expect(done.inflight).toEqual({});
+		expect(done.inputTokens).toBe(5000);
+		expect(done.costUsd).toBeCloseTo(0.09);
+		expect(settleOutstanding(done)).toEqual(done);
+		// the late report for a folded call is ignored, so it is not charged twice
+		expect(recordUsage(done, { requestId: "a", input: 10, output: 10, cost: 0.01 })).toEqual(done);
+		const over = settleOutstanding(admit(newMeter("run-1", { ...limits, maxCostUsd: 0.06 }), model1(10, 0.05, "a")).meter);
+		expect(over.exceeded).toBeNull();
+		const trips = settleOutstanding({ ...over, inflight: { z: { tokens: 20_000, costUsd: 0.5 } } });
+		expect(trips.exceeded).toMatch(/ceiling/);
 	});
 
 	it("caps git requests separately", () => {
@@ -324,6 +532,102 @@ describe("per-run meter", () => {
 		expect(admit(m, model1(1)).admission).toMatchObject({ ok: false, status: 403 });
 		expect(admit(m, { kind: "git" }).admission).toMatchObject({ ok: false, status: 403 });
 	});
+
+	it("treats a stored meter that is not intact as no meter (fail closed on a lost or damaged counter)", () => {
+		const good = newMeter("run-1", limits);
+		expect(isSaneMeter(good)).toBe(true);
+		const damaged: unknown[] = [
+			undefined,
+			null,
+			"meter",
+			{},
+			{ ...good, costUsd: Number.NaN },
+			{ ...good, inputTokens: -1 },
+			{ ...good, modelRequests: "3" },
+			{ ...good, inflight: undefined },
+			{ ...good, inflight: { a: { tokens: Number.NaN, costUsd: 0 } } },
+			{ ...good, limits: { ...limits, maxCostUsd: Number.NaN } },
+			{ ...good, limits: undefined },
+			{ ...good, active: "yes" },
+			{ ...good, exceeded: 5 },
+		];
+		for (const d of damaged) expect(isSaneMeter(d)).toBe(false);
+	});
+});
+
+describe("settleModelCall: every outcome is charged, unknown usage at the worst case", () => {
+	const price = { inPerM: 1, outPerM: 10 };
+	const base = { upstreamOk: true, outcome: "end" as const, worstInputTokens: 30_000, maxTokens: 1000, price };
+	const worstCost = (30_000 * 1 + 1000 * 10) / 1e6;
+
+	it("charges what was seen for a clean 2xx with complete usage and a reported cost", () => {
+		expect(settleModelCall({ ...base, seen: { input: 100, output: 20, cost: 0.0007, complete: true } })).toEqual({ input: 100, output: 20, cost: 0.0007 });
+	});
+
+	it.each([
+		["a response with no usage", null],
+		["a truncated stream", { input: 100, output: 20, cost: 0.0007, complete: false }],
+	])("charges the worst case for %s", (_name, seen) => {
+		const r = settleModelCall({ ...base, seen });
+		expect(r.input).toBe(30_000);
+		expect(r.output).toBe(1000);
+		expect(r.cost).toBeCloseTo(worstCost);
+	});
+
+	it("charges the worst case for an aborted stream, even one that looked complete", () => {
+		const r = settleModelCall({ ...base, outcome: "aborted", seen: { input: 100, output: 20, cost: 0.0007, complete: true } });
+		expect(r).toMatchObject({ input: 30_000, output: 1000 });
+		expect(r.cost).toBeCloseTo(worstCost);
+	});
+
+	it("charges the worst case for a non-2xx response, even one that reports usage", () => {
+		const r = settleModelCall({ ...base, upstreamOk: false, seen: { input: 5, output: 5, cost: 0.0001, complete: true } });
+		expect(r).toMatchObject({ input: 30_000, output: 1000 });
+		expect(r.cost).toBeCloseTo(worstCost);
+		expect(settleModelCall({ ...base, upstreamOk: false, seen: null }).cost).toBeCloseTo(worstCost);
+	});
+
+	it("never charges less than what was seen on a worst-case path", () => {
+		const r = settleModelCall({ ...base, outcome: "aborted", seen: { input: 90_000, output: 4000, cost: 5, complete: false } });
+		expect(r).toEqual({ input: 90_000, output: 4000, cost: 5 });
+	});
+
+	it.each([
+		["missing", undefined],
+		["NaN", Number.NaN],
+		["negative", -1],
+		["zero", 0],
+		["infinite", Number.POSITIVE_INFINITY],
+	])("prices the tokens from the table when the reported cost is %s", (_name, cost) => {
+		const r = settleModelCall({ ...base, seen: { input: 2000, output: 500, ...(cost !== undefined ? { cost } : {}), complete: true } });
+		expect(r.cost).toBeCloseTo((2000 * 1 + 500 * 10) / 1e6);
+		expect(r.input).toBe(2000);
+		expect(r.output).toBe(500);
+	});
+});
+
+describe("model price table", () => {
+	it("prices every model the deployment allows, at the highest applicable rate", () => {
+		for (const slug of ["openai/gpt-6-luna", "z-ai/glm-5.3-flash", "minimax/minimax-m3", "anthropic/claude-sonnet-5.5"]) {
+			expect(modelPrice(slug)).not.toBeNull();
+		}
+		expect(modelPrice("minimax/minimax-m3")).toEqual({ inPerM: 0.3, outPerM: 1.2 });
+	});
+
+	it("has no price for an unknown model, a suffixed or aliased slug, or an inherited property name", () => {
+		for (const slug of ["vendor/unknown", "openai/gpt-6-luna:online", "~openai/gpt-6-luna", "toString", "__proto__", "constructor", ""]) {
+			expect(modelPrice(slug)).toBeNull();
+		}
+	});
+
+	it("prices tokens, and fails closed on a count that is not a finite non-negative number", () => {
+		expect(priceTokens({ inPerM: 2, outPerM: 4 }, 1_000_000, 500_000)).toBeCloseTo(4);
+		for (const bad of [Number.NaN, -1, Number.POSITIVE_INFINITY]) {
+			expect(priceTokens({ inPerM: 2, outPerM: 4 }, bad, 1)).toBeGreaterThan(1000);
+			expect(priceTokens({ inPerM: 2, outPerM: 4 }, 1, bad)).toBeGreaterThan(1000);
+		}
+		expect(worstCaseCostUsd({ inPerM: 2, outPerM: 4 }, 1_000_000, 0)).toBeCloseTo(2);
+	});
 });
 
 describe("UsageTracker (streamed and plain responses)", () => {
@@ -338,45 +642,68 @@ describe("UsageTracker (streamed and plain responses)", () => {
 		for (const size of [1, 3, 7, 64, sse.length]) {
 			const t = new UsageTracker();
 			for (let i = 0; i < sse.length; i += size) t.feed(sse.slice(i, i + size));
-			expect(t.result()).toEqual({ input: 125, output: 55 });
+			expect(t.result()).toEqual({ input: 125, output: 55, complete: true });
 		}
 	});
 
 	it("takes input tokens from message_delta too (OpenRouter reports 0 input in message_start)", () => {
 		const t = new UsageTracker();
 		t.feed('data: {"type":"message_start","message":{"usage":{"input_tokens":0,"output_tokens":0,"cache_read_input_tokens":null}}}\n');
-		t.feed('data: {"type":"message_delta","usage":{"input_tokens":18,"output_tokens":32,"cache_read_input_tokens":4,"cost":0.00000286}}\n');
-		expect(t.result()).toEqual({ input: 22, output: 32, cost: 0.00000286 });
+		t.feed('data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"input_tokens":18,"output_tokens":32,"cache_read_input_tokens":4,"cost":0.00000286}}\n');
+		expect(t.result()).toEqual({ input: 22, output: 32, cost: 0.00000286, complete: true });
+	});
+
+	it("marks a stream that never reached its closing event as incomplete", () => {
+		const cut = sse.slice(0, sse.indexOf("event: message_stop"));
+		const t = new UsageTracker();
+		t.feed(cut);
+		expect(t.result()).toEqual({ input: 125, output: 55, complete: false });
+		const startOnly = new UsageTracker();
+		startOnly.feed(sse.slice(0, sse.indexOf("event: content_block_delta")));
+		expect(startOnly.result()).toMatchObject({ complete: false });
+	});
+
+	it("marks a stream cut off in the middle of an event as incomplete", () => {
+		const t = new UsageTracker();
+		t.feed(sse.slice(0, sse.length - 20));
+		expect(t.result()?.complete).toBe(false);
 	});
 
 	it("reads a plain JSON response", () => {
 		const t = new UsageTracker();
 		t.feed(JSON.stringify({ id: "x", usage: { input_tokens: 10, output_tokens: 4 } }));
-		expect(t.result()).toEqual({ input: 10, output: 4 });
+		expect(t.result()).toEqual({ input: 10, output: 4, complete: true });
 	});
 
-	it("reports nothing when there was no usage, so the caller counts conservatively", () => {
+	it("reports nothing when there was no usage, so the caller charges the worst case", () => {
 		const t = new UsageTracker();
 		t.feed("event: ping\ndata: {}\n\n");
 		expect(t.result()).toBeNull();
 		expect(new UsageTracker().result()).toBeNull();
 	});
 
+	it("reports nothing for a plain body that is not valid JSON", () => {
+		const t = new UsageTracker();
+		t.feed('{"usage":{"input_tokens":10,"output_tokens":4}');
+		expect(t.result()).toBeNull();
+	});
+
 	it("reads the dollar cost OpenRouter reports, from SSE and from a plain body", () => {
 		const t = new UsageTracker();
 		t.feed('data: {"type":"message_start","message":{"usage":{"input_tokens":10,"output_tokens":1}}}\n');
 		t.feed('data: {"type":"message_delta","usage":{"output_tokens":5,"cost":0.0042}}\n');
-		expect(t.result()).toEqual({ input: 10, output: 5, cost: 0.0042 });
+		t.feed('data: {"type":"message_stop"}\n');
+		expect(t.result()).toEqual({ input: 10, output: 5, cost: 0.0042, complete: true });
 		const p = new UsageTracker();
 		p.feed(JSON.stringify({ usage: { input_tokens: 3, output_tokens: 2, cost: 1.45e-5 } }));
-		expect(p.result()).toEqual({ input: 3, output: 2, cost: 1.45e-5 });
+		expect(p.result()).toEqual({ input: 3, output: 2, cost: 1.45e-5, complete: true });
 	});
 
 	it("ignores a negative, NaN or absurd cost", () => {
 		for (const cost of [-1, "x", 1e9, null]) {
 			const t = new UsageTracker();
 			t.feed(JSON.stringify({ usage: { input_tokens: 3, output_tokens: 2, cost } }));
-			expect(t.result()).toEqual({ input: 3, output: 2 });
+			expect(t.result()).toEqual({ input: 3, output: 2, complete: true });
 		}
 	});
 
@@ -384,6 +711,46 @@ describe("UsageTracker (streamed and plain responses)", () => {
 		const t = new UsageTracker();
 		t.feed('data: {"type":"message_start","message":{"usage":{"input_tokens":-5,"output_tokens":"x"}}}\ndata: not json\n');
 		expect(t.result()).toBeNull();
+	});
+});
+
+describe("tapUsage: the report is sent once, with how the stream ended", () => {
+	const enc = new TextEncoder();
+	const streamOf = (chunks: string[], fail = false) =>
+		new ReadableStream<Uint8Array>({
+			start(c) {
+				for (const x of chunks) c.enqueue(enc.encode(x));
+				if (fail) c.error(new Error("upstream reset"));
+				else c.close();
+			},
+		});
+
+	it("reports 'end' after the whole body was read, passing it through unchanged", async () => {
+		const outcomes: string[] = [];
+		const out = tapUsage(streamOf(["data: {}\n", "x"]), new UsageTracker(), (o) => outcomes.push(o));
+		expect(await new Response(out).text()).toBe("data: {}\nx");
+		expect(outcomes).toEqual(["end"]);
+	});
+
+	it("reports 'aborted' when the reader hangs up before the end, exactly once", async () => {
+		const outcomes: string[] = [];
+		const out = tapUsage(
+			new ReadableStream<Uint8Array>({ pull: (c) => c.enqueue(enc.encode("data: {}\n")) }),
+			new UsageTracker(),
+			(o) => outcomes.push(o),
+		);
+		const reader = out.getReader();
+		await reader.read();
+		await reader.cancel();
+		await reader.cancel().catch(() => undefined);
+		expect(outcomes).toEqual(["aborted"]);
+	});
+
+	it("reports 'aborted' and errors the stream when the upstream fails mid-body", async () => {
+		const outcomes: string[] = [];
+		const out = tapUsage(streamOf(["data: {}\n"], true), new UsageTracker(), (o) => outcomes.push(o));
+		await expect(new Response(out).text()).rejects.toThrow();
+		expect(outcomes).toEqual(["aborted"]);
 	});
 });
 
