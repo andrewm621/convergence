@@ -72,7 +72,7 @@ export function ReceiptTab({ wi }: { wi: WorkItemState }) {
 								)}
 								{newer && !behind && (
 									<Badge tone="outline" className="text-sm">
-										v{current.version} exists, settings it relies on unchanged
+										v{current.version} exists, settings it depends on unchanged
 									</Badge>
 								)}
 								{!newer && (

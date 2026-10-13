@@ -66,7 +66,7 @@ export function buildGraph(view: ViewState, selectedId: string | null, flashIds:
 				proposedVersion: history.proposed?.version ?? null,
 				priorVersion: prior,
 				dependents: deps.filter((d) => d.kind !== "proposed").length,
-				stale: deps.filter((d) => d.kind === "stale").length,
+				stale: deps.filter((d) => d.kind === "stale" && view.workItems[d.workItemId]?.item.status !== "rejected").length,
 			},
 			draggable: false,
 		});

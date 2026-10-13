@@ -223,6 +223,14 @@ function isRefusal(code: string): boolean {
  * in it), which is how the items it left alone are split into the ones that were already Stale and the ones that are
  * clean: all of them are "untouched" to delta-core, but only one kind is a card that is not red.
  */
+/**
+ * Work that is still blocked: stale, in conflict, unknown, or being re-run. Merged, ready, up to date and rejected work is not.
+ * Lives here (derive re-exports it) so the strip's "already blocked" count and the card's Blocked chip use one definition.
+ */
+export function stillBlocked(wi: WorkItemState | undefined): boolean {
+	return wi !== undefined && ["stale", "conflict", "uncertain", "revalidating"].includes(wi.item.status);
+}
+
 export function evaluationOf(entry: ReconciliationEvent, ms: number | null, workItems: Record<string, WorkItemState>): Evaluation | null {
 	const event = entry.payload.event;
 	if (event.type !== "BaselinePushed" || event.records.length === 0) return null;
@@ -236,7 +244,8 @@ export function evaluationOf(entry: ReconciliationEvent, ms: number | null, work
 		if (effect.type === "RECORD_CONDITION" && effect.condition.type === "Stale") staleIds.add(effect.workItemId);
 		if (effect.type === "NO_ACTION" && effect.reasonCodes.includes("NO_DEPENDENCY_ON_CHANGED_FACETS")) leftAlone.add(effect.workItemId);
 	}
-	const alreadyStaleIds = [...leftAlone].filter((id) => !staleIds.has(id) && workItems[id]?.conditions.some((c) => c.type === "Stale"));
+	// Left alone by this change but blocked all the same (by an earlier change, a claim conflict, an unknown): the card says Blocked, so the strip must not say left alone.
+	const alreadyStaleIds = [...leftAlone].filter((id) => !staleIds.has(id) && stillBlocked(workItems[id]));
 	const alreadyStale = alreadyStaleIds.length;
 	return {
 		seq: entry.seq,

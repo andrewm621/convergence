@@ -138,3 +138,17 @@ describe("proposed dependencies", () => {
 		expect((edge?.data as DependencyEdgeData).label).toBe("proposed");
 	});
 });
+
+describe("a decision's blocked badge", () => {
+	it("counts blocked work, and leaves out work a person rejected", async () => {
+		const mock = await startMock();
+		await mock.jump(4); // v2 lands: WI-2 is blocked on notifications
+		const badge = (view: typeof mock.view) => (buildGraph(view, null).nodes.find((n) => n.id === "record:notifications")?.data as { stale: number }).stale;
+		expect(badge(mock.view)).toBe(1);
+		const wi = mock.view.workItems["WI-2"];
+		if (!wi) throw new Error("no WI-2");
+		const rejected = { ...mock.view, workItems: { ...mock.view.workItems, "WI-2": { ...wi, item: { ...wi.item, status: "rejected" as const } } } };
+		expect(badge(rejected)).toBe(0);
+		mock.stop();
+	});
+});

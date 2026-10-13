@@ -179,7 +179,7 @@ export function ResultsStrip({ evaluation, ms = evaluation?.ms ?? null, measured
 		: "";
 	const hint = evaluation.proseOnly
 		? `Only the wording changed, so no setting moved and nothing was re-checked.${timing}`
-		: `${plural(evaluation.evaluated, "item")} checked against this change. Blocked means stale: built on a decision that has since changed. Left alone means it doesn't use what changed.${timing}`;
+		: `${plural(evaluation.evaluated, "item")} checked against this change. Blocked: this change made it stale (built on a decision that has since changed). Left alone means no recorded dependency on what changed.${timing}`;
 	return (
 		<div
 			role="status"
@@ -225,7 +225,7 @@ export function ResultsStrip({ evaluation, ms = evaluation?.ms ?? null, measured
 						</>
 					)}
 					<Dot />
-					<span className="tabular-nums" title="It doesn't use anything this change touched.">
+					<span className="tabular-nums" title="No recorded dependency on anything this change touched.">
 						{evaluation.untouched} left alone
 					</span>
 				</>
@@ -249,7 +249,7 @@ function Legend() {
 				<svg width="26" height="6" aria-hidden>
 					<line x1="0" y1="3" x2="26" y2="3" stroke="var(--muted-foreground)" strokeWidth="1.5" opacity="0.6" />
 				</svg>
-				built on, still current
+				built on, not blocked
 			</span>
 			<span className="inline-flex items-center gap-1.5">
 				<svg width="26" height="6" aria-hidden>

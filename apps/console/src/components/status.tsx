@@ -35,7 +35,7 @@ type StatusMeta = { label: string; tone: Tone; icon: typeof Play; description: s
  */
 export const STATUS_META: Record<WorkItemStatus, StatusMeta> = {
 	running: { label: "Agent working", tone: "info", icon: Play, description: "The agent is working." },
-	fresh: { label: "Up to date", tone: "success", icon: ShieldCheck, description: "Nothing it relies on has changed since it was built." },
+	fresh: { label: "Up to date", tone: "success", icon: ShieldCheck, description: "Nothing it depends on has changed since it was built." },
 	stale: { label: "Blocked", tone: "danger", icon: TriangleAlert, description: "Stale: built on a decision that has since changed. A changed decision is not a verdict on the work." },
 	conflict: { label: "Blocked", tone: "danger", icon: Swords, description: "Conflict: its claims or checks contradict an accepted decision." },
 	revalidating: { label: "revalidating", tone: "info", icon: RefreshCw, description: "Re-running on the current decisions." },

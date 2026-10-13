@@ -114,7 +114,7 @@ export function WorkItemNode({ data }: NodeProps & { data: ItemData }) {
 			</p>
 			{quiet ? (
 				<p data-testid={`left-alone-${wi.item.id}`} className="truncate text-[13px] font-medium text-success" title={`${quiet.message} (${quiet.reasonCodes.join(", ")})`}>
-					Left alone: doesn&apos;t use what changed
+					Left alone: no recorded dependency on what changed
 				</p>
 			) : blockedBy ? (
 				<p data-testid={`built-on-${wi.item.id}`} className="truncate text-[13px] font-medium text-danger" title={blockedBy.reasons}>

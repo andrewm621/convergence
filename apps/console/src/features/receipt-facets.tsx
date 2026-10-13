@@ -73,7 +73,7 @@ export function ReceiptFacetList({ wi, entry, className }: { wi: WorkItemState; 
 								</Badge>
 								<ArrowRight className="size-3.5" aria-hidden />
 								<span>{formatFacet(row.now)}</span>
-								{row.relied && <span className="text-muted-foreground">(this work relies on it)</span>}
+								{row.relied && <span className="text-muted-foreground">(recorded dependency)</span>}
 							</p>
 						)}
 						{row.status === "removed" && (

@@ -176,7 +176,7 @@ export function WhyTab({ wi }: { wi: WorkItemState }) {
 						Left alone{alone.recordRef ? ` by ${alone.recordRef}` : ""}
 					</p>
 					<p className="mt-1 text-xs text-muted-foreground" title={alone.message}>
-						It doesn&apos;t use anything that changed.
+						Nothing it&apos;s recorded as depending on changed.
 					</p>
 					<ul className="mt-2 flex flex-wrap gap-1.5" aria-label="Reason codes for leaving it alone">
 						{alone.reasonCodes.map((code) => (
@@ -214,7 +214,7 @@ export function WhyTab({ wi }: { wi: WorkItemState }) {
 								</p>
 								{unaffected && (
 									<p className="rounded-md bg-muted/60 px-2 py-1 text-xs text-muted-foreground">
-										Moved from v{before?.version} to v{head.version}, but none of the settings this work relies on ({(relied ?? []).join(", ") || "any"}) changed.
+										Moved from v{before?.version} to v{head.version}, but none of the settings this work depends on ({(relied ?? []).join(", ") || "any"}) changed.
 									</p>
 								)}
 								{changes.map((change) => (
@@ -234,7 +234,7 @@ export function WhyTab({ wi }: { wi: WorkItemState }) {
 					<ReceiptChips wi={wi} staleIds={staleIds} />
 					{analysis.stale.length > 0 && (
 						<p className="mt-1.5 text-sm text-danger">
-							Behind on {plural(analysis.stale.length, "decision")}: the settings it relies on have changed since it was handed them.
+							Behind on {plural(analysis.stale.length, "decision")}: the settings it depends on have changed since it was handed them.
 						</p>
 					)}
 				</ChainLink>
@@ -366,7 +366,7 @@ function ReceiptChips({ wi, staleIds }: { wi: WorkItemState; staleIds: ReadonlyS
 							>
 								<Chevron aria-hidden />
 								{entry.recordId}@{entry.version}
-								{behind ? ` (now v${head.version})` : newer ? ` (v${head.version} exists; nothing it uses changed)` : ""}
+								{behind ? ` (now v${head.version})` : newer ? ` (v${head.version} exists; no setting it depends on changed)` : ""}
 							</button>
 						</li>
 					);

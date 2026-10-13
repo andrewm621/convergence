@@ -10,23 +10,23 @@ export type ReasonMeta = { summary: string; rule: string; next: string };
 export const REASON_META: Partial<Record<ReasonCode, ReasonMeta>> = {
 	STALE_RECEIPT: {
 		summary: "This work was built on an older version of a decision.",
-		rule: "Work is blocked when the decision it was handed has changed since.",
+		rule: "Work is blocked when a setting it depends on has changed since it was handed that decision.",
 		next: "Revalidate it on the new version, or allow it with a scoped exception.",
 	},
 	FACET_CHANGED: {
-		summary: "A setting this work relies on changed.",
-		rule: "Only changes to settings the work actually uses block it.",
+		summary: "A setting this work depends on changed.",
+		rule: "Only changes to settings its recorded dependency names block it.",
 		next: "Check what the setting says now, then revalidate.",
 	},
 	PROSE_ONLY: {
 		summary: "Only the wording changed, so no setting moved.",
-		rule: "A wording-only edit never blocks work.",
+		rule: "Under this policy, a wording-only edit doesn't block work.",
 		next: "Nothing to do.",
 	},
 	NO_DEPENDENCY_ON_CHANGED_FACETS: {
-		summary: "This work doesn't use anything that changed.",
-		rule: "Work that doesn't rely on a changed setting is left alone.",
-		next: "Nothing to do. It keeps going.",
+		summary: "No recorded dependency of this work changed.",
+		rule: "Work with no recorded dependency on a changed setting is left alone.",
+		next: "Nothing to do for this change.",
 	},
 	NO_CLAIMS: {
 		summary: "The agent said nothing about what it built.",
@@ -39,24 +39,24 @@ export const REASON_META: Partial<Record<ReasonCode, ReasonMeta>> = {
 		next: "Have the agent push readable claims.",
 	},
 	CLAIM_CONFLICT: {
-		summary: "The agent says something the decision doesn't.",
+		summary: "The agent claims a different value than the decision.",
 		rule: "A claim that contradicts an accepted decision blocks the work.",
 		next: "Revalidate so the agent redoes it, or allow it with a scoped exception.",
 	},
 	SUPERSEDED_BASIS: {
 		summary: "The agent's claim rests on an older version of the decision.",
-		rule: "A claim that cites a replaced version is not trusted, even when the value still matches.",
+		rule: "A claim that cites a replaced version conflicts if that setting has changed since, even when the value now matches.",
 		next: "Revalidate so the claim cites the current version.",
 	},
 	UNDECLARED_DEP: {
-		summary: "The agent relied on a decision it was never given.",
-		rule: "Work may only rely on decisions it was handed or a person accepted.",
+		summary: "The agent's claims cite a decision it wasn't given.",
+		rule: "Work may only depend on decisions it was handed or a person accepted.",
 		next: "Accept or reject that dependency, or revalidate.",
 	},
 	TEST_FAILED: {
 		summary: "A check on this work is failing.",
 		rule: "Merge stays closed while a required check fails at the current version.",
-		next: "Fix it and push again, or allow it with an exception if a person decides it's safe.",
+		next: "Fix it and push again. An exception covers only the excepted decision's own check.",
 	},
 	TESTS_PASSED: {
 		summary: "The checks for this work passed.",
@@ -64,8 +64,8 @@ export const REASON_META: Partial<Record<ReasonCode, ReasonMeta>> = {
 		next: "Nothing to do.",
 	},
 	MISSING_EVIDENCE: {
-		summary: "No passing check has run on this version yet.",
-		rule: "Merge needs a passing check at the agent's current version.",
+		summary: "No passing check has run on its latest push yet.",
+		rule: "Merge needs a passing check at the agent's latest push.",
 		next: "Wait for the check, or push again.",
 	},
 	HUMAN_RESOLUTION_MISSING: {
@@ -75,7 +75,7 @@ export const REASON_META: Partial<Record<ReasonCode, ReasonMeta>> = {
 	},
 	NOT_FRESH: {
 		summary: "This work isn't confirmed up to date.",
-		rule: "Merge needs the work to be up to date with every decision it uses.",
+		rule: "Merge needs the work to be up to date with every decision it depends on.",
 		next: "Wait for the next check, or revalidate.",
 	},
 	REVALIDATION_PENDING: {
@@ -85,7 +85,7 @@ export const REASON_META: Partial<Record<ReasonCode, ReasonMeta>> = {
 	},
 	REVALIDATION_STARTED: {
 		summary: "A person sent the agent back to redo this work.",
-		rule: "A revalidation re-hands the current decisions and uses up one re-run.",
+		rule: "A revalidation re-hands the current decisions and counts as one re-run.",
 		next: "Wait for the agent's next push.",
 	},
 	REVALIDATION_LIMIT: {
@@ -95,7 +95,7 @@ export const REASON_META: Partial<Record<ReasonCode, ReasonMeta>> = {
 	},
 	EXCEPTION_APPLIED: {
 		summary: "A person allowed this work through with an exception.",
-		rule: "An exception lifts one decision's block, for a scope they named.",
+		rule: "An exception lifts one decision's block. The scope is recorded, not enforced.",
 		next: "A person still has to press Merge.",
 	},
 	EXCEPTION_LAPSED: {
@@ -109,9 +109,9 @@ export const REASON_META: Partial<Record<ReasonCode, ReasonMeta>> = {
 		next: "Move that change to a decision change.",
 	},
 	UNKNOWN_CONTEXT_VERSION: {
-		summary: "The agent cited a version Delta Convergence has never seen.",
-		rule: "Unknown versions count as unknown, and unknowns are never waived.",
-		next: "Have the agent cite a real version.",
+		summary: "A version Delta Convergence has never seen (in a claim, or in what the work was handed).",
+		rule: "It fails closed and blocks.",
+		next: "Have the agent cite a real version, or revalidate.",
 	},
 	ALREADY_PROMOTED: {
 		summary: "This work was already merged.",

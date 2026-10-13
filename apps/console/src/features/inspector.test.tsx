@@ -35,7 +35,7 @@ describe("gate preview: the Merge button and its tooltip", () => {
 		const button = await screen.findByTestId("promote-button");
 		await waitFor(() => expect(button).toBeEnabled());
 		await user.hover(screen.getByTestId("promote-trigger"));
-		expect(await screen.findByRole("tooltip")).toHaveTextContent(/gate passes/i);
+		expect(await screen.findByRole("tooltip")).toHaveTextContent(/merge check passes/i);
 	});
 
 	it("updates when conditions change: closed while stale, open after revalidation, then promoted", async () => {

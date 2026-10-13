@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import type { UiHint } from "@/mock/beats";
 import { startMock } from "@/test/harness";
 import { currentRecord, exceptionStatus, impactSentence, impactSummary, previewImpact, validExceptions, type Impact } from "./derive";
-import { toCellState, type ViewState } from "./store";
+import { stillBlocked, toCellState, type ViewState } from "./store";
 
 type Mock = Awaited<ReturnType<typeof startMock>>;
 type Scenario = "notifications" | "shelter-intake" | "sales-ops";
@@ -43,13 +43,13 @@ function blockedByEngine(view: ViewState, recordId: string): string[] {
 		.sort();
 }
 
-/** Live work the commit did not block that is stale on some other decision: what the results strip calls "already stale". */
+/** Live work the commit did not block on this decision that the engine's state still has blocked (stale, in conflict, unknown or re-running): what the results strip calls "already blocked". */
 function blockedElsewhereByEngine(view: ViewState, recordId: string): string[] {
 	const here = blockedByEngine(view, recordId);
 	return Object.values(view.workItems)
 		.filter(isLive)
 		.filter((wi) => !here.includes(wi.item.id))
-		.filter((wi) => wi.conditions.some((c) => c.type === "Stale" && c.recordRefs.some((ref) => !ref.startsWith(`${recordId}@`))))
+		.filter((wi) => stillBlocked(wi))
 		.map((wi) => wi.item.id)
 		.sort();
 }

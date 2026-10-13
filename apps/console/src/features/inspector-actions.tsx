@@ -390,7 +390,7 @@ function ExceptionTerms({ recordId, waiver }: { recordId: string | null; waiver:
 		<div className="space-y-2 text-[13px]" data-testid="exception-terms">
 			<p>
 				Lifts the block from <span className="font-semibold">{name}</span> only.
-				{waiver && !waiver.lifts ? ` This work is not built on an old version of ${name} and its claims do not conflict with it, so an exception on it lifts nothing.` : " It waives:"}
+				{waiver && !waiver.lifts ? ` Nothing this work depends on in ${name} has changed and its claims don't conflict with it, so an exception on it lifts nothing.` : " It waives:"}
 			</p>
 			{(!waiver || waiver.lifts) && (
 				<ul className="list-disc space-y-0.5 pl-5 text-muted-foreground">

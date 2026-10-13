@@ -3,7 +3,7 @@ import { analyze, authorityFor, classifyExceptions, diffFacets, evaluateGate, fa
 import { DEMO_IDENTITY } from "@/config";
 import { describeCheck } from "@/lib/evidence";
 import { plural } from "@/lib/format";
-import { toCellState, type Evaluation, type ViewState } from "./store";
+import { stillBlocked, toCellState, type Evaluation, type ViewState } from "./store";
 
 /**
  * Read-only derivations over the view state. They run delta-core's pure analyses over what the
@@ -214,7 +214,7 @@ function describeLine(entry: ReconciliationEvent): Omit<LedgerSummary, "noAction
 		case "DependencyDecided":
 			return { label: `Dependency ${event.decision}`, detail: event.recordId, workItemId: event.workItemId, reasonCodes: reasons };
 		case "ReceiptIssued":
-			return { label: "Given its decisions", hint: "ReceiptIssued: the exact decision versions this work was handed, recorded as its receipt.", detail: plural(event.receipt.accepted.length, "decision"), workItemId: event.workItemId, reasonCodes: reasons };
+			return { label: `Handed ${plural(event.receipt.accepted.length, "decision")}`, hint: "ReceiptIssued: the exact decision versions this work was handed, recorded as its receipt.", detail: event.receipt.accepted.map((entry) => `${entry.recordId}@${entry.version}`).join(", "), workItemId: event.workItemId, reasonCodes: reasons };
 		case "ResolutionRecorded":
 			return { label: `Sign-off: ${SIGN_OFF_LABEL[event.resolution.kind] ?? event.resolution.kind}`, hint: `ResolutionRecorded: ${event.resolution.kind}`, detail: event.resolution.rationale, workItemId: event.resolution.workItemId, reasonCodes: reasons };
 		case "PromotionRequested":
@@ -560,10 +560,7 @@ export function validExceptions(view: ViewState, wi: WorkItemState): { recordId:
 
 // ---------- the results strip, kept current ----------
 
-/** Work that is still blocked on a change: stale, in conflict, unknown, or being re-run. Merged, ready, up to date and rejected work is not. */
-export function stillBlocked(wi: WorkItemState | undefined): boolean {
-	return wi !== undefined && ["stale", "conflict", "uncertain", "revalidating"].includes(wi.item.status);
-}
+export { stillBlocked };
 
 /**
  * The last evaluation's counts, brought up to date with what has happened since: of the work the change
@@ -647,9 +644,15 @@ function blockedOn(wi: WorkItemState, recordId: string): boolean {
 	return wi.conditions.some((c) => (c.type === "Stale" || c.type === "ClaimConflict") && c.recordRefs.some((ref) => ref.startsWith(`${recordId}@`)));
 }
 
-/** Stale on some other decision: the same test the results strip uses for work it "left alone, but already stale". */
-function staleElsewhere(wi: WorkItemState, recordId: string): boolean {
-	return wi.conditions.some((c) => c.type === "Stale" && c.recordRefs.some((ref) => !ref.startsWith(`${recordId}@`)));
+/**
+ * Blocked for a reason other than this decision: the same test the results strip uses for work it "left alone, but already blocked"
+ * (`stillBlocked`), so a claim conflict or an unknown counts as well as staleness. Work with no blocking condition at all (a re-run
+ * under way) is blocked elsewhere too. Work blocked only on this decision is not: the new settings may put it back in line.
+ */
+function blockedElsewhereOf(wi: WorkItemState, recordId: string): boolean {
+	if (!stillBlocked(wi)) return false;
+	const blocking = wi.conditions.filter((c) => c.type === "Stale" || c.type === "ClaimConflict" || c.type === "Uncertain");
+	return blocking.length === 0 || blocking.some((c) => c.recordRefs.length === 0 || c.recordRefs.some((ref) => !ref.startsWith(`${recordId}@`)));
 }
 
 /**
@@ -703,7 +706,7 @@ export function previewImpact(view: ViewState, recordId: string, facets: Record<
 			const blockedItem = item(wi, entry?.version ?? conflict?.version ?? null);
 			blocked.push(blockedItem);
 			if (blockedOn(wi, recordId)) alreadyBlocked.push(blockedItem);
-		} else if (staleElsewhere(wi, recordId)) {
+		} else if (blockedElsewhereOf(wi, recordId)) {
 			blockedElsewhere.push(item(wi, entry?.version ?? null));
 		} else {
 			leftAlone.push(item(wi, entry?.version ?? null));

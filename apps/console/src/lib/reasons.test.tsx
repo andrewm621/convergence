@@ -16,6 +16,15 @@ describe("reason codes in plain English", () => {
 		}
 	});
 
+	it("never claims more than the engine knows: no \"uses\" or \"relies on\", and unknown is not waived for receipts", () => {
+		for (const code of Object.keys(REASON_META)) {
+			const { summary, rule, next } = reasonMeta(code);
+			expect(`${summary} ${rule} ${next}`, code).not.toMatch(/\b(uses?|relies on|rely on|relied on)\b/i);
+		}
+		expect(reasonMeta("NO_DEPENDENCY_ON_CHANGED_FACETS").summary).toBe("No recorded dependency of this work changed.");
+		expect(reasonMeta("UNKNOWN_CONTEXT_VERSION").rule).not.toMatch(/waived/);
+	});
+
 	it("falls back to a generic line for a code with no entry", () => {
 		expect(reasonMeta("SOMETHING_NEW")).toBe(GENERIC_REASON);
 	});

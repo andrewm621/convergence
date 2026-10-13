@@ -109,11 +109,11 @@ export function PromoteButton({ workItemId, className, showReasons = false }: { 
 						) : degraded ? (
 							<p>The poller is degraded, so Delta Convergence cannot confirm this work is current. Merge reopens when the poller recovers.</p>
 						) : error ? (
-							<p>The gate could not be read: {error}</p>
+							<p>The merge check could not be read: {error}</p>
 						) : !gate ? (
-							<p>{loading ? "Checking the gate at the current heads." : "No gate result yet."}</p>
+							<p>{loading ? "Running the merge check at the current heads." : "No merge check result yet."}</p>
 						) : gate.pass ? (
-							<p>The gate passes right now. Merging asks you to confirm, then re-checks before it merges.</p>
+							<p>The merge check passes right now. Merging asks you to confirm, then re-checks before it merges.</p>
 						) : (
 							<div className="space-y-2">
 								<p className="font-semibold">Merge is blocked</p>

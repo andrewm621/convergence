@@ -371,7 +371,7 @@ function refusalMessage(code: ReasonCode | undefined): string {
 		case "FORBIDDEN_ACTOR":
 			return "Only the person who signs off on that decision can do that.";
 		case "ALREADY_RESOLVED":
-			return "Nothing is left blocked on that decision.";
+			return "An exception on that decision would lift nothing: the work isn't behind on it and no claim conflicts with it.";
 		case "REVALIDATION_LIMIT":
 			return "Revalidated too many times. A person needs to look at why this keeps failing.";
 		case "REVALIDATION_IN_PROGRESS":
