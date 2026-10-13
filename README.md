@@ -136,7 +136,7 @@ All of these run through the same engine, with different fixtures.
 
 Seeded work items (`source: seeded`) have no model behind them and are always labelled as seeded. A fourth fixture, Northwind sales ops, is still in the repo and in the engine tests, and is hidden from the console tabs (`?scenario=sales-ops` opens it in replay).
 
-<!-- TODO(andrew): the live run command for the shelter act. A separate PR is adding it. Add it to the Larkhaven paragraph above when that PR merges. -->
+The shelter act also runs live, with two real model agents on real Artifacts forks: one writes the front-desk script (relies on `pets` and `id_required`), one the supply list (relies on `capacity_note`), and the policy changes while they work. Only the script goes stale, in a different file from the record that changed. `WORKER_URL=... DEV_TOKEN=... node scripts/check-live-shelter.mjs` runs it end to end, and `--cell shelter-intake-demo --stop-before-revalidate` stages it. See [docs/shelter-live.md](docs/shelter-live.md).
 
 ## Architecture
 
@@ -317,7 +317,7 @@ As of 2026-10-13, checked against `main`. "Built" means code on `main` with test
 | Convergence Console: work graph, inspector, "Why is this blocked?", actions | Built | Live client and replay. Live mode was checked in a headless browser on the deployed Worker |
 | Replay mode (`?mock=1`) | Built | Deployed URL above returns 200. Replay is labelled as replay in the header |
 | Fan-out over seeded items | Built | Engine test with 50 items, plus a 300-item timing test. The console script shows 40 seeded items, labelled as seeded |
-| Larkhaven County shelter scenario | Replay and engine tests | Not seeded on the Worker and not run with live agents |
+| Larkhaven County shelter scenario | Replay and engine tests; live with two real agents (`scripts/check-live-shelter.mjs`) | The live act has two drafts, not the replay's five, and has been run against a local dev Worker with real Artifacts, not yet the deployed one |
 | Our own build, live cell | Built (code and tests) | Pointer work items and humans resolving outside the console, per `docs/dogfooding.md`. Its cell needs the bearer token, so the public link shows the replay only |
 | Queues push events | Not built | Polling is used instead |
 | Local agent runner fallback (`apps/runner`) | Not built | Sandbox worked, so it was not needed |

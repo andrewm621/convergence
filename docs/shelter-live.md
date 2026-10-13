@@ -44,3 +44,9 @@ WORKER_URL=https://<worker>.workers.dev DEV_TOKEN=... node scripts/check-live-sh
 Options: `--model <slug>` runs both agents on an allowlisted model, `--after-push` lands v2 after both agents have pushed instead of while they run, `--keep` leaves the repos. A cell name must be `shelter-intake-<something>` and must not exist yet; there is no cell reset.
 
 If the contract check fails on the model's rewrite, the script revalidates once more (the policy allows two). A failed check is a real outcome: WI-1 stays blocked until a rewrite passes.
+
+## Evidence and a local-dev caveat
+
+One unattended run on a local `wrangler dev` Worker (real Artifacts, local Docker containers, `z-ai/glm-5.3-flash` for every agent) passed every check: both agents wrote their documents (56 s and 38 s) while v2 landed 25 s after the dispatch, WI-1 went stale (`STALE_RECEIPT`, `FACET_CHANGED`, then `CLAIM_CONFLICT`, `SUPERSEDED_BASIS` once its push arrived), WI-2 stayed green (`NO_DEPENDENCY_ON_CHANGED_FACETS`), the revalidation re-dispatch rewrote the script (41 s) and the Worker's own contract check passed on it, both promotions merged, and the ledger chain verified. The gateways metered about $0.03 for the three runs.
+
+In the same local setup, most other attempts stalled: the Durable Object of one agent stopped answering `GET /api/agents/runs/<id>` while its container was still working (the `doRefresh` read of a container file never returned), and only restarting `wrangler dev` freed it. It was not seen with the stub and was not reproduced against a deployed Worker, which has not been tried. Treat it as a local-dev finding until it is seen or ruled out on the deployed Worker, and stage the act (`--stop-before-revalidate`) well before filming. Nothing in the control loop depends on it.

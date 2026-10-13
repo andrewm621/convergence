@@ -186,9 +186,11 @@ const dispatchBody = (item) => ({ forkRepo: item.forkRepo, workItemId: runtimeId
 async function runToEnd(item) {
 	const key = idem(`d-${item.id}`);
 	let res;
-	for (let i = 0; i < 8; i++) {
+	// Up to 12 minutes. A dropped connection (status 0) is sent again after a pause; the same key replays the same run.
+	for (const deadline = Date.now() + 720_000; Date.now() < deadline; ) {
 		res = await call("POST", "/api/agents/dispatch", dispatchBody(item), key, 200_000);
-		if (res.status >= 400 || (res.status === 200 && res.json?.state !== "running")) break;
+		if (res.status === 0) await sleep(3000);
+		else if (res.status >= 400 || (res.status === 200 && res.json?.state !== "running")) break;
 	}
 	return res;
 }
