@@ -275,7 +275,8 @@ export async function readCappedText(body: ReadableStream<Uint8Array> | null, ma
 			size += piece.byteLength;
 		}
 	} finally {
-		await reader.cancel().catch(() => undefined);
+		// Not awaited: cancelling a stream backed by a container process can itself wait on that process, and nothing here needs it done.
+		void reader.cancel().catch(() => undefined);
 	}
 	const all = new Uint8Array(size);
 	let offset = 0;
@@ -407,6 +408,51 @@ export function decideRun(input: {
 		if (!r.ok) return failed(r.error);
 	}
 	return { state: "succeeded", error: null, commit: v.commit, pushVerified: true };
+}
+
+/** A container read or exec that did not answer in time. The caller leaves the run as it was and asks again later. */
+export class ContainerTimeoutError extends Error {
+	constructor(what: string, ms: number) {
+		super(`${what} timed out after ${ms}ms`);
+		this.name = "ContainerTimeoutError";
+	}
+}
+
+/**
+ * Run a container operation with a deadline. When it passes, the operation's AbortSignal fires (the native container
+ * process is told to stop) and this rejects with a ContainerTimeoutError, whether or not the operation ever settles.
+ */
+export async function withDeadline<T>(what: string, ms: number, op: (signal: AbortSignal) => Promise<T>): Promise<T> {
+	const controller = new AbortController();
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	try {
+		return await Promise.race([
+			op(controller.signal),
+			new Promise<never>((_, reject) => {
+				timer = setTimeout(() => {
+					controller.abort();
+					reject(new ContainerTimeoutError(what, ms));
+				}, ms);
+			}),
+		]);
+	} finally {
+		if (timer !== undefined) clearTimeout(timer);
+	}
+}
+
+/** The value of `work` if it settles successfully within `ms`; null when it takes longer or fails. Never rejects, never waits longer than `ms`. */
+export async function settleWithin<T>(work: Promise<T>, ms: number): Promise<T | null> {
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	try {
+		return await Promise.race([
+			work.catch(() => null),
+			new Promise<null>((resolve) => {
+				timer = setTimeout(() => resolve(null), ms);
+			}),
+		]);
+	} finally {
+		if (timer !== undefined) clearTimeout(timer);
+	}
 }
 
 /** Reject if `work` doesn't settle in time. The timer is cleared either way. */
