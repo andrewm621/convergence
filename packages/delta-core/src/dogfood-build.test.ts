@@ -4,10 +4,8 @@ import { summarizeEffects } from "./summary";
 import { createCell, reasonsOf, resolutionEvent, type Cell } from "./testing/harness";
 import { dogfoodBuild as s, stores } from "./testing/scenarios";
 
-const ALL = ["WI-1", "WI-2", "WI-3", "WI-4", "WI-5", "WI-6", "WI-7"];
 const CONTROL = s.expected.controlId;
-/** The record each stale item's revalidation is bound to (the first record it was found stale on). */
-const RESOLVED_AGAINST: Record<string, string> = { "WI-1": "evidence-policy", "WI-2": "evidence-policy", "WI-3": "evidence-policy", "WI-4": "scenario-naming", "WI-5": "scenario-naming" };
+const ZERO_SHA = "0000000000000000000000000000000000000000";
 
 function staleFacets(state: CellState, id: string): string[] | undefined {
 	return state.workItems[id]?.conditions.find((c) => c.type === "Stale")?.facetKeys;
@@ -17,19 +15,21 @@ function effectFor(effects: Array<{ type: string; workItemId?: string; reasonCod
 	return effects.find((e) => e.type === type && e.workItemId === id);
 }
 
-async function startedCell(store?: Parameters<typeof createCell>[2]): Promise<Cell> {
+/** Replay the timeline in commit order up to, but not including, the step with this key. */
+async function replayBefore(key: string, store?: Parameters<typeof createCell>[2]): Promise<Cell> {
 	const cell = await createCell(s.seed, s.policy, store);
-	for (const id of ALL) await cell.send(s.events.register[id]!);
-	for (const id of ALL) await cell.send(s.events.push[id]!);
-	return cell;
+	for (const step of s.timeline) {
+		if (step.key === key) return cell;
+		await cell.send(step.event);
+	}
+	throw new Error(`no timeline step ${key}`);
 }
 
 describe("the build-history fixture is valid and carries its honest framing", () => {
 	it("every event, item, receipt, dependency and policy parses", () => {
-		for (const group of [s.events.register, s.events.push, s.events.reissue]) for (const event of Object.values(group)) expect(() => DeltaEvent.parse(event)).not.toThrow();
-		for (const event of [s.events.evidenceV2, s.events.namingV2, s.events.productNamingProse, s.events.evidenceV3]) expect(() => DeltaEvent.parse(event)).not.toThrow();
+		for (const step of s.timeline) expect(() => DeltaEvent.parse(step.event), step.key).not.toThrow();
 		for (const item of Object.values(s.workItems)) expect(() => WorkItem.parse(item)).not.toThrow();
-		for (const receipt of [...Object.values(s.receipts), ...Object.values(s.reissuedReceipts)]) expect(() => ContextReceipt.parse(receipt)).not.toThrow();
+		for (const receipt of Object.values(s.receipts)) expect(() => ContextReceipt.parse(receipt)).not.toThrow();
 		for (const deps of Object.values(s.dependencies)) for (const dep of deps) expect(() => Dependency.parse(dep)).not.toThrow();
 		expect(() => Policy.parse(s.policy)).not.toThrow();
 	});
@@ -51,20 +51,44 @@ describe("the build-history fixture is valid and carries its honest framing", ()
 		expect(s.docs.namingV1.snapshot.facets["scenario.county"]).toBe("Cedar County");
 		expect(s.docs.namingV2.snapshot.facets["scenario.county"]).toBe("Larkhaven County");
 		expect(s.docs.namingV2.snapshot.facets["scenario.network"]).toBe(s.docs.namingV1.snapshot.facets["scenario.network"]);
-		expect(s.docs.productNamingV2.snapshot.facets).toEqual(s.docs.productNamingV1.snapshot.facets);
 		expect(s.docs.productNamingV2.snapshot.facetHash).toBe(s.docs.productNamingV1.snapshot.facetHash);
 		expect(s.docs.productNamingV2.snapshot.blobHash).not.toBe(s.docs.productNamingV1.snapshot.blobHash);
 	});
 
-	it("uses real full-length commit shas where a commit exists, and no private or ambiguous names", () => {
+	it("is in commit order, with the commits' own timestamps; the only invented event is the wording edit", () => {
+		const keys = s.timeline.map((step) => step.key);
+		const changes = keys.filter((key) => !key.startsWith("register-") && !key.startsWith("push-"));
+		// The county rename was committed before the evidence policy changes, and the replay says so.
+		expect(changes).toEqual(["namingV2", "evidenceV2", "evidenceV3", "productNamingProse"]);
+		const ordered = s.timeline.map((step) => step.ts);
+		expect([...ordered].sort()).toEqual(ordered);
+		// Real author times (UTC) of the commits.
+		expect(s.events.namingV2.ts).toBe("2026-10-13T03:11:59Z");
+		expect(s.events.evidenceV2.ts).toBe("2026-10-13T04:04:23Z");
+		expect(s.events.evidenceV3.ts).toBe("2026-10-13T04:18:34Z");
+		expect(s.events.push["WI-1"]?.ts).toBe("2026-10-13T03:47:01Z");
+		expect(s.events.push["WI-7"]?.ts).toBe("2026-10-13T03:27:43Z");
+		// Everything that is not in git carries the all-zero sha, never something that looks like a commit.
+		const notInGit = Object.entries(s.commits).filter(([, sha]) => sha === ZERO_SHA).map(([name]) => name);
+		expect(notInGit.sort()).toEqual(["productNamingProse", "wi5Head"]);
 		for (const [name, sha] of Object.entries(s.commits)) expect(sha, name).toMatch(/^[0-9a-f]{40}$/);
+		expect(JSON.stringify(s.commits)).not.toMatch(/"[bf]0{30,}[0-9a-f]+"/);
+		expect(s.timeline.find((step) => step.key === "productNamingProse")?.label).toContain("invented, not in git");
+		expect(s.timeline.find((step) => step.key === "push-WI-5")?.label).toContain("not in git");
+	});
+
+	it("uses real full-length commit shas where a commit exists, and no private or ambiguous names", () => {
+		expect(s.commits.wi1Head.startsWith("b3f0394")).toBe(true);
+		expect(s.commits.wi2Head.startsWith("32dbd75")).toBe(true);
 		expect(s.commits.evidenceV1.startsWith("2cf1f2e")).toBe(true);
 		expect(s.commits.evidenceV2.startsWith("163cb45")).toBe(true);
 		expect(s.commits.evidenceV3.startsWith("cd31c39")).toBe(true);
 		expect(s.commits.namingV2.startsWith("59d48e4")).toBe(true);
 		expect(s.commits.baselineV1.startsWith("61867a9")).toBe(true);
 		expect(s.commits.wi3Head.startsWith("faf83a8")).toBe(true);
-		const everything = JSON.stringify([s.workItems, s.actors, s.expected]) + Object.values(s.docs).map((d) => d.text).join("\n");
+		expect(s.commits.wi6Head.startsWith("f30e0ca")).toBe(true);
+		expect(s.commits.wi7Head.startsWith("2181838")).toBe(true);
+		const everything = JSON.stringify([s.workItems, s.actors, s.expected, s.timeline.map((t) => t.label)]) + Object.values(s.docs).map((d) => d.text).join("\n");
 		// The product name is always written in full; the bare shorthand never appears in this fixture's prose or labels.
 		expect(everything).not.toMatch(/\bDelta\b(?! Convergence)/);
 		expect(everything).not.toMatch(/\/Users\/|~\/|\.local\b/);
@@ -84,61 +108,108 @@ describe("the build-history fixture is valid and carries its honest framing", ()
 			expect(item.requires).toEqual(["human-resolution"]);
 			expect(item.status).toBe("running");
 		}
-		for (const deps of Object.values(s.dependencies)) for (const dep of deps) expect(dep.facetKeys.length).toBeGreaterThan(0);
+	});
+
+	it("every push carries claims for facets the item declared, with the values it was built against", () => {
+		for (const [id, list] of Object.entries(s.claims)) {
+			const declared = new Set(s.dependencies[id as keyof typeof s.dependencies].flatMap((d) => d.facetKeys));
+			expect(list.length, id).toBeGreaterThan(0);
+			for (const claim of list) expect(declared.has(claim.subject), `${id} ${claim.subject}`).toBe(true);
+		}
+		expect(s.claims.wi2).toContainEqual({ subject: "evidence.counts-as-test", value: "claims-check", basedOn: "evidence-policy@1" });
+		expect(s.claims.wi3).toContainEqual({ subject: "scenario.county", value: "Cedar County", basedOn: "scenario-naming@1" });
+	});
+});
+
+describe("before any change, every item sits in a clean state", () => {
+	it("each item is fresh with its claims matching the accepted facets, none uncertain for lack of claims", async () => {
+		const cell = await replayBefore("namingV2");
+		for (const step of s.timeline) if (step.key.startsWith("push-WI-7") || step.key.startsWith("push-WI-1") || step.key.startsWith("push-WI-2")) await cell.send(step.event);
+		const state = await cell.state();
+		for (const id of ["WI-1", "WI-2", "WI-3", "WI-4", "WI-5", "WI-6", "WI-7"]) {
+			const types = state.workItems[id]?.conditions.map((c) => c.type) ?? [];
+			expect(types, id).toContain("Fresh");
+			expect(types, id).not.toContain("Stale");
+			expect(types, id).not.toContain("ClaimConflict");
+			expect(state.workItems[id]?.conditions.flatMap((c) => c.reasonCodes), id).not.toContain("NO_CLAIMS");
+			expect(state.workItems[id]?.headSha, id).toBe(s.forkHeads[id as "WI-1"]);
+		}
 	});
 });
 
 describe.each(stores)("the replay on the %s", (_label, makeStore) => {
-	it("step 1, evidence policy v1 to v2: WI-1, WI-2 and WI-3 go stale; the rest are untouched with a reason", async () => {
-		const cell = await startedCell(makeStore());
-		const before = structuredClone(await cell.state());
-		const result = await cell.send(s.events.evidenceV2);
-		const state = await cell.state();
-
-		for (const id of ["WI-1", "WI-2", "WI-3"]) {
-			expect(state.workItems[id]?.item.status, id).toBe("stale");
-			expect(staleFacets(state, id), id).toEqual(s.expected.afterEvidenceV2.stale[id as "WI-1"]);
-			expect(result.effects, id).toContainEqual(expect.objectContaining({ type: "BLOCK_PROMOTION", workItemId: id }));
-			expect(effectFor(result.effects, "NO_ACTION", id), id).toBeUndefined();
-		}
-		for (const id of s.expected.afterEvidenceV2.untouched) {
-			expect(effectFor(result.effects, "NO_ACTION", id)?.reasonCodes, id).toEqual(["NO_DEPENDENCY_ON_CHANGED_FACETS"]);
-			expect(state.workItems[id], id).toEqual(before.workItems[id]);
-			expect(staleFacets(state, id), id).toBeUndefined();
-		}
-		expect(summarizeEffects(result.effects)).toEqual({ evaluated: 7, stale: 3, untouched: 4 });
-		expect(state.records["evidence-policy"]?.current).toBe(2);
-	});
-
-	it("step 2, scenario naming v1 to v2 (Cedar County to Larkhaven County): WI-3, WI-4 and WI-5 go stale; WI-6 and WI-7 are untouched", async () => {
-		const cell = await startedCell(makeStore());
-		await cell.send(s.events.evidenceV2);
+	it("step 1, scenario naming v1 to v2 (Cedar County to Larkhaven County, 59d48e4): WI-3, WI-4, WI-5 go stale; WI-1, WI-2, WI-6, WI-7 are untouched", async () => {
+		const cell = await replayBefore("namingV2", makeStore());
 		const before = structuredClone(await cell.state());
 		const result = await cell.send(s.events.namingV2);
 		const state = await cell.state();
 
 		for (const id of ["WI-3", "WI-4", "WI-5"]) {
-			expect(state.workItems[id]?.item.status, id).toBe("stale");
-			expect(staleFacets(state, id), id).toContain("scenario.county");
-			expect(staleFacets(state, id), id).not.toContain("scenario.network");
+			expect(state.workItems[id]?.item.status, id).not.toBe("running");
+			expect(staleFacets(state, id), id).toEqual(s.expected.afterNamingV2.stale[id as "WI-3"]);
+			expect(result.effects, id).toContainEqual(expect.objectContaining({ type: "BLOCK_PROMOTION", workItemId: id }));
+			// The claim "Cedar County" now contradicts the accepted facet: this is the reason it is blocked.
+			expect(state.workItems[id]?.conditions.find((c) => c.type === "ClaimConflict")?.facetKeys, id).toEqual(["scenario.county"]);
+		}
+		for (const id of s.expected.afterNamingV2.untouched) {
+			expect(effectFor(result.effects, "NO_ACTION", id)?.reasonCodes, id).toEqual(["NO_DEPENDENCY_ON_CHANGED_FACETS"]);
+			expect(staleFacets(state, id), id).toBeUndefined();
+		}
+		// WI-1 and WI-2 have not been pushed yet, so only WI-6 and WI-4 are comparable byte for byte; WI-6 is.
+		expect(state.workItems["WI-6"]).toEqual(before.workItems["WI-6"]);
+		expect(summarizeEffects(result.effects)).toEqual({ evaluated: 7, stale: 3, untouched: 4 });
+		expect(state.records["scenario-naming"]?.current).toBe(2);
+		expect(state.baselineCommit).toBe(s.commits.namingV2);
+	});
+
+	it("step 2, evidence policy v1 to v2 (163cb45): WI-1, WI-2, WI-3 go stale; WI-4 to WI-7 are untouched", async () => {
+		const cell = await replayBefore("evidenceV2", makeStore());
+		const before = structuredClone(await cell.state());
+		const result = await cell.send(s.events.evidenceV2);
+		const state = await cell.state();
+
+		for (const id of ["WI-1", "WI-2", "WI-3"]) {
+			expect(staleFacets(state, id), id).toEqual(s.expected.afterEvidenceV2.stale[id as "WI-1"]);
 			expect(result.effects, id).toContainEqual(expect.objectContaining({ type: "BLOCK_PROMOTION", workItemId: id }));
 		}
-		// The video script is stale on both the evidence policy and the county now.
-		expect(staleFacets(state, "WI-3")).toEqual(["evidence.counts-as-test", "scenario.county"]);
-		expect(staleFacets(state, "WI-4")).toEqual(s.expected.afterNamingV2.stale["WI-4"]);
-		// WI-1 and WI-2 do not depend on the naming record: left as they were.
-		for (const id of ["WI-1", "WI-2", ...s.expected.afterNamingV2.untouched]) {
+		// WI-1 and WI-2 were built on the claims check counting as a test; that claim now conflicts.
+		for (const id of ["WI-1", "WI-2"]) expect(state.workItems[id]?.conditions.find((c) => c.type === "ClaimConflict")?.facetKeys, id).toEqual(["evidence.claims-check-role", "evidence.counts-as-test"]);
+		// WI-3 made no claim about the evidence rule; it is stale on it through its declared dependency only.
+		expect(state.workItems["WI-3"]?.conditions.find((c) => c.type === "ClaimConflict")?.facetKeys).toEqual(["scenario.county"]);
+		for (const id of s.expected.afterEvidenceV2.untouched) {
 			expect(effectFor(result.effects, "NO_ACTION", id)?.reasonCodes, id).toEqual(["NO_DEPENDENCY_ON_CHANGED_FACETS"]);
 			expect(state.workItems[id], id).toEqual(before.workItems[id]);
 		}
 		expect(summarizeEffects(result.effects)).toEqual({ evaluated: 7, stale: 3, untouched: 4 });
-		expect(state.records["scenario-naming"]?.current).toBe(2);
+		expect(state.records["evidence-policy"]?.current).toBe(2);
 	});
 
-	it("step 3, a prose-only edit to product naming (negative control): NO_ACTION with PROSE_ONLY and nothing is re-evaluated", async () => {
-		const cell = await startedCell(makeStore());
-		await cell.send(s.events.evidenceV2);
-		await cell.send(s.events.namingV2);
+	it("step 3, evidence policy v2 to v3 (cd31c39): only WI-1, which relies on required-facets, gains a stale facet; WI-4 to WI-7 are untouched", async () => {
+		const cell = await replayBefore("evidenceV3", makeStore());
+		const before = structuredClone(await cell.state());
+		for (const id of ["WI-1", "WI-2", "WI-3"]) expect(staleFacets(before, id), id).toEqual(s.expected.afterEvidenceV2.stale[id as "WI-1"]);
+
+		const result = await cell.send(s.events.evidenceV3);
+		const state = await cell.state();
+
+		// Facet precision. The engine looks again at items already stale on this record, but the facets they are stale on
+		// do not change unless they rely on the facet that moved: only WI-1 relies on evidence.required-facets.
+		for (const id of ["WI-1", "WI-2", "WI-3"]) expect(staleFacets(state, id), id).toEqual(s.expected.afterEvidenceV3.stale[id as "WI-1"]);
+		for (const id of ["WI-1", "WI-2", "WI-3", "WI-4", "WI-5", "WI-6", "WI-7"]) {
+			expect(staleFacets(state, id)?.includes("evidence.required-facets") ?? false, id).toBe(id === "WI-1");
+		}
+		expect(result.effects).toContainEqual(expect.objectContaining({ type: "BLOCK_PROMOTION", workItemId: "WI-1" }));
+		expect(state.workItems["WI-1"]?.conditions.find((c) => c.type === "ClaimConflict")?.facetKeys).toContain("evidence.required-facets");
+		for (const id of ["WI-2", "WI-3"]) expect(state.workItems[id]?.conditions.find((c) => c.type === "ClaimConflict")?.facetKeys, id).not.toContain("evidence.required-facets");
+		for (const id of s.expected.afterEvidenceV3.untouched) {
+			expect(effectFor(result.effects, "NO_ACTION", id)?.reasonCodes, id).toEqual(["NO_DEPENDENCY_ON_CHANGED_FACETS"]);
+			expect(state.workItems[id], id).toEqual(before.workItems[id]);
+		}
+		expect(state.records["evidence-policy"]?.current).toBe(3);
+	});
+
+	it("step 4, a wording-only edit to product naming (invented negative control): NO_ACTION with PROSE_ONLY and nothing is re-evaluated", async () => {
+		const cell = await replayBefore("productNamingProse", makeStore());
 		const before = structuredClone(await cell.state());
 
 		const result = await cell.send(s.events.productNamingProse);
@@ -149,82 +220,39 @@ describe.each(stores)("the replay on the %s", (_label, makeStore) => {
 		expect(summarizeEffects(result.effects)).toEqual({ evaluated: 0, stale: 0, untouched: 0 });
 		// Every work item is exactly as it was. WI-2 depends on the public name, and still does not move.
 		expect(after.workItems).toEqual(before.workItems);
-		expect(staleFacets(after, "WI-2")).toEqual(s.expected.afterEvidenceV2.stale["WI-2"]);
-		expect(after.baselineCommit).toBe(s.commits.productNamingProse);
-		expect(after.records["product-naming"]?.current).toBe(2);
 		expect(after.records["product-naming"]?.versions["2"]?.facetHash).toBe(after.records["product-naming"]?.versions["1"]?.facetHash);
+		expect(after.baselineCommit).toBe(ZERO_SHA);
 	});
 
-	it("step 4, evidence policy v2 to v3 (required facets): after humans revalidate, only WI-1 goes stale again", async () => {
-		const cell = await startedCell(makeStore());
-		await cell.send(s.events.evidenceV2);
-		await cell.send(s.events.namingV2);
-		await cell.send(s.events.productNamingProse);
-
-		// No automated evidence: a human resolves each stale item, then it gets a receipt at what is accepted now.
-		for (const id of ["WI-1", "WI-2", "WI-3", "WI-4", "WI-5"]) {
-			await cell.send(
-				resolutionEvent(await cell.state(), { kind: "revalidate", workItemId: id, recordId: RESOLVED_AGAINST[id]!, actor: s.actors.decisionOwner, requestId: `revalidate-${id}`, ts: "2026-10-13T17:00:00Z" }),
-			);
-			await cell.send(s.events.reissue[id]!);
+	it("step 5, WI-7 (console identity header) never goes stale and is never touched, through the whole replay", async () => {
+		const cell = await createCell(s.seed, s.policy, makeStore());
+		let pushed = false;
+		let initial: unknown;
+		for (const step of s.timeline) {
+			const result = await cell.send(step.event);
+			if (step.key === "push-WI-7") {
+				pushed = true;
+				initial = structuredClone(await cell.wi(CONTROL));
+				expect((initial as { item: { status: string } }).item.status).not.toBe("stale");
+				continue;
+			}
+			if (!pushed) continue;
+			expect(await cell.wi(CONTROL), step.key).toEqual(initial);
+			if (step.key.startsWith("push-")) continue;
+			expect(effectFor(result.effects, "NO_ACTION", CONTROL)?.reasonCodes, step.key).toEqual(step.key === "productNamingProse" ? undefined : ["NO_DEPENDENCY_ON_CHANGED_FACETS"]);
 		}
-		const resolved = structuredClone(await cell.state());
-		for (const id of ["WI-1", "WI-2", "WI-3", "WI-4", "WI-5"]) {
-			expect(staleFacets(resolved, id), id).toBeUndefined();
-			expect(resolved.workItems[id]?.item.status, id).toBe("revalidating");
-		}
+		expect(pushed).toBe(true);
 
-		const result = await cell.send(s.events.evidenceV3);
-		const state = await cell.state();
-
-		expect(staleFacets(state, "WI-1")).toEqual(s.expected.afterEvidenceV3.stale["WI-1"]);
-		expect(result.effects).toContainEqual(expect.objectContaining({ type: "BLOCK_PROMOTION", workItemId: "WI-1" }));
-		// Facet precision: WI-2 and WI-3 still rely on counts-as-test, but that facet did not move in v3.
-		for (const id of s.expected.afterEvidenceV3.untouched) {
-			expect(effectFor(result.effects, "NO_ACTION", id)?.reasonCodes, id).toEqual(["NO_DEPENDENCY_ON_CHANGED_FACETS"]);
-			expect(staleFacets(state, id), id).toBeUndefined();
-			expect(state.workItems[id], id).toEqual(resolved.workItems[id]);
-		}
-		expect(summarizeEffects(result.effects)).toEqual({ evaluated: 7, stale: 1, untouched: 6 });
-		expect(state.records["evidence-policy"]?.current).toBe(3);
-	});
-
-	it("step 5, WI-7 (console identity header) never goes stale and is never touched, through every step", async () => {
-		const cell = await startedCell(makeStore());
-		const initial = structuredClone(await cell.wi(CONTROL));
-		expect(initial.item.status).not.toBe("stale");
-
-		const steps: Array<[string, DeltaEvent]> = [
-			["evidence v2", s.events.evidenceV2],
-			["naming v2", s.events.namingV2],
-			["product naming prose edit", s.events.productNamingProse],
-		];
-		for (const [label, event] of steps) {
-			const result = await cell.send(event);
-			expect(await cell.wi(CONTROL), label).toEqual(initial);
-			expect(result.effects.filter((e) => "workItemId" in e && e.workItemId === CONTROL).every((e) => e.type === "NO_ACTION"), label).toBe(true);
-		}
-		for (const id of ["WI-1", "WI-2", "WI-3", "WI-4", "WI-5"]) {
-			await cell.send(
-				resolutionEvent(await cell.state(), { kind: "revalidate", workItemId: id, recordId: RESOLVED_AGAINST[id]!, actor: s.actors.decisionOwner, requestId: `revalidate-${id}`, ts: "2026-10-13T17:00:00Z" }),
-			);
-			await cell.send(s.events.reissue[id]!);
-		}
-		const last = await cell.send(s.events.evidenceV3);
-		expect(await cell.wi(CONTROL)).toEqual(initial);
-		expect(effectFor(last.effects, "NO_ACTION", CONTROL)?.reasonCodes).toEqual(["NO_DEPENDENCY_ON_CHANGED_FACETS"]);
-
-		// The ledger records every one of those decisions, and nothing was edited after the fact.
+		// The ledger records every decision and nothing was edited after the fact; WI-7 is never stale in it.
 		const ledger = await cell.ledger();
-		expect(ledger.length).toBeGreaterThan(20);
+		expect(ledger.length).toBe(s.timeline.length);
 		const staleOnControl = ledger.flatMap((entry) => entry.payload.effects.filter((e) => e.type === "RECORD_CONDITION" && e.workItemId === CONTROL && e.condition.type === "Stale"));
 		expect(staleOnControl).toEqual([]);
 		expect(ledger.some((entry) => entry.payload.effects.some((e) => e.type === "RECORD_CONDITION" && e.workItemId === "WI-1" && e.condition.type === "Stale"))).toBe(true);
 	});
 
 	it("a human is required: the agent that built WI-1 cannot revalidate it", async () => {
-		const cell = await startedCell(makeStore());
-		await cell.send(s.events.evidenceV2);
+		const cell = await replayBefore("evidenceV3", makeStore());
 		const before = structuredClone(await cell.wi("WI-1"));
 		const result = await cell.send(
 			resolutionEvent(await cell.state(), { kind: "revalidate", workItemId: "WI-1", recordId: "evidence-policy", actor: s.actors.buildAgent, requestId: "agent-revalidate", ts: "2026-10-13T17:00:00Z" }),

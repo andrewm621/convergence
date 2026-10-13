@@ -170,7 +170,7 @@ ${NOTE}
 The product is always called by its full name.
 `;
 
-/** v2: wording only. The facets are byte-identical, so this is the negative control (PROSE_ONLY). */
+/** v2: wording only, and invented: it has no commit. The facets are byte-identical, so this is the negative control (PROSE_ONLY). */
 export const PRODUCT_NAMING_V2 = `---
 id: product-naming
 version: 2
@@ -188,7 +188,7 @@ facets:
 
 ${NOTE}
 
-The product is always called by its full name, in the console, the README and the video. The shorthand stays out of every public surface. (Illustrative wording edit: it has no commit in the repo.)
+The product is always called by its full name, in the console, the README and the video. The shorthand stays out of every public surface. (Invented for the replay: this wording edit has no commit and is not in git.)
 `;
 
 /** v1: the headline claims. No change in the replay. */

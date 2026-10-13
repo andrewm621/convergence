@@ -1,9 +1,9 @@
 import {
-	fakeSha,
 	loadDoc,
 	receiptOf,
 	snapshotHashOf,
 	type Actor,
+	type Claim,
 	type ContextReceipt,
 	type DeltaEvent,
 	type Dependency,
@@ -22,15 +22,18 @@ export * from "./records";
  * Retrofitted from this repo's git history: these decisions were made before Delta Convergence was recording
  * them; the replay reconstructs them. Dependencies are declared by us. No automated evidence: humans resolve.
  *
- * Six records, seven work items. Four changes land: the evidence policy twice, the scenario naming once, and one
- * prose-only edit (the negative control). Work item 7 (the console identity header) never depends on anything that
- * moves, so it stays untouched throughout.
+ * Six records, seven work items. Events are in the order the commits were made and carry the commits' own
+ * timestamps. Exactly one event is invented: a wording-only edit to the product naming record (the negative
+ * control), which has no commit and says so.
  */
 
 export const REPO = "delta-convergence-build-baseline";
 
 export const RETROFIT_NOTE =
 	"Retrofitted from this repo's git history: these decisions were made before Delta Convergence was recording them; the replay reconstructs them. Dependencies are declared by us. No automated evidence: humans resolve.";
+
+/** The all-zero sha reads as "none": this thing is not in git. It is never a real commit. */
+export const NOT_IN_GIT = "0000000000000000000000000000000000000000";
 
 export const actors = {
 	decisionOwner: { kind: "human", id: "decision-owner", displayName: "Decision owner (demo identity)" },
@@ -50,45 +53,63 @@ export const policy: Policy = {
 };
 
 /**
- * Real commits from this repo where one exists. `baselineV1` and the `*V2`/`*V3` entries are the commits where a
- * record changed; `wi*Head` are the heads of the branches that held each piece of work. The README has the PR numbers.
+ * Real commits from this repo. Short shas in the comments; the README has the PR numbers.
+ *
+ * Record changes: `baselineV1` (the commit the starting state is read from), `namingV2`, `evidenceV2`, `evidenceV3`.
+ * `evidenceV1` is where the claims check first counted as a test; it is the seed's evidence rule, not a replayed event.
+ * Work heads: where the work now lives on main (merge commits for PRs #6 and #7), or the commit it was built in.
+ * `productNamingProse` and `wi5Head` are `NOT_IN_GIT`: the wording edit is invented, and the shared brief lives in Notion.
  */
 export const commits = {
-	/** 61867a9 (PR #3): where "Cedar County" first appears. The earliest commit in the story. */
+	/** 61867a9 (PR #3): where "Cedar County" first appears. */
 	baselineV1: "61867a991e187da94a3c3b152ebc2e484f81da65",
-	/** 2cf1f2e (PR #6): the commit that first made the claims check count as a test (evidence policy v1). */
+	/** 2cf1f2e (PR #6): the claims check first counts as a test (evidence policy v1). */
 	evidenceV1: "2cf1f2e3cdf697371fdfe43b3b6e9aa779da3e26",
-	/** 163cb45 (PR #6): evidence policy v2. */
-	evidenceV2: "163cb4559c5b21872287f89a1e58796e8ac5818c",
 	/** 59d48e4 (PR #4): scenario naming v2 (Cedar County becomes Larkhaven County). */
 	namingV2: "59d48e4659fde029f10cc0cf5d70d8640c6b74bc",
-	/** Illustrative: the product-naming wording edit has no commit in the repo. */
-	productNamingProse: fakeSha("b", 301),
+	/** 163cb45 (PR #6): evidence policy v2. */
+	evidenceV2: "163cb4559c5b21872287f89a1e58796e8ac5818c",
 	/** cd31c39 (PR #6): evidence policy v3 (required facets come from the receipt). */
 	evidenceV3: "cd31c3910fa83f12bb9238bf5fbde0aceb78a73d",
-	wi1Head: "2cf1f2e3cdf697371fdfe43b3b6e9aa779da3e26",
-	/** Tip of the console/m4-followups branch (PR #7) when this fixture was written. */
-	wi2Head: "f57fb9229977675dc1bd69ed84f92153a60cc045",
-	/** faf83a8: the video script revised, and the full product name adopted. */
+	/** Not in git. The one invented event in the replay. */
+	productNamingProse: NOT_IN_GIT,
+	/** b3f0394: the merge of PR #6, where the M4 revalidate loop now lives on main. */
+	wi1Head: "b3f0394243f67b6d671dcbdec979db49d82e2b0b",
+	/** 32dbd75: the merge of PR #7, where the console evidence labels now live on main. */
+	wi2Head: "32dbd75cc9ab7e010482af3244469f9591ddb9a2",
+	/** faf83a8: the video script revised, with the shelter act. */
 	wi3Head: "faf83a88754f5e0bf26b458620190e1518532012",
+	/** 61867a9 (PR #3): the shelter fixtures. */
 	wi4Head: "61867a991e187da94a3c3b152ebc2e484f81da65",
-	/** Placeholder: the shared brief lives in Notion, not in git. */
-	wi5Head: fakeSha("f", 305),
-	/** Tip of the cloud/t9-readme branch (PR #1) when this fixture was written. */
+	/** Not in git: the shared brief lives in Notion. */
+	wi5Head: NOT_IN_GIT,
+	/** f30e0ca: tip of the cloud/t9-readme branch (PR #1, unmerged) as of Oct 13. */
 	wi6Head: "f30e0ca4f98ffcf2826c983aa0b094c07a23eda4",
-	/** 2181838 (PR #4): the console merge that introduced the identity header. */
+	/** 2181838 (PR #4): the commit that introduced the console identity header. */
 	wi7Head: "21818387ebf79ac6aefafd68a8d0e09123989d49",
 } as const;
 
-/** Replay time, in the order the story is told. The real commit dates are in the README table. */
+/**
+ * Event times. Where a commit exists, the timestamp is that commit's author time in UTC. Three are not:
+ * `setup` (the replay registering work items, not history), `notInGit` (the shared brief, no commit) and
+ * `productNamingProse` (the invented wording edit).
+ * PR #6 and PR #7 were pushed first as commits 2cf1f2e (Oct 12 23:47 ET) and a first version of PR #7
+ * (Oct 12 23:54 ET, since rewritten when the branch was rebased, so its sha is not cited). Their heads in the
+ * fixture are the merge commits, which is where the work lives now; the claims are what the first versions assumed.
+ */
 export const ts = {
-	seed: "2026-10-13T15:00:00Z",
-	push: "2026-10-13T15:15:00Z",
-	evidenceV2: "2026-10-13T15:30:00Z",
-	namingV2: "2026-10-13T16:00:00Z",
-	productNamingProse: "2026-10-13T16:30:00Z",
-	resolved: "2026-10-13T17:00:00Z",
-	evidenceV3: "2026-10-13T18:00:00Z",
+	setup: "2026-10-13T02:00:00Z",
+	notInGit: "2026-10-13T02:00:01Z",
+	wi6Pushed: "2026-10-13T02:16:42Z",
+	wi4Pushed: "2026-10-13T02:57:39Z",
+	wi3Pushed: "2026-10-13T02:58:20Z",
+	namingV2: "2026-10-13T03:11:59Z",
+	wi7Pushed: "2026-10-13T03:27:43Z",
+	wi1Pushed: "2026-10-13T03:47:01Z",
+	wi2Pushed: "2026-10-13T03:54:55Z",
+	evidenceV2: "2026-10-13T04:04:23Z",
+	evidenceV3: "2026-10-13T04:18:34Z",
+	productNamingProse: "2026-10-13T04:30:00Z",
 } as const;
 
 const workItem = (id: string, title: string, actor: Actor): WorkItem => ({
@@ -107,7 +128,7 @@ export const workItems = {
 	wi2: workItem("WI-2", "Console evidence labels (PR #7)", actors.consoleAgent),
 	wi3: workItem("WI-3", "Video script", actors.docsAgent),
 	wi4: workItem("WI-4", "Shelter fixtures (PRs #3 and #4)", actors.buildAgent),
-	wi5: workItem("WI-5", "Shared brief (Notion)", actors.docsAgent),
+	wi5: workItem("WI-5", "Shared brief (Notion; not in git)", actors.docsAgent),
 	wi6: workItem("WI-6", "README", actors.docsAgent),
 	wi7: workItem("WI-7", "Console identity header", actors.consoleAgent),
 } satisfies Record<string, WorkItem>;
@@ -146,9 +167,37 @@ export const dependencies = {
 	wi7: [declared("WI-7", "demo-identity", [k.identityLabel])],
 } satisfies Record<string, Dependency[]>;
 
+const claim = (subject: string, value: string, basedOn: string): Claim => ({ subject, value, basedOn });
+
+/**
+ * What each piece of work was built against, as the values the records held then. Self-reported by the work, so
+ * the console labels them "agent-asserted". WI-3 makes no claim about the evidence rule: the script was written
+ * before it existed, and we declare that dependency afterwards.
+ */
+export const claims = {
+	wi1: [
+		claim(k.countsAsTest, "claims-check", "evidence-policy@1"),
+		claim(k.claimsCheckRole, "test", "evidence-policy@1"),
+		claim(k.requiredFacets, "none", "evidence-policy@1"),
+	],
+	wi2: [claim(k.countsAsTest, "claims-check", "evidence-policy@1"), claim(k.claimsCheckRole, "test", "evidence-policy@1"), claim(k.publicName, "Delta Convergence", "product-naming@1")],
+	wi3: [claim(k.county, "Cedar County", "scenario-naming@1"), claim(k.secondActMode, "replay", "scenario-plan@1")],
+	wi4: [claim(k.county, "Cedar County", "scenario-naming@1")],
+	wi5: [claim(k.county, "Cedar County", "scenario-naming@1"), claim(k.secondActMode, "replay", "scenario-plan@1")],
+	wi6: [
+		claim(k.llmClaim, "control loop makes no model calls", "positioning@1"),
+		claim(k.tagline, "a control plane that keeps concurrent humans and agents working from the same meaning", "positioning@1"),
+		claim(k.secondActMode, "replay", "scenario-plan@1"),
+	],
+	wi7: [claim(k.identityLabel, "Decision owner (demo identity)", "demo-identity@1")],
+} satisfies Record<string, Claim[]>;
+
 export type DogfoodBuildScenario = Awaited<ReturnType<typeof buildDogfoodBuildScenario>>;
 
 type ItemId = "WI-1" | "WI-2" | "WI-3" | "WI-4" | "WI-5" | "WI-6" | "WI-7";
+
+/** One step of the replay, in commit order. */
+export type TimelineStep = { key: string; label: string; ts: string; event: DeltaEvent };
 
 export async function buildDogfoodBuildScenario() {
 	const docs = {
@@ -165,17 +214,17 @@ export async function buildDogfoodBuildScenario() {
 	} satisfies Record<string, ScenarioDoc>;
 
 	const heads = (picked: ScenarioDoc[]): RecordSnapshot[] => picked.map((d) => d.snapshot);
-	const atSeed = heads([docs.evidenceV1, docs.namingV1, docs.planV1, docs.productNamingV1, docs.positioningV1, docs.demoIdentityV1]);
-	/** What is accepted once the evidence, naming and prose changes have landed (before evidence v3). */
-	const afterProseEdit = heads([docs.evidenceV2, docs.namingV2, docs.planV1, docs.productNamingV2, docs.positioningV1, docs.demoIdentityV1]);
+	const { evidenceV1, evidenceV2, evidenceV3, namingV1, namingV2, planV1, productNamingV1, productNamingV2, positioningV1, demoIdentityV1 } = docs;
+	const atSeed = heads([evidenceV1, namingV1, planV1, productNamingV1, positioningV1, demoIdentityV1]);
 
 	const seed = { baselineCommit: commits.baselineV1, snapshotHash: await snapshotHashOf(atSeed), records: atSeed };
+	/** The accepted heads after each change, in replay order. */
 	const snapshotHashes = {
 		v1: seed.snapshotHash,
-		evidenceV2: await snapshotHashOf(heads([docs.evidenceV2, docs.namingV1, docs.planV1, docs.productNamingV1, docs.positioningV1, docs.demoIdentityV1])),
-		namingV2: await snapshotHashOf(heads([docs.evidenceV2, docs.namingV2, docs.planV1, docs.productNamingV1, docs.positioningV1, docs.demoIdentityV1])),
-		productNamingProse: await snapshotHashOf(afterProseEdit),
-		evidenceV3: await snapshotHashOf(heads([docs.evidenceV3, docs.namingV2, docs.planV1, docs.productNamingV2, docs.positioningV1, docs.demoIdentityV1])),
+		namingV2: await snapshotHashOf(heads([evidenceV1, namingV2, planV1, productNamingV1, positioningV1, demoIdentityV1])),
+		evidenceV2: await snapshotHashOf(heads([evidenceV2, namingV2, planV1, productNamingV1, positioningV1, demoIdentityV1])),
+		evidenceV3: await snapshotHashOf(heads([evidenceV3, namingV2, planV1, productNamingV1, positioningV1, demoIdentityV1])),
+		productNamingProse: await snapshotHashOf(heads([evidenceV3, namingV2, planV1, productNamingV2, positioningV1, demoIdentityV1])),
 	};
 
 	const forkHeads: Record<ItemId, string> = {
@@ -196,31 +245,32 @@ export async function buildDogfoodBuildScenario() {
 		"WI-6": dependencies.wi6,
 		"WI-7": dependencies.wi7,
 	};
+	const itemClaims: Record<ItemId, Claim[]> = { "WI-1": claims.wi1, "WI-2": claims.wi2, "WI-3": claims.wi3, "WI-4": claims.wi4, "WI-5": claims.wi5, "WI-6": claims.wi6, "WI-7": claims.wi7 };
+	const pushedAt: Record<ItemId, string> = {
+		"WI-1": ts.wi1Pushed,
+		"WI-2": ts.wi2Pushed,
+		"WI-3": ts.wi3Pushed,
+		"WI-4": ts.wi4Pushed,
+		"WI-5": ts.notInGit,
+		"WI-6": ts.wi6Pushed,
+		"WI-7": ts.wi7Pushed,
+	};
 	const items: WorkItem[] = [workItems.wi1, workItems.wi2, workItems.wi3, workItems.wi4, workItems.wi5, workItems.wi6, workItems.wi7];
 	const itemIds = items.map((item) => item.id as ItemId);
 
 	/** A receipt delivering the accepted version of just the records this item declared a dependency on. */
-	const receiptFor = (id: ItemId, accepted: RecordSnapshot[], baselineCommit: string): Promise<ContextReceipt> => {
-		const wanted = new Set(itemDeps[id].map((d) => d.recordId));
-		return receiptOf(baselineCommit, accepted.filter((r) => wanted.has(r.recordId)), { noteCommit: forkHeads[id] });
-	};
 	const receipts = {} as Record<ItemId, ContextReceipt>;
-	const reissuedReceipts = {} as Record<ItemId, ContextReceipt>;
 	for (const id of itemIds) {
-		receipts[id] = await receiptFor(id, atSeed, commits.baselineV1);
-		reissuedReceipts[id] = await receiptFor(id, afterProseEdit, commits.productNamingProse);
+		const wanted = new Set(itemDeps[id].map((d) => d.recordId));
+		receipts[id] = await receiptOf(commits.baselineV1, atSeed.filter((r) => wanted.has(r.recordId)), id === "WI-5" ? {} : { noteCommit: forkHeads[id] });
 	}
 
 	const register: Record<string, DeltaEvent> = {};
 	const push: Record<string, DeltaEvent> = {};
-	const reissue: Record<string, DeltaEvent> = {};
 	for (const item of items) {
 		const id = item.id as ItemId;
-		register[id] = { type: "WorkItemRegistered", ts: ts.seed, item, receipt: receipts[id], dependencies: itemDeps[id] };
-		/** Each branch has a head. No claims and no evidence are recorded: humans resolve. */
-		push[id] = { type: "ForkPushed", ts: ts.push, repo: item.forkRepo, commitSha: forkHeads[id], workItemId: item.id, claims: [], contextPaths: [] };
-		/** After a human revalidates a stale item, it gets a fresh receipt at what is accepted now. */
-		reissue[id] = { type: "ReceiptIssued", ts: ts.resolved, workItemId: item.id, receipt: reissuedReceipts[id] };
+		register[id] = { type: "WorkItemRegistered", ts: ts.setup, item, receipt: receipts[id], dependencies: itemDeps[id] };
+		push[id] = { type: "ForkPushed", ts: pushedAt[id], repo: item.forkRepo, commitSha: forkHeads[id], workItemId: item.id, claims: itemClaims[id], contextPaths: [] };
 	}
 
 	const baseline = (commitSha: string, at: string, snapshotHash: string, changed: ScenarioDoc[]): DeltaEvent => ({
@@ -236,29 +286,49 @@ export async function buildDogfoodBuildScenario() {
 	const events = {
 		register,
 		push,
-		reissue,
-		/** Step 1: what counts as a contract test changes (the claims check becomes informational). */
-		evidenceV2: baseline(commits.evidenceV2, ts.evidenceV2, snapshotHashes.evidenceV2, [docs.evidenceV2]),
-		/** Step 2: Cedar County becomes Larkhaven County. */
-		namingV2: baseline(commits.namingV2, ts.namingV2, snapshotHashes.namingV2, [docs.namingV2]),
-		/** Step 3: the negative control. Wording only, no facet moves. */
-		productNamingProse: baseline(commits.productNamingProse, ts.productNamingProse, snapshotHashes.productNamingProse, [docs.productNamingV2]),
-		/** Step 4: the run check now takes its facets from the receipt. */
-		evidenceV3: baseline(commits.evidenceV3, ts.evidenceV3, snapshotHashes.evidenceV3, [docs.evidenceV3]),
+		/** Cedar County becomes Larkhaven County (59d48e4). */
+		namingV2: baseline(commits.namingV2, ts.namingV2, snapshotHashes.namingV2, [namingV2]),
+		/** The claims check becomes informational; only a check Delta Convergence runs counts (163cb45). */
+		evidenceV2: baseline(commits.evidenceV2, ts.evidenceV2, snapshotHashes.evidenceV2, [evidenceV2]),
+		/** The run check takes its facets from the receipt (cd31c39). */
+		evidenceV3: baseline(commits.evidenceV3, ts.evidenceV3, snapshotHashes.evidenceV3, [evidenceV3]),
+		/** Invented: wording only, no facet moves, no commit. The negative control. */
+		productNamingProse: baseline(commits.productNamingProse, ts.productNamingProse, snapshotHashes.productNamingProse, [productNamingV2]),
 	};
 
+	/** The replay in commit order: the work items register (setup), then every push and record change as the commits landed. */
+	const timeline: TimelineStep[] = [
+		...items.map((item) => ({ key: `register-${item.id}`, label: `${item.id} registered (replay setup, not history)`, ts: ts.setup, event: register[item.id]! })),
+		{ key: "push-WI-5", label: "WI-5 pushed (not in git)", ts: ts.notInGit, event: push["WI-5"]! },
+		{ key: "push-WI-6", label: "WI-6 pushed (f30e0ca)", ts: ts.wi6Pushed, event: push["WI-6"]! },
+		{ key: "push-WI-4", label: "WI-4 pushed (61867a9)", ts: ts.wi4Pushed, event: push["WI-4"]! },
+		{ key: "push-WI-3", label: "WI-3 pushed (faf83a8)", ts: ts.wi3Pushed, event: push["WI-3"]! },
+		{ key: "namingV2", label: "Scenario naming v2 (59d48e4)", ts: ts.namingV2, event: events.namingV2 },
+		{ key: "push-WI-7", label: "WI-7 pushed (2181838)", ts: ts.wi7Pushed, event: push["WI-7"]! },
+		{ key: "push-WI-1", label: "WI-1 pushed (first version of PR #6)", ts: ts.wi1Pushed, event: push["WI-1"]! },
+		{ key: "push-WI-2", label: "WI-2 pushed (first version of PR #7)", ts: ts.wi2Pushed, event: push["WI-2"]! },
+		{ key: "evidenceV2", label: "Evidence policy v2 (163cb45)", ts: ts.evidenceV2, event: events.evidenceV2 },
+		{ key: "evidenceV3", label: "Evidence policy v3 (cd31c39)", ts: ts.evidenceV3, event: events.evidenceV3 },
+		{ key: "productNamingProse", label: "Product naming wording edit (invented, not in git)", ts: ts.productNamingProse, event: events.productNamingProse },
+	];
+
 	const expected = {
-		afterEvidenceV2: {
-			stale: { "WI-1": [k.claimsCheckRole, k.countsAsTest], "WI-2": [k.claimsCheckRole, k.countsAsTest], "WI-3": [k.countsAsTest] },
-			untouched: ["WI-4", "WI-5", "WI-6", "WI-7"],
-		},
 		afterNamingV2: {
 			stale: { "WI-3": [k.county], "WI-4": [k.county], "WI-5": [k.county] },
-			untouched: ["WI-6", "WI-7"],
+			untouched: ["WI-1", "WI-2", "WI-6", "WI-7"],
 		},
+		afterEvidenceV2: {
+			stale: { "WI-1": [k.claimsCheckRole, k.countsAsTest], "WI-2": [k.claimsCheckRole, k.countsAsTest], "WI-3": [k.countsAsTest, k.county] },
+			untouched: ["WI-4", "WI-5", "WI-6", "WI-7"],
+		},
+		/** WI-2 and WI-3 are looked at again but stay stale on the same facets; only WI-1 gains `evidence.required-facets`. */
 		afterEvidenceV3: {
-			stale: { "WI-1": [k.requiredFacets] },
-			untouched: ["WI-2", "WI-3", "WI-4", "WI-5", "WI-6", "WI-7"],
+			stale: {
+				"WI-1": [k.claimsCheckRole, k.countsAsTest, k.requiredFacets],
+				"WI-2": [k.claimsCheckRole, k.countsAsTest],
+				"WI-3": [k.countsAsTest, k.county],
+			},
+			untouched: ["WI-4", "WI-5", "WI-6", "WI-7"],
 		},
 		/** The negative control: depends only on the demo identity label, which never moves. */
 		controlId: "WI-7",
@@ -274,10 +344,11 @@ export async function buildDogfoodBuildScenario() {
 		forkHeads,
 		workItems,
 		dependencies,
+		claims,
 		receipts,
-		reissuedReceipts,
 		snapshotHashes,
 		events,
+		timeline,
 		expected,
 		repo: REPO,
 	};
