@@ -1,0 +1,40 @@
+# --- Local-only context (points at Andrew's private knowledge vault; never public) ---
+CLAUDE.local.md
+AGENTS.local.md
+*.local.md
+.local/
+
+# --- Secrets (Cloudflare API token, Anthropic key, etc.) ---
+.env
+.env.*
+!.env.example
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+
+# --- Private research / raw transcripts: these live in the vault, never here ---
+sources/
+research/
+docs/research/
+*.transcript.md
+
+# --- Dependencies, build and tool output ---
+node_modules/
+dist/
+build/
+.wrangler/
+.turbo/
+.vite/
+coverage/
+*.tsbuildinfo
+worker-configuration.d.ts.bak
+
+# --- OS / editor ---
+.DS_Store
+*.log
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# Maestro machine-local state
+.maestro/locks/
