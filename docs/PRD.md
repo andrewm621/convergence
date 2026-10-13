@@ -235,7 +235,7 @@ One screen, three panes, live over WebSocket.
   - *Actions*: Revalidate, Accept exception (with required scope and rationale), Reject, Promote (gated).
 - **Bottom strip:** the live agent activity stream (stream-json from the agents), an agent-overlap bar showing concurrent runs (P1), and the ledger tail.
 - **Empty state:** "No accepted context yet. Declare the first decision." The scenario seed then gives a one-click start.
-- **Identity label:** the header shows "Acting as: Andrew (demo identity)". The console doesn't pretend to have real auth.
+- **Identity label:** the header shows "Acting as: Decision owner (demo identity)". The console doesn't pretend to have real auth.
 
 Visual grammar comes from the author's earlier review-loop prototype: canonical items are solid, proposed items dashed, and there are actor chips for human, agent and system. Supports both themes. A scenario switcher sits in the header.
 

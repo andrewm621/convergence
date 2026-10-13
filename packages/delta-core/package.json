@@ -12,7 +12,9 @@
     "contracts": "workspace:*"
   },
   "devDependencies": {
+    "scenario-delta-convergence-build": "workspace:*",
     "scenario-notifications": "workspace:*",
-    "scenario-sales-ops": "workspace:*"
+    "scenario-sales-ops": "workspace:*",
+    "scenario-shelter-intake": "workspace:*"
   }
 }

@@ -3,6 +3,7 @@ import {
 	canonicalJson,
 	compareStrings,
 	dedupeKey,
+	dispatchFailedRunId,
 	isCommand,
 	type CellState,
 	type DeltaEvent,
@@ -13,7 +14,7 @@ import {
 	type RecordSnapshot,
 	type WorkItemState,
 } from "contracts";
-import { analyze, findStale } from "./analysis";
+import { analyze, countsAsTest, findStale } from "./analysis";
 import { acceptedDependenciesOf, currentSnapshot, isPromoted, snapshotAt, workItemIds } from "./cell-state";
 import { refreshWorkItem } from "./conditions";
 import { effectsForChanges, noAction } from "./effects";
@@ -72,12 +73,43 @@ function apply(draft: CellState, event: DeltaEvent, policy: Policy): Effect[] {
 		case "PromotionMerged":
 			return onPromotionMerged(draft, event, policy);
 		case "AgentRunStarted":
+			return onAgentRunStarted(draft, event);
 		case "AgentRunFinished":
-			return [noAction(["OBSERVATION_ONLY"], { workItemId: event.workItemId })];
+			return onAgentRunFinished(draft, event, policy);
 	}
 }
 
 type Of<T extends DeltaEvent["type"]> = Extract<DeltaEvent, { type: T }>;
+
+// ---------- agent run markers ----------
+
+/** A run that starts during a revalidation is the run tied to it: its failure is what ends that revalidation without a push. */
+function onAgentRunStarted(draft: CellState, event: Of<"AgentRunStarted">): Effect[] {
+	const wi = draft.workItems[event.workItemId];
+	if (wi && wi.revalidating && !isPromoted(wi)) wi.revalidationRun = event.runId;
+	return [noAction(["OBSERVATION_ONLY"], { workItemId: event.workItemId })];
+}
+
+/**
+ * A revalidation ends with the agent's next push (onForkPushed). If the run tied to it fails or is cancelled, or
+ * the dispatch failed before any run (`dispatchFailedRunId` of the revalidate resolution's request key), no push
+ * is coming, so the revalidation ends here and the item can be revalidated again (up to `maxRevalidations`). Nothing
+ * else changes: the receipt stays what it is, the old claims still conflict or are still stale, and the gate stays closed.
+ * A success finish does not end it; the push does.
+ */
+function onAgentRunFinished(draft: CellState, event: Of<"AgentRunFinished">, policy: Policy): Effect[] {
+	const id = event.workItemId;
+	const wi = draft.workItems[id];
+	const observed = [noAction(["OBSERVATION_ONLY"], { workItemId: id })];
+	if (!wi || !wi.revalidating || isPromoted(wi) || event.outcome === "success") return observed;
+	const latest = wi.resolutions.filter((r) => r.kind === "revalidate").at(-1);
+	const tied = wi.revalidationRun === event.runId || (latest?.requestId !== undefined && event.runId === dispatchFailedRunId(latest.requestId));
+	if (!tied) return observed;
+	wi.revalidating = false;
+	delete wi.revalidationRun;
+	const refresh = refreshWorkItem(draft, id, policy, event.ts);
+	return [noAction(["OBSERVATION_ONLY"], { workItemId: id }), ...effectsForChanges(refresh.changed)];
+}
 
 // ---------- registration ----------
 
@@ -192,6 +224,7 @@ function onForkPushed(draft: CellState, event: Of<"ForkPushed">, policy: Policy)
 	const touched = validSubjects(wi);
 	wi.headSha = event.commitSha;
 	wi.revalidating = false;
+	delete wi.revalidationRun;
 	wi.promotionApproval = null;
 	wi.contextPaths = [...event.contextPaths].sort(compareStrings);
 
@@ -260,7 +293,8 @@ function onEvidenceRecorded(draft: CellState, event: Of<"EvidenceRecorded">, pol
 		return [noAction(["UNKNOWN_WORK_ITEM"], { workItemId: id, message: "Evidence does not match a registered work item and head." })];
 	}
 	if (isPromoted(wi)) return [noAction(["ALREADY_PROMOTED"], { workItemId: id })];
-	wi.evidence = [...wi.evidence.filter((e) => !(e.check === evidence.check && e.headSha === evidence.headSha)), evidence];
+	// A result replaces an earlier one for the same check and head only if it is the same kind of evidence: a claims check never overwrites a test result.
+	wi.evidence = [...wi.evidence.filter((e) => !(e.check === evidence.check && e.headSha === evidence.headSha && countsAsTest(e) === countsAsTest(evidence))), evidence];
 	if (evidence.headSha !== wi.headSha) {
 		return [noAction(["STALE_EVIDENCE"], { workItemId: id, message: `${evidence.check} ran at ${evidence.headSha}, but the current head is ${wi.headSha ?? "unset"}; it does not count.` })];
 	}
@@ -375,7 +409,11 @@ function onResolutionRecorded(draft: CellState, event: Of<"ResolutionRecorded">,
 		];
 	}
 
-	// revalidate (R6): only for work that is stale or conflicting, with a loop guard
+	// revalidate (R6): only for work that is stale or conflicting, with a loop guard. One at a time: while a
+	// revalidation is under way (until the agent's next push) another would queue a second run for the same work.
+	if (wi.revalidating) {
+		return [noAction(["REVALIDATION_IN_PROGRESS"], { workItemId: id, recordId: binding.recordId, message: "A revalidation is already under way for this work item; wait for the agent's push before revalidating again." })];
+	}
 	const analysis = analyze(draft, id, policy);
 	if (analysis.stale.length === 0 && analysis.conflicts.length === 0) {
 		return [noAction(["NOTHING_TO_REVALIDATE"], { workItemId: id, message: "Nothing stale or conflicting; there is nothing to revalidate." })];
@@ -390,6 +428,7 @@ function onResolutionRecorded(draft: CellState, event: Of<"ResolutionRecorded">,
 	wi.resolutions.push(resolution);
 	wi.revalidations += 1;
 	wi.revalidating = true;
+	delete wi.revalidationRun;
 	wi.promotionApproval = null;
 	const refresh = refreshWorkItem(draft, id, policy, event.ts);
 	return [

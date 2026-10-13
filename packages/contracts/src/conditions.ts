@@ -43,6 +43,8 @@ export const ReasonCode = z.enum([
 	"RECEIPT_MISMATCH",
 	"REVALIDATION_NOT_REQUESTED",
 	"NOTHING_TO_REVALIDATE",
+	/** A revalidate command refused because one is already under way. (`REVALIDATION_PENDING` is the gate's reason and appears on effects of accepted commands, so it cannot double as a refusal.) */
+	"REVALIDATION_IN_PROGRESS",
 	// R7
 	"FORBIDDEN_ACTOR",
 	"STALE_BINDING",

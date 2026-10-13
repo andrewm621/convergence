@@ -84,14 +84,15 @@ export async function withStaleRefRetry<T>(fn: (attempt: number) => Promise<T>, 
 /**
  * Commit `files` to the repo's main branch: init when empty, shallow clone otherwise, then push.
  * Each retry re-clones, re-applies and pushes so a lost race never builds on a stale head.
- * Pass `retryNotFound` only for a repo created or forked moments ago.
+ * Pass `retryNotFound` only for a repo created or forked moments ago. `author` defaults to the
+ * Worker's own identity; the cell passes the acting human so the baseline records who decided.
  */
 export async function commitFiles(
 	env: Env,
 	repoName: string,
 	files: Record<string, string>,
 	message: string,
-	opts: { retryNotFound?: boolean } = {},
+	opts: { retryNotFound?: boolean; author?: { name: string; email: string }; committer?: { name: string; email: string } } = {},
 ): Promise<CommitResult> {
 	for (const path of Object.keys(files)) assertSafePath(path);
 
@@ -126,7 +127,7 @@ export async function commitFiles(
 				await fs.promises.writeFile(`${DIR}/${path}`, content);
 				await git.add({ fs, dir: DIR, filepath: path });
 			}
-			const oid = await git.commit({ fs, dir: DIR, message, author: AUTHOR });
+			const oid = await git.commit({ fs, dir: DIR, message, author: opts.author ?? AUTHOR, committer: opts.committer ?? opts.author ?? AUTHOR });
 			const push = await timed("push", () =>
 				git.push({ fs, http, dir: DIR, url: remote, ref: BRANCH, remoteRef: BRANCH, onAuth }),
 			);

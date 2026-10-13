@@ -29,22 +29,34 @@ function readContext(dir) {
 	const out = {};
 	if (!existsSync(dir)) return out;
 	for (const name of readdirSync(dir).sort()) {
-		if (name.endsWith(".md")) out[`${dir.slice(repo.length + 1)}/${name}`] = readFileSync(join(dir, name), "utf8");
+		if (name.endsWith(".md")) out[name] = readFileSync(join(dir, name), "utf8");
 	}
 	return out;
 }
 
 say("read", "reading AGENTS.md and the context records");
-let contextFiles = readContext(join(repo, ".delta", "context"));
-if (Object.keys(contextFiles).length === 0) contextFiles = readContext(join(repo, "context"));
+// .delta/context/ (what the control plane delivered) wins over context/ (the seeded copy) by file name.
+const merged = { ...readContext(join(repo, "context")), ...readContext(join(repo, ".delta", "context")) };
+const contextFiles = Object.fromEntries(Object.entries(merged).map(([name, text]) => [`context/${name}`, text]));
 await sleep(stepMs);
 
-const indexPath = join(repo, "src", "index.ts");
+// A revalidation run carries the receipt of what the control plane delivered; the stub covers exactly those records.
+let deliveredIds = null;
+const receiptPath = join(repo, ".delta", "receipt.json");
+if (existsSync(receiptPath)) {
+	try {
+		const receipt = JSON.parse(readFileSync(receiptPath, "utf8"));
+		if (Array.isArray(receipt.delivered)) deliveredIds = receipt.delivered.map((d) => String(d.recordId));
+	} catch {
+		// an unreadable receipt leaves the title heuristic in place
+	}
+}
+
 const result = runStubAgent({
 	workItemId,
 	prompt: process.env.AGENT_PROMPT ?? "",
 	contextFiles,
-	indexTs: existsSync(indexPath) ? readFileSync(indexPath, "utf8") : null,
+	deliveredIds,
 });
 say("plan", result.summary);
 await sleep(stepMs);

@@ -36,6 +36,8 @@ export type Analysis = {
 	uncertain: UncertainFinding[];
 	outsideReceipt: OutsideReceipt[];
 	headEvidence: Evidence[];
+	/** The part of `headEvidence` that counts as a test result: everything except the Worker's claims check (see `countsAsTest`). */
+	testEvidence: Evidence[];
 	requiredChecks: string[];
 	failedChecks: string[];
 	testsPassed: boolean;
@@ -125,7 +127,7 @@ function findClaimIssues(state: CellState, wi: WorkItemState): Pick<Analysis, "c
 		const current = currentSnapshot(state, ref.recordId);
 		const basis = snapshotAt(state, ref.recordId, ref.version);
 		if (!current || !basis) {
-			uncertain.push({ reasonCodes: ["UNKNOWN_CONTEXT_VERSION"], recordId: ref.recordId, subjects: [claim.subject], message: `Claim cites ${claim.basedOn}, which is not a version Delta has seen.` });
+			uncertain.push({ reasonCodes: ["UNKNOWN_CONTEXT_VERSION"], recordId: ref.recordId, subjects: [claim.subject], message: `Claim cites ${claim.basedOn}, which is not a version Delta Convergence has seen.` });
 			continue;
 		}
 		const nowValue = current.facets[claim.subject];
@@ -241,12 +243,25 @@ function findCrossClaimConflicts(state: CellState, wi: WorkItemState): Uncertain
 	return findings;
 }
 
+/**
+ * Does this Evidence count as a test result for its check? Everything does except `delta-claims-check`, the
+ * Worker's comparison of agent-written claims with the receipt. That is derived from the agent's own word, so
+ * it must never satisfy, fail or overwrite a validation check (rule R8: Delta-run, not agent-run).
+ *
+ * This is an exclusion list on purpose: evidence with no `kind` is the fixtures' hand-recorded results (including
+ * sales-ops), and an allowlist would orphan all of them. Only the Worker's internal observation hook writes
+ * evidence, never an HTTP caller, and the one kind it writes for a test result is `delta-run-check`.
+ */
+export function countsAsTest(evidence: Evidence): boolean {
+	return evidence.kind !== "delta-claims-check";
+}
+
 /** The latest Evidence per check at the item's current head. Evidence for any other head does not count (R8). */
 export function evidenceAtHead(wi: WorkItemState): Evidence[] {
 	if (wi.headSha === null) return [];
 	const latest = new Map<string, Evidence>();
-	for (const evidence of wi.evidence) if (evidence.headSha === wi.headSha) latest.set(evidence.check, evidence);
-	return [...latest.values()].sort((a, b) => compareStrings(a.check, b.check));
+	for (const evidence of wi.evidence) if (evidence.headSha === wi.headSha) latest.set(countsAsTest(evidence) ? evidence.check : `\u0000claims\u0000${evidence.check}`, evidence);
+	return [...latest.values()].sort((a, b) => compareStrings(a.check, b.check) || compareStrings(a.kind ?? "", b.kind ?? ""));
 }
 
 /** Checks the item's accepted dependencies require: the `validation` of each record it relies on. */
@@ -265,15 +280,17 @@ export function analyze(state: CellState, workItemId: string, policy: Policy): A
 	const claimIssues = findClaimIssues(state, wi);
 	const headEvidence = evidenceAtHead(wi);
 	const requiredChecks = requiredChecksFor(state, wi);
-	const failedChecks = headEvidence.filter((e) => !e.pass).map((e) => e.check);
+	const testEvidence = headEvidence.filter(countsAsTest);
+	const failedChecks = testEvidence.filter((e) => !e.pass).map((e) => e.check);
 	const testsPassed =
-		headEvidence.length > 0 && failedChecks.length === 0 && requiredChecks.every((check) => headEvidence.some((e) => e.check === check && e.pass));
+		testEvidence.length > 0 && failedChecks.length === 0 && requiredChecks.every((check) => testEvidence.some((e) => e.check === check && e.pass));
 	return {
 		stale: findStale(state, wi, policy),
 		conflicts: claimIssues.conflicts,
 		uncertain: [...claimIssues.uncertain, ...findCrossClaimConflicts(state, wi)],
 		outsideReceipt: claimIssues.outsideReceipt,
 		headEvidence,
+		testEvidence,
 		requiredChecks,
 		failedChecks,
 		testsPassed,

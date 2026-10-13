@@ -104,11 +104,11 @@ export function gateFrom(state: CellState, wi: WorkItemState, policy: Policy, an
 	if (failed.length > 0) block("TEST_FAILED", `Failing at the current head: ${failed.join(", ")}.`);
 	const required = new Set([...policy.requires, ...wi.item.requires]);
 	if (required.has("contract-test")) {
-		const passing = (check: string) => analysis.headEvidence.some((e) => e.check === check && e.pass);
+		const passing = (check: string) => analysis.testEvidence.some((e) => e.check === check && e.pass);
 		const needed = analysis.requiredChecks.filter((check) => !waivedChecks.has(check));
 		const missing = needed.filter((check) => !passing(check) && !failed.includes(check));
 		if (missing.length > 0) block("MISSING_EVIDENCE", `No passing evidence at the current head for: ${missing.join(", ")}.`);
-		else if (analysis.requiredChecks.length === 0 && waivedChecks.size === 0 && analysis.headEvidence.length === 0) block("MISSING_EVIDENCE", "No contract-test evidence at the current head.");
+		else if (analysis.requiredChecks.length === 0 && waivedChecks.size === 0 && analysis.testEvidence.length === 0) block("MISSING_EVIDENCE", "No contract-test evidence at the current head.");
 	}
 	if (required.has("human-resolution") && !humanResolved(wi, valid)) block("HUMAN_RESOLUTION_MISSING", "A human resolution is required.");
 

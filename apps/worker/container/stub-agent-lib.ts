@@ -3,20 +3,23 @@
 // syntax that needs a transform (enums, parameter properties).
 //
 // It follows the agent protocol (PRD section 5): read the context records, make a deterministic code
-// change, and report claims that cite `recordId@version`.
+// change, and report claims that cite `recordId@version`. It writes only `src/work/<id>.ts` and
+// `.delta/claims.json`, so concurrent work items never edit the same lines of a shared file.
 
 export type FacetScalar = string | number | boolean;
+/** A facet value: a scalar, or a flow list of scalars (`[draft, active]`). */
+export type FacetValue = FacetScalar | FacetScalar[];
 
 export interface Claim {
 	subject: string;
-	value: FacetScalar;
+	value: FacetValue;
 	basedOn: string;
 }
 
 export interface ContextRecord {
 	id: string;
 	version: number;
-	facets: Record<string, FacetScalar>;
+	facets: Record<string, FacetValue>;
 }
 
 export interface StubInput {
@@ -24,8 +27,12 @@ export interface StubInput {
 	prompt: string;
 	/** Context files by repo-relative path, e.g. `.delta/context/notifications.md`. */
 	contextFiles: Record<string, string>;
-	/** Current content of `src/index.ts`, or null when the fork has none. */
-	indexTs: string | null;
+	/**
+	 * The record ids the control plane delivered for this run (a revalidation's receipt). When set, the stub writes a
+	 * constant and a claim for every facet of exactly those records, not what the task title suggests: the receipt
+	 * is what the work item relies on.
+	 */
+	deliveredIds?: string[] | null;
 }
 
 export interface StubOutput {
@@ -45,6 +52,15 @@ function parseScalar(raw: string): FacetScalar {
 	return text;
 }
 
+/** A facet value: a flow list `[a, b]` becomes an array (as the record parser reads it), anything else a scalar. */
+function parseValue(raw: string): FacetValue {
+	const text = raw.trim().replace(/\s+#.*$/, "");
+	const list = /^\[(.*)\]$/.exec(text);
+	if (!list) return parseScalar(text);
+	const inner = (list[1] ?? "").trim();
+	return inner === "" ? [] : inner.split(",").map((item) => parseScalar(item));
+}
+
 /** Minimal front-matter reader: `id`, `version` and the flat `facets:` map. Returns null when unusable. */
 export function parseContextRecord(markdown: string): ContextRecord | null {
 	const match = /^---\r?\n([\s\S]*?)\r?\n---/.exec(markdown);
@@ -52,7 +68,7 @@ export function parseContextRecord(markdown: string): ContextRecord | null {
 
 	let id: string | null = null;
 	let version: number | null = null;
-	const facets: Record<string, FacetScalar> = {};
+	const facets: Record<string, FacetValue> = {};
 	let inFacets = false;
 
 	for (const line of match[1].split(/\r?\n/)) {
@@ -60,9 +76,10 @@ export function parseContextRecord(markdown: string): ContextRecord | null {
 			inFacets = true;
 			continue;
 		}
-		const indented = /^\s+([A-Za-z0-9_.-]+):\s*(.*)$/.exec(line);
-		if (inFacets && indented?.[1] !== undefined && indented[2] !== undefined) {
-			facets[indented[1]] = parseScalar(indented[2]);
+		// The Worker writes facet keys quoted ("notifications.cadence": ...), hand-written records usually don't.
+		const indented = /^\s+(["']?)([A-Za-z0-9_.-]+)\1:\s*(.*)$/.exec(line);
+		if (inFacets && indented?.[2] !== undefined && indented[3] !== undefined) {
+			facets[indented[2]] = parseValue(indented[3]);
 			continue;
 		}
 		if (line.trim() === "" || line.startsWith("#")) continue;
@@ -89,19 +106,34 @@ function firstLine(text: string, max = 80): string {
 	return line.length > max ? `${line.slice(0, max - 1)}…` : line;
 }
 
+/**
+ * Does the task rely on this record? True when the prompt names it (`status-model`) or its first word in the
+ * singular (`status`, `notification`). Like a real agent, the stub cites only what its task is about, so a work
+ * item that never touches a record does not claim it (an undeclared dependency would block the work item).
+ */
+function inScope(record: ContextRecord, prompt: string): boolean {
+	const text = prompt.toLowerCase();
+	const stem = (record.id.split("-")[0] ?? record.id).replace(/s$/, "");
+	return text.includes(record.id) || (stem !== "" && text.includes(stem));
+}
+
 /** Deterministic: same input, same output, byte for byte. No clock, no randomness. */
 export function runStubAgent(input: StubInput): StubOutput {
-	const records = Object.keys(input.contextFiles)
+	const all = Object.keys(input.contextFiles)
 		.sort()
 		.map((path) => parseContextRecord(input.contextFiles[path] ?? ""))
 		.filter((r): r is ContextRecord => r !== null)
 		.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+	// A run with a receipt covers the records it delivered. Otherwise a prompt that names none of them gets them all.
+	const delivered = input.deliveredIds ?? null;
+	const named = all.filter((r) => inScope(r, input.prompt));
+	const records = delivered !== null ? all.filter((r) => delivered.includes(r.id)) : named.length > 0 ? named : all;
 
 	const claims: Claim[] = [];
 	const constants: string[] = [];
 	for (const record of records) {
 		for (const key of Object.keys(record.facets).sort()) {
-			const value = record.facets[key] as FacetScalar;
+			const value = record.facets[key] as FacetValue;
 			const ref = `${record.id}@${record.version}`;
 			claims.push({ subject: key, value, basedOn: ref });
 			constants.push(`export const ${constName(key)} = ${JSON.stringify(value)}; // ${ref}`);
@@ -116,14 +148,11 @@ export function runStubAgent(input: StubInput): StubOutput {
 		"",
 	].join("\n");
 
-	const exportLine = `export * from "./work/${input.workItemId}";`;
-	const base = input.indexTs ?? "";
-	const indexSource = base.includes(exportLine) ? base : `${base}${base === "" || base.endsWith("\n") ? "" : "\n"}${exportLine}\n`;
-
+	// Only files this work item owns. No shared barrel (`src/index.ts`): two agents appending to the same spot of a
+	// shared file make a textual add/add conflict when the second one is promoted.
 	return {
 		files: {
 			[modulePath]: moduleSource,
-			"src/index.ts": indexSource,
 			".delta/claims.json": `${JSON.stringify(claims, null, 2)}\n`,
 		},
 		claims,

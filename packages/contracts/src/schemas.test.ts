@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Claim, ClaimsFile, Resolution, WorkItem, WsMessage, parseRecordRef, formatRecordRef } from "./index";
+import { AgentRunStarted, Claim, ClaimsFile, Evidence, Resolution, WorkItem, WsMessage, parseRecordRef, formatRecordRef } from "./index";
 
 const human = { kind: "human", id: "decision-owner", displayName: "Decision owner (demo identity)" } as const;
 const sha = "a".repeat(64);
@@ -74,5 +74,23 @@ describe("schemas", () => {
 			}).success,
 		).toBe(true);
 		expect(WsMessage.safeParse({ type: "nope" }).success).toBe(false);
+	});
+
+	it("AgentRunStarted.model is additive and optional: a v1 event without it still parses", () => {
+		const base = { type: "AgentRunStarted", ts: "2026-10-13T16:00:00Z", workItemId: "WI-2", runId: "run-1" };
+		expect(AgentRunStarted.safeParse(base).success).toBe(true);
+		expect(AgentRunStarted.parse({ ...base, model: "openai/gpt-6-luna" }).model).toBe("openai/gpt-6-luna");
+		expect(AgentRunStarted.safeParse({ ...base, model: "" }).success).toBe(false);
+		expect(AgentRunStarted.safeParse({ ...base, other: 1 }).success).toBe(false);
+	});
+
+	it("Evidence.kind is additive and optional: v1 evidence without it still parses, an unknown kind does not", () => {
+		const base = { workItemId: "WI-2", headSha: "d500000000000000000000000000000000000001", check: "tests/contract/notifications.test.ts", pass: true, output: "ok" };
+		expect(Evidence.safeParse(base).success).toBe(true);
+		expect(Evidence.parse({ ...base, kind: "delta-claims-check" }).kind).toBe("delta-claims-check");
+		expect(Evidence.safeParse({ ...base, kind: "executed-test" }).success).toBe(true);
+		expect(Evidence.safeParse({ ...base, kind: "delta-run-check" }).success).toBe(true);
+		expect(Evidence.safeParse({ ...base, kind: "vibes" }).success).toBe(false);
+		expect(Evidence.safeParse({ ...base, extra: 1 }).success).toBe(false);
 	});
 });

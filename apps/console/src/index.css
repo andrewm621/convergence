@@ -1,0 +1,218 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "@xyflow/react/dist/style.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Semantic tokens only. Components never hardcode a color: status meaning lives in
+ * success / warning / danger / info / merged, each with a strong tone (text, borders, icons)
+ * and a soft tone (tinted fills). Every status that uses a color also carries a text label.
+ */
+:root {
+	--radius: 0.625rem;
+
+	--background: oklch(0.985 0.003 250);
+	--foreground: oklch(0.22 0.02 255);
+	--card: oklch(1 0 0);
+	--card-foreground: oklch(0.22 0.02 255);
+	--popover: oklch(1 0 0);
+	--popover-foreground: oklch(0.22 0.02 255);
+	--primary: oklch(0.46 0.15 265);
+	--primary-foreground: oklch(0.99 0.002 265);
+	--secondary: oklch(0.955 0.006 250);
+	--secondary-foreground: oklch(0.28 0.02 255);
+	--muted: oklch(0.962 0.005 250);
+	--muted-foreground: oklch(0.48 0.02 255);
+	--accent: oklch(0.95 0.012 265);
+	--accent-foreground: oklch(0.3 0.06 265);
+	--border: oklch(0.91 0.006 250);
+	--input: oklch(0.89 0.008 250);
+	--ring: oklch(0.6 0.12 265);
+
+	--success: oklch(0.45 0.13 155);
+	--success-soft: oklch(0.955 0.045 155);
+	--warning: oklch(0.5 0.12 65);
+	--warning-soft: oklch(0.965 0.06 90);
+	--danger: oklch(0.52 0.2 25);
+	--danger-soft: oklch(0.96 0.03 25);
+	--info: oklch(0.48 0.15 245);
+	--info-soft: oklch(0.96 0.03 245);
+	--merged: oklch(0.47 0.17 295);
+	--merged-soft: oklch(0.96 0.035 295);
+
+	--graph-dot: oklch(0.88 0.006 250);
+}
+
+.dark {
+	--background: oklch(0.165 0.012 255);
+	--foreground: oklch(0.95 0.005 250);
+	--card: oklch(0.205 0.014 255);
+	--card-foreground: oklch(0.95 0.005 250);
+	--popover: oklch(0.23 0.016 255);
+	--popover-foreground: oklch(0.95 0.005 250);
+	--primary: oklch(0.74 0.13 265);
+	--primary-foreground: oklch(0.2 0.03 265);
+	--secondary: oklch(0.26 0.014 255);
+	--secondary-foreground: oklch(0.93 0.005 250);
+	--muted: oklch(0.245 0.013 255);
+	--muted-foreground: oklch(0.72 0.02 255);
+	--accent: oklch(0.29 0.03 265);
+	--accent-foreground: oklch(0.93 0.02 265);
+	--border: oklch(0.31 0.015 255);
+	--input: oklch(0.34 0.016 255);
+	--ring: oklch(0.65 0.12 265);
+
+	--success: oklch(0.8 0.15 155);
+	--success-soft: oklch(0.29 0.055 155);
+	--warning: oklch(0.84 0.13 85);
+	--warning-soft: oklch(0.3 0.06 85);
+	--danger: oklch(0.78 0.15 22);
+	--danger-soft: oklch(0.3 0.07 22);
+	--info: oklch(0.78 0.12 240);
+	--info-soft: oklch(0.29 0.06 245);
+	--merged: oklch(0.8 0.12 295);
+	--merged-soft: oklch(0.3 0.07 295);
+
+	--graph-dot: oklch(0.3 0.012 255);
+}
+
+@theme inline {
+	--font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+	--font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+
+	--radius-sm: calc(var(--radius) - 4px);
+	--radius-md: calc(var(--radius) - 2px);
+	--radius-lg: var(--radius);
+	--radius-xl: calc(var(--radius) + 4px);
+
+	--color-background: var(--background);
+	--color-foreground: var(--foreground);
+	--color-card: var(--card);
+	--color-card-foreground: var(--card-foreground);
+	--color-popover: var(--popover);
+	--color-popover-foreground: var(--popover-foreground);
+	--color-primary: var(--primary);
+	--color-primary-foreground: var(--primary-foreground);
+	--color-secondary: var(--secondary);
+	--color-secondary-foreground: var(--secondary-foreground);
+	--color-muted: var(--muted);
+	--color-muted-foreground: var(--muted-foreground);
+	--color-accent: var(--accent);
+	--color-accent-foreground: var(--accent-foreground);
+	--color-border: var(--border);
+	--color-input: var(--input);
+	--color-ring: var(--ring);
+
+	--color-success: var(--success);
+	--color-success-soft: var(--success-soft);
+	--color-warning: var(--warning);
+	--color-warning-soft: var(--warning-soft);
+	--color-danger: var(--danger);
+	--color-danger-soft: var(--danger-soft);
+	--color-info: var(--info);
+	--color-info-soft: var(--info-soft);
+	--color-merged: var(--merged);
+	--color-merged-soft: var(--merged-soft);
+}
+
+@layer base {
+	* {
+		@apply border-border outline-ring/50;
+	}
+	html,
+	body,
+	#root {
+		height: 100%;
+	}
+	body {
+		@apply bg-background text-foreground font-sans antialiased;
+		font-size: 14px;
+		line-height: 1.45;
+		overflow: hidden;
+	}
+	::selection {
+		background: color-mix(in oklch, var(--primary) 25%, transparent);
+	}
+	/* Quiet scrollbars: the panes scroll on their own. */
+	* {
+		scrollbar-width: thin;
+		scrollbar-color: var(--border) transparent;
+	}
+}
+
+/* ---- React Flow, wired to the tokens ---- */
+.react-flow {
+	--xy-background-color: transparent;
+	--xy-node-border-radius: var(--radius-lg);
+	--xy-controls-button-background-color-default: var(--card);
+	--xy-controls-button-background-color-hover-default: var(--accent);
+	--xy-controls-button-color-default: var(--foreground);
+	--xy-controls-button-border-color-default: var(--border);
+	--xy-attribution-background-color-default: transparent;
+}
+.react-flow__attribution {
+	display: none;
+}
+.react-flow__node {
+	cursor: pointer;
+}
+.react-flow__handle {
+	opacity: 0;
+	pointer-events: none;
+}
+.react-flow__edge-path {
+	transition:
+		stroke 0.35s ease,
+		stroke-width 0.35s ease;
+}
+
+/* The "Oh!" moment: the edge that just went stale flashes once, then settles. */
+@keyframes edge-flash {
+	0% {
+		stroke-width: 7;
+		opacity: 0.35;
+	}
+	100% {
+		stroke-width: 2.5;
+		opacity: 1;
+	}
+}
+.edge-stale-flash {
+	animation: edge-flash 0.9s ease-out;
+}
+
+@keyframes run-pulse {
+	0%,
+	100% {
+		opacity: 1;
+	}
+	50% {
+		opacity: 0.35;
+	}
+}
+.run-pulse {
+	animation: run-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes row-in {
+	from {
+		opacity: 0;
+		transform: translateY(-3px);
+	}
+	to {
+		opacity: 1;
+		transform: none;
+	}
+}
+.row-in {
+	animation: row-in 0.25s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.edge-stale-flash,
+	.run-pulse,
+	.row-in {
+		animation: none;
+	}
+}

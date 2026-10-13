@@ -6,18 +6,46 @@
   "compatibility_date": "2026-10-12",
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
+  // The console is served from the Worker as static assets: build it first with `pnpm build:console`.
+  // run_worker_first keeps /api/* (REST and the WebSocket) and /health on the Worker; everything else
+  // is an asset, and an unknown path falls back to index.html so the SPA owns its URLs.
+  "assets": {
+    "directory": "../console/dist",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*", "/health"]
+  },
   "vars": {
     "APP_VERSION": "0.0.1",
     // Smoke endpoints create and delete real repos. Off by default; deploy with --var ENABLE_SMOKE:1 to use them.
     "ENABLE_SMOKE": "0",
     // stub = scripted agent (no model key needed); claude = Claude Code headless through OpenRouter.
     "AGENT_MODE": "stub",
-    // OpenRouter model slug Claude Code is pinned to (only read when AGENT_MODE=claude).
-    "AGENT_MODEL": "anthropic/claude-sonnet-5.5",
+    // OpenRouter model slug Claude Code is pinned to by default (only read when AGENT_MODE=claude): the cheapest one that
+    // completed the notifications task in live tests (about $0.001 per run).
+    "AGENT_MODEL": "z-ai/glm-5.3-flash",
+    // Other OpenRouter slugs a dispatch may select with {"model": ...}. AGENT_MODEL is always allowed. Each run is pinned to its model at the gateway.
+    "AGENT_MODELS": "openai/gpt-6-luna,minimax/minimax-m3,anthropic/claude-sonnet-5.5",
+    // Claude Code's own caps for AGENT_MODE=claude. Its dollar estimate prices every model at Anthropic rates (about 50x too high for
+    // a cheap model), so AGENT_MAX_BUDGET_USD is only a loose backstop; the real dollar cap is AGENT_MAX_COST_USD, enforced by the gateway.
+    "AGENT_MAX_TURNS": "15",
+    "AGENT_MAX_BUDGET_USD": "5",
+    "AGENT_TIMEOUT_S": "600",
+    // Enforced by the gateways (not the agent) on every run: request counts, total tokens, and per-request max_tokens.
+    "AGENT_MAX_MODEL_REQUESTS": "40",
+    "AGENT_MAX_GIT_REQUESTS": "60",
+    "AGENT_MAX_TOTAL_TOKENS": "1000000",
+    "AGENT_MAX_OUTPUT_TOKENS": "8192",
+    // Dollars per run, summed from the cost OpenRouter reports in each response.
+    "AGENT_MAX_COST_USD": "0.25",
     // Pause between stub steps so concurrent runs visibly overlap.
     "STUB_STEP_MS": "2500",
     // Container size. "lite" runs the stub but is CPU-starved (about 2x slower end to end); claude needs standard-1 or larger.
-    "SANDBOX_INSTANCE": "standard-1"
+    "SANDBOX_INSTANCE": "standard-1",
+    // How often a WorkspaceCell polls its repos through the Artifacts binding (ms, 100-60000).
+    "POLL_INTERVAL_MS": "3000",
+    // The one human the bearer secret stands for. Must match the authority in the scenario's policy.
+    "DEMO_ACTOR_ID": "decision-owner",
+    "DEMO_ACTOR_NAME": "Decision owner (demo identity)"
   },
   "artifacts": [{ "binding": "ARTIFACTS", "namespace": "default" }],
   "durable_objects": {
