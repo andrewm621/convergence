@@ -122,6 +122,7 @@ export function presentRun(run: RunRecord) {
 		usage: run.usage,
 		clockSkewMs: run.clockSkewMs,
 		activity: run.activity,
+		refreshError: run.refreshError ?? null,
 	};
 }
 
