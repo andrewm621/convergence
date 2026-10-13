@@ -72,6 +72,8 @@ const ALARM_INTERVAL_MS = 3_000;
 const CONTAINER_IO_TIMEOUT_MS = 10_000;
 /** Safety net for a whole refresh, finishing a run included (its verification reads have their own limits). */
 const REFRESH_TIMEOUT_MS = 120_000;
+/** Everything startRun does between recording the run and the agent process being started. */
+const LAUNCH_TIMEOUT_MS = 120_000;
 /** Stopping the container and revoking the token while finishing a run. */
 const TEARDOWN_TIMEOUT_MS = 15_000;
 /** The run endpoint answers from the stored record after this long, even while a refresh is still in flight. */
@@ -349,74 +351,12 @@ export class AgentSandbox extends DurableObject<Env> {
 		this.ctx.storage.kv.put(METER_KEY, newMeter(runId, input.limits));
 		this.rememberKey({ key: input.idempotencyKey, fingerprint: input.fingerprint });
 
+		const launching = { abandoned: false };
 		try {
-			const baseHead = await this.readForkHead(input.forkRepo);
-			// Verification needs a known starting point; a fork with no history can't be verified, so don't run.
-			if (!baseHead) throw new Error("the fork has no commits to start from");
-			const expectedReceipt = input.revalidate
-				? await buildRevalidationReceipt({
-						workItemId: input.workItemId,
-						baseCommit: baseHead,
-						changes: input.revalidate.changes,
-						contextFiles: input.revalidate.context,
-					})
-				: null;
-			await this.startContainer(input, runId, host, path);
-			await this.files.remove(REPO_DIR, { recursive: true, force: true });
-			await this.files.remove(TASK_DIR, { recursive: true, force: true });
-			await this.files.mkdir(INBOX_DIR, { recursive: true });
-			if (input.revalidate) {
-				for (const [name, text] of Object.entries(input.revalidate.context)) {
-					await this.files.writeFile(`${INBOX_DIR}/${name}`, text);
-				}
-				await this.files.writeFile(`${TASK_DIR}/revalidate.json`, JSON.stringify(input.revalidate.changes));
-			}
-
-			const taskPrompt = input.revalidate
-				? `${buildRevalidationPrompt(input.revalidate.changes)}\n\nOriginal task:\n${input.prompt}`
-				: input.prompt;
-			const subjectText = input.revalidate
-				? `revalidate ${input.revalidate.changes.map((c) => `${c.recordId} v${c.fromVersion}->v${c.toVersion}`).join(", ") || "claims"}`
-				: input.prompt;
-
-			const env: Record<string, string> = {
-				...TRUST_ENV,
-				HOME: "/root",
-				WORK_ITEM_ID: input.workItemId,
-				AGENT_MODE: input.mode,
-				AGENT_MODEL: input.model,
-				// The credential-free remote. The token is added to the request by ArtifactsGateway.
-				ARTIFACTS_GIT_REMOTE: input.remote,
-				GIT_AUTHOR_NAME: author.name,
-				GIT_AUTHOR_EMAIL: author.email,
-				GIT_COMMITTER_NAME: author.name,
-				GIT_COMMITTER_EMAIL: author.email,
-				COMMIT_SUBJECT: commitSubject(input.workItemId, subjectText),
-				AGENT_PROMPT: input.mode === "claude" ? buildAgentPrompt(input.workItemId, taskPrompt) : taskPrompt,
-				STUB_STEP_MS: String(input.stubStepMs),
-				AGENT_MAX_TURNS: String(input.maxTurns),
-				AGENT_MAX_BUDGET_USD: String(input.maxBudgetUsd),
-				AGENT_TIMEOUT_S: String(input.timeoutS),
-				REPO_DIR,
-				TASK_DIR,
-				EVENTS_FILE: EVENTS_PATH,
-				...(input.mode === "claude" ? claudeEnv(input.model, input.limits.maxOutputTokens) : {}),
-			};
-
-			const clockSkewMs = await this.measureClockSkew();
-			const startedAt = new Date().toISOString();
-			await this.container.exec(["/bin/sh", "-c", TASK_SCRIPT, "agent", TASK_DIR, "/opt/delta/run-agent.sh"], {
-				cwd: "/workspace",
-				env,
-				stdout: "ignore",
-				stderr: "ignore",
-			});
-
-			const run: RunRecord = { ...provisional, startedAt, baseHead, clockSkewMs, expectedReceipt };
-			this.ctx.storage.kv.put(RUN_KEY, run);
-			await this.ctx.storage.setAlarm(Date.now() + ALARM_INTERVAL_MS);
-			return run;
+			// Bounded as a whole: every container call in here (start, intercepts, file writes, the agent exec) can wait on the container.
+			return await withTimeout(this.launchSteps(input, provisional, host, path, launching), LAUNCH_TIMEOUT_MS, "launching the run");
 		} catch (e) {
+			launching.abandoned = true;
 			// The run never launched: close the record, free the key so the caller can retry, and let the caller revoke the token.
 			this.forgetKey(input.idempotencyKey);
 			this.deactivateMeter();
@@ -426,10 +366,92 @@ export class AgentSandbox extends DurableObject<Env> {
 				finishedAt: new Date().toISOString(),
 				error: redactText(e instanceof Error ? e.message : String(e)).slice(0, 500),
 			} satisfies RunRecord);
-			if (this.container.running) await this.container.destroy().catch(() => undefined);
+			if (this.container.running) await withTimeout(this.container.destroy(), TEARDOWN_TIMEOUT_MS, "stopping the container").catch(() => undefined);
 			this.setup = undefined;
 			throw e;
 		}
+	}
+
+	private async launchSteps(
+		input: StartRunInput,
+		provisional: RunRecord,
+		host: string,
+		path: string,
+		launching: { abandoned: boolean },
+	): Promise<RunRecord> {
+		const author = authorFor(input.workItemId);
+		const runId = provisional.runId;
+		const baseHead = await this.readForkHead(input.forkRepo);
+		// Verification needs a known starting point; a fork with no history can't be verified, so don't run.
+		if (!baseHead) throw new Error("the fork has no commits to start from");
+		const expectedReceipt = input.revalidate
+			? await buildRevalidationReceipt({
+					workItemId: input.workItemId,
+					baseCommit: baseHead,
+					changes: input.revalidate.changes,
+					contextFiles: input.revalidate.context,
+				})
+			: null;
+		await this.startContainer(input, runId, host, path);
+		await this.files.remove(REPO_DIR, { recursive: true, force: true });
+		await this.files.remove(TASK_DIR, { recursive: true, force: true });
+		await this.files.mkdir(INBOX_DIR, { recursive: true });
+		if (input.revalidate) {
+			for (const [name, text] of Object.entries(input.revalidate.context)) {
+				await this.files.writeFile(`${INBOX_DIR}/${name}`, text);
+			}
+			await this.files.writeFile(`${TASK_DIR}/revalidate.json`, JSON.stringify(input.revalidate.changes));
+		}
+
+		const taskPrompt = input.revalidate
+			? `${buildRevalidationPrompt(input.revalidate.changes)}\n\nOriginal task:\n${input.prompt}`
+			: input.prompt;
+		const subjectText = input.revalidate
+			? `revalidate ${input.revalidate.changes.map((c) => `${c.recordId} v${c.fromVersion}->v${c.toVersion}`).join(", ") || "claims"}`
+			: input.prompt;
+
+		const env: Record<string, string> = {
+			...TRUST_ENV,
+			HOME: "/root",
+			WORK_ITEM_ID: input.workItemId,
+			AGENT_MODE: input.mode,
+			AGENT_MODEL: input.model,
+			// The credential-free remote. The token is added to the request by ArtifactsGateway.
+			ARTIFACTS_GIT_REMOTE: input.remote,
+			GIT_AUTHOR_NAME: author.name,
+			GIT_AUTHOR_EMAIL: author.email,
+			GIT_COMMITTER_NAME: author.name,
+			GIT_COMMITTER_EMAIL: author.email,
+			COMMIT_SUBJECT: commitSubject(input.workItemId, subjectText),
+			AGENT_PROMPT: input.mode === "claude" ? buildAgentPrompt(input.workItemId, taskPrompt) : taskPrompt,
+			STUB_STEP_MS: String(input.stubStepMs),
+			AGENT_MAX_TURNS: String(input.maxTurns),
+			AGENT_MAX_BUDGET_USD: String(input.maxBudgetUsd),
+			AGENT_TIMEOUT_S: String(input.timeoutS),
+			REPO_DIR,
+			TASK_DIR,
+			EVENTS_FILE: EVENTS_PATH,
+			...(input.mode === "claude" ? claudeEnv(input.model, input.limits.maxOutputTokens) : {}),
+		};
+
+		const clockSkewMs = await this.measureClockSkew();
+		if (launching.abandoned) throw new Error("the launch was given up on");
+		const startedAt = new Date().toISOString();
+		await this.container.exec(["/bin/sh", "-c", TASK_SCRIPT, "agent", TASK_DIR, "/opt/delta/run-agent.sh"], {
+			cwd: "/workspace",
+			env,
+			stdout: "ignore",
+			stderr: "ignore",
+		});
+
+		if (launching.abandoned) {
+			this.container.destroy().catch(() => undefined);
+			throw new Error("the launch was given up on");
+		}
+		const run: RunRecord = { ...provisional, startedAt, baseHead, clockSkewMs, expectedReceipt };
+		this.ctx.storage.kv.put(RUN_KEY, run);
+		await this.ctx.storage.setAlarm(Date.now() + ALARM_INTERVAL_MS);
+		return run;
 	}
 
 	// ---- idempotency ----
@@ -739,7 +761,7 @@ export class AgentSandbox extends DurableObject<Env> {
 	private async measureClockSkew(): Promise<number> {
 		try {
 			const before = Date.now();
-			const out = await (await this.container.exec(["date", "-u", "+%s%3N"])).output();
+			const out = await withDeadline("reading the container clock", CONTAINER_IO_TIMEOUT_MS, async (signal) => (await this.container.exec(["date", "-u", "+%s%3N"], { signal })).output());
 			const after = Date.now();
 			const containerMs = Number.parseInt(new TextDecoder().decode(out.stdout).trim(), 10);
 			return Number.isFinite(containerMs) ? Math.round((before + after) / 2 - containerMs) : 0;

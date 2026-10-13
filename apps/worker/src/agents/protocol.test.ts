@@ -392,6 +392,18 @@ describe("untrusted container output", () => {
 		});
 	});
 
+	describe("readCappedText", () => {
+		it("returns at the cap even when cancelling the stream never settles", async () => {
+			const chunk = new Uint8Array(1024).fill(65);
+			const stream = new ReadableStream<Uint8Array>({
+				pull: (controller) => controller.enqueue(chunk),
+				cancel: () => new Promise(() => {}),
+			});
+			const text = await readCappedText(stream, 4096);
+			expect(text.length).toBe(4096);
+		});
+	});
+
 	describe("withDeadline and settleWithin", () => {
 		it("withDeadline aborts the operation and rejects with a ContainerTimeoutError when it never settles", async () => {
 			let signal: AbortSignal | undefined;

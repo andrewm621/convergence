@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const io = vi.hoisted(() => ({
 	readFile: undefined as unknown as (path: string, options?: { signal?: AbortSignal }) => Promise<Response>,
+	remove: (async () => undefined) as (path: string) => Promise<void>,
 }));
 
 vi.mock("cloudflare:workers", () => ({
@@ -26,6 +27,11 @@ vi.mock("@cloudflare/sandbox", () => {
 		readFile(path: string, options?: { signal?: AbortSignal }) {
 			return io.readFile(path, options);
 		}
+		remove(path: string) {
+			return io.remove(path);
+		}
+		mkdir = async () => undefined;
+		writeFile = async () => undefined;
 	}
 	return { Files, SandboxFileError };
 });
@@ -36,6 +42,8 @@ import { DEFAULT_LIMITS, newMeter } from "./gateway-logic";
 import { AgentSandbox, type RunRecord } from "./sandbox";
 
 const RUN_ID = "run-1";
+// The mocked SandboxFileError (the real class is not constructable under its type).
+const enoent = () => new (SandboxFileError as unknown as new (message: string) => Error)("no such file");
 const NEVER = () => new Promise<never>(() => undefined);
 const text = (body: string) => new Response(body);
 const eventLine = (what: string) => `${JSON.stringify({ workItemId: "wi-1", ts: new Date().toISOString(), kind: "agent", text: what })}\n`;
@@ -72,13 +80,24 @@ function makeSandbox(exec: (cmd: string[], options?: { signal?: AbortSignal }) =
 		["meter", newMeter(RUN_ID, DEFAULT_LIMITS)],
 	]);
 	const setAlarm = vi.fn(async () => undefined);
-	const container = { running: true, exec: vi.fn(exec), destroy: vi.fn(async () => undefined), setInactivityTimeout: vi.fn(async () => undefined) };
+	const container = {
+		running: true,
+		images: { agent: "agent" },
+		exec: vi.fn(exec),
+		destroy: vi.fn(async () => undefined),
+		start: vi.fn(),
+		setInactivityTimeout: vi.fn(async () => undefined),
+		interceptOutboundHttps: vi.fn(async () => undefined),
+	};
 	const ctx = {
 		container,
+		exports: { ArtifactsGateway: () => ({}), ModelGateway: () => ({}) },
 		storage: { kv: { get: (k: string) => kv.get(k), put: (k: string, v: unknown) => void kv.set(k, v) }, setAlarm },
 		blockConcurrencyWhile: async (fn: () => Promise<void>) => fn(),
 	};
-	const sandbox = new AgentSandbox(ctx as never, {} as never);
+	const repo = { log: async () => [{ hash: "a".repeat(40) }], [Symbol.dispose]: () => undefined };
+	const env = { ARTIFACTS: { get: async () => repo } };
+	const sandbox = new AgentSandbox(ctx as never, env as never);
 	return { sandbox, kv, setAlarm, container };
 }
 
@@ -89,11 +108,11 @@ function aliveFiles(overrides: Record<string, () => Promise<Response>> = {}) {
 		calls.push(path.split("/").pop() as string);
 		const key = path.split("/").pop() as string;
 		if (overrides[key]) return overrides[key]!();
-		if (key === "exit-code") throw new SandboxFileError("no such file");
-		if (key === "pid") throw new SandboxFileError("no such file");
+		if (key === "exit-code") throw enoent();
+		if (key === "pid") throw enoent();
 		if (key === "events.jsonl") return text(eventLine("clone") + eventLine("working"));
 		void options;
-		throw new SandboxFileError("no such file");
+		throw enoent();
 	};
 	return calls;
 }
@@ -123,7 +142,7 @@ describe("a container read that never settles", () => {
 		let hang = true;
 		const calls = aliveFiles({
 			"exit-code": () => {
-				if (!hang) return Promise.reject(new SandboxFileError("no such file"));
+				if (!hang) return Promise.reject(enoent());
 				return NEVER();
 			},
 		});
@@ -199,5 +218,67 @@ describe("an abandoned refresh that wakes up late", () => {
 		release(text(eventLine("late")));
 		await vi.advanceTimersByTimeAsync(1_000);
 		expect((kv.get("run") as RunRecord).state).toBe("succeeded");
+	});
+});
+
+describe("the run timeout still fires", () => {
+	it("fails a run that is past its limit even though the container never answered the polls before it", async () => {
+		aliveFiles({ "exit-code": NEVER });
+		const { sandbox, kv } = makeSandbox(async () => NEVER());
+		// 29 minutes in: every poll so far has been stuck on the container.
+		kv.set("run", { ...(kv.get("run") as RunRecord), startedAt: new Date(Date.now() - 29 * 60_000).toISOString() });
+		const first = sandbox.readRun();
+		await vi.advanceTimersByTimeAsync(5_000);
+		expect((await first)?.state).toBe("running");
+		await vi.advanceTimersByTimeAsync(12_000);
+		// Two minutes later the limit has passed; the next poll gets as far as the check and ends the run.
+		await vi.advanceTimersByTimeAsync(2 * 60_000);
+		const last = sandbox.readRun();
+		await vi.advanceTimersByTimeAsync(5_000);
+		expect(await last).toMatchObject({ state: "failed", error: "run exceeded the time limit" });
+	});
+});
+
+describe("a launch that hangs", () => {
+	const input = {
+		workItemId: "wi-1",
+		forkRepo: "smoke-x-wi-1",
+		remote: "https://acct.artifacts.cloudflare.net/git/default/smoke-x-wi-1.git",
+		token: "t",
+		tokenId: "id",
+		mode: "claude" as const,
+		model: "z-ai/glm-5.3-flash",
+		prompt: "Do it",
+		stubStepMs: 0,
+		instance: "standard-1" as const,
+		maxTurns: 5,
+		maxBudgetUsd: 1,
+		timeoutS: 60,
+		limits: DEFAULT_LIMITS,
+		idempotencyKey: "k1",
+		fingerprint: "f1",
+	};
+
+	it("fails the run and frees the dispatch lock instead of staying busy forever", async () => {
+		io.remove = () => NEVER();
+		const { sandbox, kv } = makeSandbox(async () => NEVER());
+		kv.delete("run");
+		const started = sandbox.startRun(input as never);
+		const settled = started.then(
+			() => "resolved",
+			(e: Error) => e.message,
+		);
+		await vi.advanceTimersByTimeAsync(120_001);
+		expect(await settled).toMatch(/launching the run timed out/);
+		expect((kv.get("run") as RunRecord).state).toBe("failed");
+		// The lock is released: another dispatch is judged on its own merits (and fails the same way), not answered "busy".
+		io.remove = () => NEVER();
+		const again = sandbox.startRun({ ...input, idempotencyKey: "k2", fingerprint: "f2" } as never).then(
+			(o) => o.status,
+			(e: Error) => e.message,
+		);
+		await vi.advanceTimersByTimeAsync(120_001);
+		expect(await again).toMatch(/timed out/);
+		io.remove = async () => undefined;
 	});
 });
