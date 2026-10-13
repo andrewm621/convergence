@@ -6,7 +6,7 @@ alwaysApply: true
 Follow `AGENTS.md` at the repo root; it is the canonical instruction file for every agent.
 
 - The spec is `docs/PRD.md`. Contracts and rules R1–R9 in §4 are authoritative.
-- Pick up work from Maestro tasks in `.maestro/tasks/` and check acceptance boxes in `.maestro/todos/`. Post blocking questions to `.maestro/channels/T-<id>.md`.
+- Work to the acceptance criteria of the task you were handed (the task board is kept locally and not published). Post blocking questions in the channel you were given.
 - `packages/delta-core` stays pure: no I/O, no Cloudflare types, no LLM calls.
 - Cloud agents never deploy and never touch secrets. Write code and tests, then open a PR.
 - Public repo: no secrets, account IDs, client or person names, or private paths in tracked files.

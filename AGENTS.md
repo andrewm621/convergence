@@ -5,16 +5,16 @@ Instructions for any coding agent working in this repo: Claude Code, Cursor (loc
 ## What this is
 Delta Convergence is a deterministic reconciliation control plane for concurrent human and agent work, built on Cloudflare Workers and Artifacts. When an accepted decision changes mid-flight, it finds the work that relied on the old version, blocks it from merging, and drives a human-approved reconciliation. No LLM is needed for the control loop.
 
-**The spec is [`docs/PRD.md`](docs/PRD.md).** Read §4 (contracts and rules R1–R9), §5 (architecture and repo layout) and §9 (build plan) before changing anything. The PRD wins over your assumptions; if you think it's wrong, say so in your task channel and don't silently diverge.
+**The spec is [`docs/PRD.md`](docs/PRD.md).** Read §4 (contracts and rules R1–R9), §5 (architecture and repo layout) and §9 (build plan) before changing anything. The PRD wins over your assumptions; if you think it's wrong, say so in your task channel (or in the PR) and don't silently diverge.
 
 This is a contest entry with a hard deadline: **Wed 2026-10-14, 11:59 PM PT.** Prefer working and demonstrable over complete.
 
-## Task board (Maestro)
-Work is tracked as Maestro tasks in [`.maestro/tasks/`](.maestro/tasks/). Each task has a goal, context pointers and acceptance boxes.
-- Pick up a task only if its `depends_on` tasks are done and nobody else has a live claim on it.
-- Check acceptance boxes in `.maestro/todos/T-<id>.todos.md` as you go.
-- If you're blocked or facing a decision you can't make, post a question to the task's channel (`.maestro/channels/T-<id>.md`). Don't guess silently.
-- When all boxes pass and typecheck and tests are green, set the task status to `review`.
+## Task board
+The maintainer tracks work on a task board that is kept locally and is not published in this repo (`.maestro/` is gitignored). If you were handed a task, its goal, context pointers and acceptance criteria came with it.
+- If a task has dependencies, don't start it until they are done and nobody else has a live claim on it.
+- Work to the acceptance criteria you were given and check them off as you go.
+- If you're blocked or facing a decision you can't make, ask in the channel you were given for the task. Don't guess silently.
+- When all criteria pass and typecheck and tests are green, mark the task ready for review.
 
 ## Layout
 ```
@@ -67,4 +67,4 @@ pnpm --filter worker exec wrangler deploy   # maintainer machine only (see Secre
 - Before every commit, run `git status --short` and confirm nothing secret or private is staged.
 
 ## Definition of done for any change
-`pnpm -r typecheck` and `pnpm -r test` pass, the relevant Maestro acceptance boxes are checked, and no hygiene rule is broken.
+`pnpm -r typecheck` and `pnpm -r test` pass, the task's acceptance criteria are met, and no hygiene rule is broken.

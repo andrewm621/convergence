@@ -1,4 +1,4 @@
-# --- Local-only context (points at Andrew's private knowledge vault; never public) ---
+# --- Local-only context (points at a private knowledge vault; never public) ---
 CLAUDE.local.md
 AGENTS.local.md
 *.local.md
@@ -36,8 +36,8 @@ worker-configuration.d.ts.bak
 !.vscode/extensions.json
 .idea/
 
-# Maestro machine-local state
-.maestro/locks/
+# Maestro task board: kept locally, not published
+.maestro/
 
 # Claude Code agent worktrees
 .claude/worktrees/

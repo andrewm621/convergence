@@ -24,16 +24,16 @@
 
 ## Checklist
 
-Status values: **done**, **in progress**, **not started**, **risk**, **info** (a term to know, with no action for us). "Andrew-only" means a human attestation or account action that an agent must not do.
+Status values: **done**, **in progress**, **not started**, **risk**, **info** (a term to know, with no action for us). "Owner-only" means a human attestation or account action that an agent must not do.
 
 | # | Requirement | Source (URL) | Our status | Evidence or owner task | Notes |
 |---|---|---|---|---|---|
 | | **Eligibility and entry** | | | | |
-| 1 | Entrant is a legal resident of the United States or Canada. Header: "VOID OUTSIDE OF THE UNITED STATES AND CANADA". | Rules §3 (PDF) | not started | Andrew-only attestation (T-12) | Applies to every Entrant. Unclear whether the optional second attendee counts as an Entrant (see A1). |
-| 2 | Entrant is 18 or older as of Oct 1, 2026 9:00 AM EDT. | Rules §3 | not started | Andrew-only attestation (T-12) | |
-| 3 | Not sanctions-listed. Not an employee, officer or director of Cloudflare, its affiliates or agencies, nor their immediate family or household members. Not an employee, officer or director of any government, public-sector or state-owned entity. | Rules §3 | not started | Andrew-only attestation (T-12) | Sponsor may verify eligibility at any time. Check for any government or public-sector role before ticking the box. |
+| 1 | Entrant is a legal resident of the United States or Canada. Header: "VOID OUTSIDE OF THE UNITED STATES AND CANADA". | Rules §3 (PDF) | not started | Owner-only attestation (T-12) | Applies to every Entrant. Unclear whether the optional second attendee counts as an Entrant (see A1). |
+| 2 | Entrant is 18 or older as of Oct 1, 2026 9:00 AM EDT. | Rules §3 | not started | Owner-only attestation (T-12) | |
+| 3 | Not sanctions-listed. Not an employee, officer or director of Cloudflare, its affiliates or agencies, nor their immediate family or household members. Not an employee, officer or director of any government, public-sector or state-owned entity. | Rules §3 | not started | Owner-only attestation (T-12) | Sponsor may verify eligibility at any time. Check for any government or public-sector role before ticking the box. |
 | 4 | Each Entrant is limited to one Submission. | Rules §4 | not started | T-12 | Submit once. Use the form's review step instead of test submissions. |
-| 5 | No automated or scripted entry. The Application is submitted by a person. | Rules §4, §5 | not started | T-12 (Andrew-only) | Agents may prepare paste-ready text but must not submit. |
+| 5 | No automated or scripted entry. The Application is submitted by a person. | Rules §4, §5 | not started | T-12 (Owner-only) | Agents may prepare paste-ready text but must not submit. |
 | 6 | Agree to the Official Rules by selecting Yes on the terms in the form. The form shows two checkboxes. | Rules §4; Form | not started | T-12 | |
 | 7 | Team fields: team name, primary contact name and email, team location, first attendee name and email (all required). Second attendee name and email are optional. | Form | not started | T-12; PRD §13 item 3 (solo or second attendee) | Decide solo vs second attendee before filling in. Monitor the primary contact email for finalist notice. |
 | | **Deadline and completeness** | | | | |
@@ -57,7 +57,7 @@ Status values: **done**, **in progress**, **not started**, **risk**, **info** (a
 | 23 | Do not deceive. The Sponsor may disqualify for "cheating, hacking, deception, or other fraudulent, deceptive or unfair playing practices". | Rules §5, §13 | in progress | T-10 honesty legend (LIVE, SEEDED, REPLAY, GRAPHIC); T-9 "Implemented vs not" table | Keep seeded and replayed segments labelled. |
 | 24 | The Sponsor receives a perpetual, irrevocable, worldwide license to the demo video and presentation materials for any purpose. Entrant warrants authority to grant it. | Rules §9 | info | T-12 | Nobody else's face or voice may appear without their consent. Nothing private on screen. |
 | | **Repository and run instructions** | | | | |
-| 25 | Public open-source repository URL. The Sponsor also needs access to the complete source code to administer and judge. | Rules §4, §9; Form; Page | not started | T-12 (Andrew-only: flip the repo public) | Repo is private now. Keep it public and unrewritten through the finals (Oct 21) and beyond. |
+| 25 | Public open-source repository URL. The Sponsor also needs access to the complete source code to administer and judge. | Rules §4, §9; Form; Page | not started | T-12 (Owner-only: flip the repo public) | Repo is private now. Keep it public and unrewritten through the finals (Oct 21) and beyond. |
 | 26 | License is MIT, Apache-2.0, or BSD 2-Clause or 3-Clause, and the repository includes a LICENSE file identifying it. | Rules §4; Blog-1 | done | `LICENSE` (MIT) at the repo root; root `package.json` has `"license": "MIT"` | Sub-package `package.json` files carry no license field. That is cosmetic. Add one if time allows. |
 | 27 | Instructions to run or try the project, entered in the form's required text field. | Rules §4; Form; Blog-1 | in progress | T-9 (README in progress), T-8 (fresh-clone test, open); paste-ready draft in `submission-copy.md` §6 | `README.md` is currently a 5-line stub. |
 | 28 | Run instructions must be usable by a judge without our accounts. Live mode needs Workers Paid with Artifacts access plus a model key. | Rules §6 (criterion 3); Blog-1 | risk | T-8 (replay mode, open) | Offer a no-credentials path (replay) and say plainly what it does and does not show. Ease of use is 25% of the score. |
@@ -74,9 +74,9 @@ Status values: **done**, **in progress**, **not started**, **risk**, **info** (a
 | 37 | Criterion 3, 25%: ease of use and product/user experience. | Rules §6, §7 | in progress | T-5 console (in progress), T-12 cold-reader test | A third of the score is how clear the console is. |
 | 38 | Each criterion is scored 1 to 5. Judges' and Sponsor's decisions are final. | Rules §5, §6, §7 | info | | |
 | | **After submission** | | | | |
-| 39 | Three finalists are chosen. The Page and Form say they are announced Oct 16. The Rules say finalists "will be notified in advance of Cloudflare Connect". | Rules §6; Page; Form | not started | Andrew calendar | Watch the primary contact inbox, including spam, from Oct 16. |
-| 40 | Finalists present for 10 minutes live on stage at Cloudflare Connect, Moscone West, San Francisco, Oct 21, 2026. | Rules §6 | not started | Andrew calendar; PRD §13 item 9 | Prepare a live demo that survives bad conference Wi-Fi: deployed build plus replay fallback. |
-| 41 | The potential winner is announced at Connect and "must be physically present at Cloudflare Connect to be eligible". | Rules §7 | not started | Andrew calendar | Attendance is explicit for the winner and implicit for finalists (A6). |
+| 39 | Three finalists are chosen. The Page and Form say they are announced Oct 16. The Rules say finalists "will be notified in advance of Cloudflare Connect". | Rules §6; Page; Form | not started | Owner calendar | Watch the primary contact inbox, including spam, from Oct 16. |
+| 40 | Finalists present for 10 minutes live on stage at Cloudflare Connect, Moscone West, San Francisco, Oct 21, 2026. | Rules §6 | not started | Owner calendar; PRD §13 item 9 | Prepare a live demo that survives bad conference Wi-Fi: deployed build plus replay fallback. |
+| 41 | The potential winner is announced at Connect and "must be physically present at Cloudflare Connect to be eligible". | Rules §7 | not started | Owner calendar | Attendance is explicit for the winner and implicit for finalists (A6). |
 | 42 | The potential winner may be sent a declaration of eligibility and a liability, IP and publicity release. | Rules §7 | info | | |
 | 43 | Travel: the Sponsor "may provide reasonable travel and hotel accommodations and tickets" for up to two representatives per finalist, as the Sponsor determines. Finalists pay for passports, visas, meals, incidentals and unapproved costs. The Page says Cloudflare covers travel. | Rules §6; Page | info | | Discretionary in the Rules (A5). Get written confirmation before booking anything. |
 | 44 | Prize: first place only. $25,000 in Cloudflare credits valid 12 months from award, plus an invitation to the VIP Speakers Dinner (stated value $200). Winner pays any taxes. Not transferable or redeemable for cash. No second or third prize is stated. | Rules §8; Page | info | | |
@@ -125,7 +125,7 @@ Status values: **done**, **in progress**, **not started**, **risk**, **info** (a
 
 Times are PT. The hard deadline is 11:59 PM PDT. The internal target is 6:00 PM.
 
-1. **Eligibility (Andrew-only).** Confirm items 1 to 3, and decide solo vs second attendee (item 7, A1).
+1. **Eligibility (Owner-only).** Confirm items 1 to 3, and decide solo vs second attendee (item 7, A1).
 2. **Freeze scope.** Stop adding features. The order of sacrifice, from T-12: second take, Scenario B segment, editing polish. Never skip the logged-out link check.
 3. **Claims audit.** Walk `submission-copy.md` §7 against the shipped build. Cut or soften anything that did not ship (Queues, AI Gateway, git notes, Sandbox if a local runner was used).
 4. **README complete.** Architecture, "where Workers and Artifacts are used", run instructions with prerequisites (Workers Paid, Artifacts access, model key), a replay path for judges without credentials, "Implemented vs not", "What Delta does not do", neutral comparison table, attributions, AI-assistance line.
@@ -136,9 +136,9 @@ Times are PT. The hard deadline is 11:59 PM PDT. The internal target is 6:00 PM.
 9. **Deploy** from the maintainer machine. Open the URL in a logged-out browser. Confirm Workers Paid is active and Artifacts calls succeed.
 10. **Record** (T-12). Two takes if time allows. Label SEEDED and REPLAY segments. No tokens, account IDs or private paths on screen. No unlicensed music or third-party material. Neutral wording on alternatives.
 11. **Export** as MP4 (H.264), 5:00 to 10:00 (target about 7:55), under 2 GiB. Watch the whole export once for audio, legibility and anything that should not be on screen.
-12. **Flip the repo public** (Andrew-only). Clone it from a logged-out context. Tag the submitted commit (for example `submission`). From here on, no history rewrites.
+12. **Flip the repo public** (Owner-only). Clone it from a logged-out context. Tag the submitted commit (for example `submission`). From here on, no history rewrites.
 13. **Prepare paste-ready form text.** Project name, vision (recount words), how Cloudflare was used (with the deployed URL), run instructions, repo URL, team fields.
-14. **Fill the form** (Andrew-only). Use the review step. Upload the video file and wait for the upload to finish. Tick both confirmations. Submit by 6:00 PM, and in any case before 11:59 PM PDT.
+14. **Fill the form** (Owner-only). Use the review step. Upload the video file and wait for the upload to finish. Tick both confirmations. Submit by 6:00 PM, and in any case before 11:59 PM PDT.
 15. **Save the confirmation** outside tracked files (email or screenshot).
-16. **Post-submit checks.** From a logged-out browser: repo loads, `LICENSE` shows, README renders, deployed URL loads, replay works. Log the result in `.maestro/channels/T-12.md`.
+16. **Post-submit checks.** From a logged-out browser: repo loads, `LICENSE` shows, README renders, deployed URL loads, replay works. Log the result on the local task board.
 17. **Hold the line until the finals.** Keep the repo public and the Worker deployed. Do not deploy risky changes. Watch the primary contact inbox from Oct 16. Hold Oct 21 in San Francisco, and get written travel confirmation before booking.

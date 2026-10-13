@@ -208,7 +208,7 @@ describe("live client: commands", () => {
 					pass: true,
 					reasonCodes: ["EXCEPTION_APPLIED"],
 					blockers: [],
-					waivedBy: [{ kind: "accept-exception", scope: "Hall A only", rationale: "ok", actor: { kind: "human", id: "d", displayName: "Andrew" } }],
+					waivedBy: [{ kind: "accept-exception", scope: "Hall A only", rationale: "ok", actor: { kind: "human", id: "d", displayName: "Decision owner" } }],
 					baselineCommit: "b".repeat(40),
 					snapshotHash: "c".repeat(64),
 					forkHeadSha: "f".repeat(40),
@@ -217,7 +217,7 @@ describe("live client: commands", () => {
 			),
 		);
 		const gate = await client.api.gate("WI-2");
-		expect(gate).toMatchObject({ pass: true, reasonCodes: ["EXCEPTION_APPLIED"], blockers: [], waivedBy: [{ kind: "accept-exception", scope: "Hall A only", actor: "Andrew" }], forkHeadSha: "f".repeat(40) });
+		expect(gate).toMatchObject({ pass: true, reasonCodes: ["EXCEPTION_APPLIED"], blockers: [], waivedBy: [{ kind: "accept-exception", scope: "Hall A only", actor: "Decision owner" }], forkHeadSha: "f".repeat(40) });
 		// Work item routes are scoped to the scenario and sit under /api, and carry the bearer secret.
 		expect(String(fetchImpl.mock.calls[0]?.[0])).toBe("http://delta.test/api/scenarios/notifications/work-items/WI-2/gate");
 		expect((fetchImpl.mock.calls[0]?.[1] as RequestInit).headers).toMatchObject({ Authorization: `Bearer ${SECRET}` });
