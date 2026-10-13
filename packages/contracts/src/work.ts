@@ -62,12 +62,23 @@ export type Claim = z.infer<typeof Claim>;
 export const ClaimsFile = z.array(Claim);
 export type ClaimsFile = z.infer<typeof ClaimsFile>;
 
-/** Result of a Delta-run contract check at a specific head (rule R8). */
+/**
+ * What produced a piece of Evidence. Absent means the check's own result, as before (a Delta-run
+ * contract test). `delta-claims-check` is the Worker's own deterministic check that a verified push's
+ * claims cite the issued receipt and agree with the accepted facets; it is NOT an executed test, and a
+ * console must not present it as one.
+ */
+export const EvidenceKind = z.enum(["executed-test", "delta-claims-check"]);
+export type EvidenceKind = z.infer<typeof EvidenceKind>;
+
+/** Result of a Delta-run check at a specific head (rule R8). */
 export const Evidence = z.strictObject({
 	workItemId: WorkItemId,
 	headSha: CommitSha,
 	check: z.string().min(1),
 	pass: z.boolean(),
 	output: z.string(),
+	/** Additive and optional: contracts-v1 stays valid without it. */
+	kind: EvidenceKind.optional(),
 });
 export type Evidence = z.infer<typeof Evidence>;

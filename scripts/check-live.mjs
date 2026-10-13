@@ -106,7 +106,7 @@ const state0 = (await get("/state")).json;
 check("both records accepted at v1 from the baseline", state0.records?.notifications?.current === 1 && state0.records?.["status-model"]?.current === 1, j(Object.keys(state0.records ?? {})));
 
 const reg1 = await post("/work-items", { id: "WI-1", title: "Status badges and the status-change API", forkRepo: fork1, dependencies: [{ recordId: "status-model", facetKeys: ["status.transitions", "status.values"] }] }, "reg1");
-const reg2 = await post("/work-items", { id: "WI-2", title: "Notification preferences and delivery", forkRepo: fork2, dependencies: [{ recordId: "notifications", facetKeys: ["notifications.cadence", "notifications.default"] }, { recordId: "status-model", facetKeys: ["status.values"] }] }, "reg2");
+const reg2 = await post("/work-items", { id: "WI-2", title: "Notification preferences and delivery", forkRepo: fork2, requires: ["contract-test"], dependencies: [{ recordId: "notifications", facetKeys: ["notifications.cadence", "notifications.default"] }, { recordId: "status-model", facetKeys: ["status.values"] }] }, "reg2");
 check("register WI-1 and WI-2", reg1.status === 201 && reg2.status === 201, `${reg1.ms}/${reg2.ms} ms ${reg1.status === 201 && reg2.status === 201 ? "" : j([reg1.json, reg2.json])}`);
 
 // Open the socket before anything happens, to see snapshot and then live events.
@@ -261,8 +261,9 @@ results.timings.promoteWI1Ms = prom1Ms;
 check("WI-1 is promoted", ["promoted", "merged"].includes(await statusOf("WI-1")), `status=${await statusOf("WI-1")}`);
 
 // ---------------------------------------------------------------------------------------------------------
-// 6. Revalidate WI-2 (resolution), re-dispatch the stub with the new context (the agent-runtime wiring the cell does
-//    not do yet: the operator dispatches), then promote
+// 6. Revalidate WI-2. Since M4 the cell does the rest itself: it issues the new receipt, re-dispatches the agent with
+//    the new context, records its own check on the verified push, and WI-2 promotes. (Before M4 the operator
+//    dispatched the stub by hand here and WI-2 stayed Stale.) Needs AGENT_MODE=stub, or a model you want to pay for.
 // ---------------------------------------------------------------------------------------------------------
 {
 	const st = (await get("/state")).json;
@@ -276,24 +277,20 @@ check("WI-1 is promoted", ["promoted", "merged"].includes(await statusOf("WI-1")
 	const resEntry = ledgerR.filter((e) => e.type === "ResolutionRecorded").at(-1);
 	note(`resolution effects: ${j((resEntry?.payload?.effects ?? []).map((e) => `${e.type}:${(e.reasonCodes ?? []).join("+")}`))}`);
 
-	const file = await call("GET", `/api/repos/${baselineRepo}/file?path=context/notifications.md`);
-	const ctxText = file.json?.text ?? "";
-	const t1 = performance.now();
-	const re = await call(
-		"POST",
-		"/api/agents/dispatch",
-		{
-			forkRepo: fork2,
-			workItemId: agentIds["WI-2"],
-			prompt: "Implement notification preferences and delivery",
-			wait: true,
-			revalidate: { changes: [{ recordId: "notifications", fromVersion: 1, toVersion: 2 }], context: { "notifications.md": ctxText } },
+	const job = await until(
+		async () => {
+			const jb = ((await get("/dispatches")).json?.jobs ?? [])[0];
+			return jb && (jb.phase === "done" || jb.phase === "failed") ? jb : false;
 		},
-		idem("redispatch"),
+		240_000,
+		"the re-dispatch job to finish",
+		1000,
 	);
-	const reMs = Math.round(performance.now() - t1);
-	check("revalidation re-dispatch (stub) ran and pushed, push verified", re.json?.state === "succeeded" && re.json?.pushVerified === true, `${reMs} ms ${re.json?.error ?? ""} ${re.status}`);
-	results.timings.redispatchMs = reMs;
+	check("the cell re-dispatched the agent itself and the job reached done", job.value?.phase === "done", `${job.ms} ms ${j(job.value)}`);
+	results.timings.redispatchJobMs = job.ms;
+	note(`dispatch job: ${j(job.value)}`);
+	const run = await call("GET", `/api/agents/runs/${agentIds["WI-2"]}`);
+	check("the re-dispatched run succeeded and its push is verified", run.json?.state === "succeeded" && run.json?.pushVerified === true, `${run.json?.state} ${run.json?.error ?? ""}`);
 	const claimsFile = await call("GET", `/api/repos/${fork2}/file?path=.delta/claims.json`);
 	let reClaims = [];
 	try {
@@ -302,13 +299,30 @@ check("WI-1 is promoted", ["promoted", "merged"].includes(await statusOf("WI-1")
 		// leave empty
 	}
 	check("the revalidated push carries claims that re-cite notifications@2 with the new facet values", reClaims.length > 0 && reClaims.every((c) => c.basedOn === "notifications@2") && reClaims.some((c) => c.subject === "notifications.default" && c.value === "opt-in"), j(reClaims));
-	const seen = await until(async () => ((await wiOf("WI-2"))?.headSha === re.json?.commit ? true : false), 30_000, "the poller to record the revalidated push");
-	check("the poller recorded the revalidated push as ForkPushed", Boolean(seen.value), `${seen.ms} ms after the run returned`);
-	results.timings.revalidatedPushRecordedMs = seen.ms;
-	// KNOWN GAP (M4): nothing issues ReceiptIssued after a revalidation run, so the work item keeps its v1 receipt and stays Stale.
-	const w2 = await wiOf("WI-2");
-	note(`KNOWN GAP: WI-2 status after the revalidated push is ${w2?.item.status} (${j(w2?.conditions?.map((c) => c.type))}); ReceiptIssued is not wired from the agent runtime`);
-	results.wi2AfterRevalidation = w2?.item.status;
+
+	const after = await wiOf("WI-2");
+	check("the poller recorded the revalidated push as the head of WI-2", after?.headSha === run.json?.commit, `${after?.headSha?.slice(0, 7)} vs ${run.json?.commit?.slice(0, 7)}`);
+	check("the cell holds a new receipt at notifications v2 (issued by the Worker, before the dispatch)", after?.receipt?.accepted?.some((e) => e.recordId === "notifications" && e.version === 2), j(after?.receipt?.accepted?.map((e) => `${e.recordId}@${e.version}`)));
+	const ledgerA = (await get("/ledger?limit=500")).json.entries;
+	const order = ledgerA.map((e) => e.type);
+	check("ledger order: ReceiptIssued, AgentRunStarted, then the push, AgentRunFinished and EvidenceRecorded", order.lastIndexOf("ReceiptIssued") < order.lastIndexOf("AgentRunStarted") && order.lastIndexOf("AgentRunStarted") < order.lastIndexOf("EvidenceRecorded"), j(order.slice(-10)));
+	const atHead = (after?.evidence ?? []).filter((e) => e.headSha === after?.headSha);
+	check("the Worker recorded its own check at the verified head (kind delta-claims-check: NOT an executed contract test)", atHead.length > 0 && atHead.every((e) => e.pass && e.kind === "delta-claims-check"), j(atHead.map((e) => `${e.check}:${e.pass}:${e.kind}`)));
+	note(`receipt noteRef=${after?.receipt?.noteRef ?? "none"}; noteError=${job.value?.noteError ?? "none"}  (UNVERIFIED before this run: whether Artifacts accepts a push to refs/notes/delta)`);
+	const noteLog = await call("GET", `/api/repos/${fork2}/log?ref=refs/notes/delta`);
+	note(`GET log?ref=refs/notes/delta on the fork: HTTP ${noteLog.status} ${noteLog.json?.commits?.length ?? 0} commit(s)`);
+
+	const gateR = await get("/work-items/WI-2/gate");
+	check("WI-2 is Ready and the gate passes at the new head", (await statusOf("WI-2")) === "ready" && gateR.json?.pass === true, `status=${await statusOf("WI-2")} ${j(gateR.json?.reasonCodes)}`);
+	const stateR = (await get("/state")).json;
+	t = performance.now();
+	const prom2 = await post("/work-items/WI-2/promote", { expectedBaselineCommit: stateR.baselineCommit, forkHeadSha: after?.headSha }, "prom2");
+	const prom2Ms = Math.round(performance.now() - t);
+	check("promote WI-2 after the revalidation merges", prom2.status === 200 && prom2.json?.promoted === true, `${prom2.status} ${prom2Ms} ms ${j(prom2.json).slice(0, 300)}`);
+	results.timings.promoteWI2Ms = prom2Ms;
+	const merged = await call("GET", `/api/repos/${baselineRepo}/file?path=src/work/wi-2.ts`);
+	check("the baseline now holds WI-2's code, built on opt-in", merged.status === 200 && /opt-in/.test(merged.json?.text ?? ""), `${merged.status}`);
+	results.wi2AfterRevalidation = await statusOf("WI-2");
 }
 
 // ---------------------------------------------------------------------------------------------------------
@@ -320,10 +334,10 @@ check("WI-1 is promoted", ["promoted", "merged"].includes(await statusOf("WI-1")
 	const led = (await get("/ledger?limit=1000")).json.entries;
 	const merges = led.filter((e) => e.type === "PromotionMerged");
 	note(`ledger lines: ${led.length}; types: ${j(led.map((e) => e.type))}`);
-	check("WI-1's promotion is in the ledger as PromotionMerged", merges.length === 1, `${merges.length}`);
+	check("both promotions are in the ledger as PromotionMerged", merges.length === 2, `${merges.length}`);
 	const poller = (await get("/poller")).json;
 	check("poller healthy at the end", poller?.health?.healthy === true, j(poller?.health));
-	check("final statuses: WI-1 promoted, WI-2 still held (its receipt is not re-issued: M4)", (await statusOf("WI-1")) === "promoted" && (await statusOf("WI-2")) === "stale", `${await statusOf("WI-1")}/${await statusOf("WI-2")}`);
+	check("final statuses: WI-1 and WI-2 promoted", (await statusOf("WI-1")) === "promoted" && (await statusOf("WI-2")) === "promoted", `${await statusOf("WI-1")}/${await statusOf("WI-2")}`);
 	if (wsOk) {
 		const evs = frames.map((f) => f.data).filter((m) => m.type === "event");
 		check("WebSocket: saw an event for every ledger line since the snapshot", evs.length >= led.length - (frames[0]?.data?.meta?.seq ?? 0), `${evs.length} events, ledger ${led.length}, snapshot seq ${frames[0]?.data?.meta?.seq}`);

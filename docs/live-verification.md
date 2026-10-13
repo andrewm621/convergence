@@ -81,8 +81,10 @@ Findings from getting there:
 
 ## Still unverified
 
-- **Receipt re-issue after a revalidation (M4).** Nothing sends `ReceiptIssued` to the cell, so after the revalidated push WI-2 keeps its v1 receipt and stays Stale (`STALE_RECEIPT`); promoting WI-2 after a revalidation therefore cannot be shown live. `DISPATCH_WORK` is only announced as `agent-activity` (the operator dispatched the stub by hand). The loop is closed by wiring the verified revalidation result (the Worker computes the expected receipt already) into `recordObservation`.
-- **Contract-test evidence.** `EvidenceRecorded` is internal-only and nothing records it from the agent runtime, so the live work items were registered with `requires: []`. A `requires: ["contract-test"]` item cannot pass the gate live.
+- **The M4 revalidate loop on the deployed Worker** (`DISPATCH_WORK` to a dispatch job, `ReceiptIssued`, the stub re-run, the Worker's claims check, promote). Built and tested in-process (`revalidate-loop.workerd.test.ts`, with the in-memory Artifacts and a scripted runtime), not deployed. `scripts/check-live.mjs` step 6 now waits for the cell to do it and promotes WI-2; it has not been run.
+- **A push to `refs/notes/delta` on real Artifacts.** The note writer is tested against a real git server, not Artifacts. If Artifacts refuses a non-branch ref the receipt has no `noteRef` and the job says why (`noteError`); the loop continues.
+- **An executed contract test (R8).** Not built. The evidence the loop records is the Worker's claims check (`kind: "delta-claims-check"`), labelled "NOT AN EXECUTED TEST"; it satisfies the gate's `requires: ["contract-test"]` by name but proves less than a test run.
+- **The console on the new fields.** `Evidence.kind` and `AgentRunStarted.model` are additive contract fields the console does not read yet.
 - **A browser's WebSocket handshake** (Node's client was used, with the same subprotocol), and reconnect with `?since=`.
 - Poller failure paths against the real service (backoff, degraded notes, a baseline far ahead), alarm cadence over a long idle period, and the Queue path (not implemented).
 - Subrequest limits and latency on a large repository, and a merge conflict (`MERGE_CONFLICT`).

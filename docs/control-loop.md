@@ -57,6 +57,7 @@ Every mutating route requires an `Idempotency-Key` header (`[A-Za-z0-9._:~-]{1,1
 | `GET  /api/scenarios/:s/context/:recordId` | The prose of the record's accepted version, as `text/markdown` (prefills the Propose change editor) |
 | `GET  /api/scenarios/:s/poller` | Poll interval, `health` (`healthy` and the failing repos) and per repo: cursor, failing commit and its failure count, backoff, last error, degraded note, last poll time; `written` lists the last 20 baseline commits the Worker pushed (`sha`, `kind` context or merge, `actor`) |
 | `POST /api/scenarios/:s/context-changes` | The Worker commits a context change to the baseline as the authority. Returns `{ commitSha, version, kind, path, decisionPath, observed }` |
+| `GET  /api/scenarios/:s/dispatches` | The re-dispatches owed to the agent runtime, one per accepted revalidate resolution: phase, run id, receipt hash, `noteRef`, `noteError`, error. `runtime: false` when the cell has no agent runtime |
 | `GET  /api/scenarios/:s/work-items/:id/gate` | Dry-run promotion gate: `{ pass, reasonCodes, blockers, waivedBy, baselineCommit, snapshotHash, forkHeadSha }` |
 | `POST /api/scenarios/:s/work-items/:id/resolutions` | `revalidate`, `accept-exception` (needs `scope`) or `reject`, each with `rationale` and the `binding` the human was looking at. `workItemId` may be repeated in the body; it must match the path |
 | `POST /api/scenarios/:s/work-items/:id/promote` | `{ expectedBaselineCommit, forkHeadSha }` (and optionally `workItemId`). Two-phase, see below |
@@ -160,11 +161,29 @@ An alarm every few seconds per scenario is the idle cost of polling.
 |---|---|
 | `RECORD_CONDITION`, `BLOCK_PROMOTION`, `REQUEST_REVIEW`, `NO_ACTION` | Written to the ledger and broadcast in the `event` frame. The console reacts to them there |
 | `ALLOW_PROMOTION` | The promote request is waiting for it: it merges, then records `PromotionMerged` |
-| `DISPATCH_WORK` / `REQUEST_REVALIDATION` | Announced as an `agent-activity` status line. **Re-dispatching the agent is not wired here** (M4): override `onDispatchWork` in `CellBase` |
+| `DISPATCH_WORK` | Announced as an `agent-activity` line and queued as a re-dispatch job when the cell has an agent runtime (see Revalidate re-dispatch) |
+| `REQUEST_REVALIDATION` | Announced with the same line |
 
 A failing effect never fails the request that caused it; the ledger line is already written.
 
-Internal Durable Object RPC (not reachable over HTTP): `recordObservation(event)` for Delta-run `EvidenceRecorded` and `AgentRunStarted/Finished`, `publishActivity(activity)`, `observePush(repo, sha)`, `pollNow()`.
+Internal Durable Object RPC (not reachable over HTTP): `recordObservation(event)` for `EvidenceRecorded` and `AgentRunStarted/Finished` (never `ReceiptIssued`), `publishActivity(activity)`, `observePush(repo, sha)`, `pollNow()`, `stepDispatches()`.
+
+## Revalidate re-dispatch (M4)
+
+A human's `revalidate` Resolution makes the reconciler emit `DISPATCH_WORK`. That is only a request; `cell/dispatch-jobs.ts` answers it in the Worker, so delta-core stays pure. One job per accepted resolution is stored in the cell's SQLite (`dispatch_jobs`, keyed by the resolution's Idempotency-Key, so a replay queues nothing new) and the alarm advances it one phase at a time, beside the poller. No request waits for an agent.
+
+| Phase | What happens |
+|---|---|
+| `queued` to `prepared` | Reads the NEW accepted records from the baseline by blob hash, checks each parses to the accepted version and facet hash, and builds the receipt from the accepted state: every record the item depends on, at its current version. The runtime id is the lowercase cell id (`WI-2` is `wi-2`, `agents/work-item-ids.ts`; two ids that lowercase alike are refused). Everything is stored before any side effect |
+| `prepared` to `receipted` | Writes the receipt as a git note on the fork's current head (`refs/notes/delta`, `artifacts/git-note.ts`; best effort, 25 s limit). On failure it posts an `agent-activity` line and goes on without `noteRef`; on success the receipt carries `noteRef`. Then records `ReceiptIssued` with the receipt it is about to hand over. The Worker writes it, never the agent; there is no HTTP route that can. If the cell did not take it (`RECEIPT_MISMATCH`, no revalidation under way) the job fails and nothing is dispatched |
+| `receipted` to `running` | Dispatches the runtime with `revalidate: {changes, context}`, where `context` is the new accepted text, under a key derived from the scenario and the resolution (`redispatch-<hash>`), so a retry replays the same run. Records `AgentRunStarted` with the run id and the model (`stub agent` in stub mode) |
+| `running` to `done` | When the run ends records `AgentRunFinished`. If its push is verified, re-reads the fork, confirms the head is that commit authored by the work item and that the cell recorded it, then records `EvidenceRecorded` |
+
+Receipt before dispatch is deliberate: the reconciler only takes a receipt while the revalidation is under way, and the agent's next push ends that state. A failed or lost run leaves the item blocked (`REVALIDATION_PENDING`, and the old claims still conflict), the job `failed` and its error on `GET .../dispatches`. Retry: transient errors back off (2 s doubling) up to 5 attempts under the same key; a human can revalidate again, up to the policy's `maxRevalidations`. `GET .../dispatches` lists the jobs with phase, run id, receipt hash, `noteRef` and `noteError`.
+
+**The evidence is not a contract test.** The Worker cannot run a test suite, and nothing from the container is trusted, so after a verified push it records its own check: the claims the poller read at that head cite the versions the receipt delivered, cite every record that changed, and the reconciler's own comparison (R1, R3) finds nothing stale, conflicting or unreadable. It is recorded under each `validation:` path the gate requires, so `requires: ["contract-test"]` can be met, with `kind: "delta-claims-check"` and an `output` that starts "NOT AN EXECUTED TEST". It is deterministic and adds nothing R3 does not already check; it exists so live items can carry `requires`. The Delta-run contract test (R8) is still to be built. A failing check is recorded too (`pass: false`).
+
+Known gap: a crash between the resolution's ledger line and the job row leaves the item `revalidating` with no job; revalidate again.
 
 ## Trust boundary
 

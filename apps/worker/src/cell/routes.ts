@@ -92,6 +92,9 @@ cellApi.get("/scenarios/:scenario/ledger/verify", async (c) => respond(c, await 
 
 cellApi.get("/scenarios/:scenario/poller", async (c) => c.json(await cell(c).pollerStatus()));
 
+// The re-dispatches owed to the agent runtime (one per accepted revalidate resolution) and how far each got.
+cellApi.get("/scenarios/:scenario/dispatches", async (c) => respond(c, await cell(c).dispatches()));
+
 cellApi.get("/scenarios/:scenario/work-items/:id/gate", async (c) => {
 	const id = workItemId(c);
 	if ("response" in id) return id.response;

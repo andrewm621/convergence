@@ -1,6 +1,6 @@
 import { compareStrings } from "contracts";
 import type { FlatTree } from "../../artifacts/tree-diff";
-import { PortError, type ArtifactsPort, type CommitFilesRequest, type MergeRequest, type RepoCommit } from "../ports";
+import { PortError, type ArtifactsPort, type CommitFilesRequest, type MergeRequest, type RepoCommit, type WriteNoteRequest } from "../ports";
 
 // An in-memory Artifacts: repos of full-tree commits with real git object ids (sha-1 of the git
 // blob and of a commit-shaped string), forks that share history with their base, a path-level
@@ -16,6 +16,8 @@ class FakeRepo {
 	readonly commits = new Map<string, FakeCommit>();
 	head: string | null = null;
 	readonly blobs = new Map<string, string>();
+	/** Notes by ref, then by annotated commit. They live beside the branch, never in it. */
+	readonly notes = new Map<string, Map<string, string>>();
 }
 
 const encoder = new TextEncoder();
@@ -30,7 +32,7 @@ export async function blobOid(text: string): Promise<string> {
 	return sha1(`blob ${encoder.encode(text).byteLength}\0${text}`);
 }
 
-export type PortMethod = "log" | "readFile" | "readBlob" | "tree" | "commitFiles" | "mergeFork";
+export type PortMethod = "log" | "readFile" | "readBlob" | "tree" | "commitFiles" | "mergeFork" | "writeNote";
 
 export class FakeWorld {
 	readonly repos = new Map<string, FakeRepo>();
@@ -123,6 +125,11 @@ export class FakeWorld {
 		return Object.fromEntries(commit?.files ?? []);
 	}
 
+	/** The note on a commit, or null. */
+	noteAt(name: string, commitSha: string, ref = "refs/notes/delta"): string | null {
+		return this.#repo(name).notes.get(ref)?.get(commitSha) ?? null;
+	}
+
 	// ---------- the port ----------
 
 	port(): ArtifactsPort {
@@ -168,6 +175,14 @@ export class FakeWorld {
 				const repo = this.#repo(request.repo);
 				if (repo.head !== request.expectedHead) throw new PortError("STALE_HEAD", `${request.repo} is no longer at ${request.expectedHead}`);
 				return { commitSha: await this.push(request.repo, request.files, { author: request.author.name, committer: request.committer.name, message: request.message }) };
+			},
+			writeNote: async (request: WriteNoteRequest) => {
+				this.#enter("writeNote");
+				const repo = this.#repo(request.repo);
+				if (!repo.commits.has(request.commitSha)) throw new PortError("NOT_FOUND", `commit ${request.commitSha} not found in ${request.repo}`);
+				const forRef = repo.notes.get(request.ref) ?? new Map<string, string>();
+				forRef.set(request.commitSha, request.text);
+				repo.notes.set(request.ref, forRef);
 			},
 			mergeFork: async (request: MergeRequest) => {
 				this.#enter("mergeFork");

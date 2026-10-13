@@ -121,6 +121,8 @@ export const AgentRunStarted = z.strictObject({
 	...base,
 	workItemId: WorkItemId,
 	runId: z.string().min(1),
+	/** Additive and optional: what runs the work, for the console ("openai/gpt-6-luna", or "stub agent"). Display only; nothing decides on it. */
+	model: z.string().min(1).max(100).optional(),
 });
 
 export const AgentRunFinished = z.strictObject({

@@ -35,9 +35,7 @@ git config user.email "$GIT_AUTHOR_EMAIL"
 BASE_SHA="$(git rev-parse HEAD)"
 emit clone "cloned at $BASE_SHA"
 
-REVALIDATING=0
 if [ -f "$TASK_DIR/revalidate.json" ]; then
-	REVALIDATING=1
 	# Hand the agent the new context packet and a receipt of what was delivered.
 	mkdir -p .delta/context
 	cp "$TASK_DIR"/inbox/*.md .delta/context/
@@ -105,12 +103,5 @@ while :; do
 	sleep "$(awk 'BEGIN{srand(); printf "%.2f", 0.1 + rand()*0.4}')"
 done
 
-if [ "$REVALIDATING" = 1 ]; then
-	# The receipt also travels with the repo as a git note (refs/notes/delta). Best effort: the push above stands without it.
-	if git notes --ref=delta add -f -F .delta/receipt.json "$HEAD_SHA" && git push --quiet origin refs/notes/delta 2>/dev/null; then
-		emit receipt "receipt note pushed to refs/notes/delta"
-	else
-		emit receipt "receipt note not pushed (refs/notes/delta)"
-	fi
-fi
+# The receipt note (refs/notes/delta) is written by the Worker, not here: the agent never issues its own receipt.
 emit done "run finished"
