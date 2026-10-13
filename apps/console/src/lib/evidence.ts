@@ -7,7 +7,7 @@ import type { Evidence } from "contracts";
 export const CLAIMS_CHECK_LABEL = "Claims check (not an executed test)";
 export const CLAIMS_CHECK_HINT = "The Worker verified that the agent's claims at the pushed commit cite the current decision versions. It did not run the test suite.";
 export const RUN_CHECK_LABEL = "Delta Convergence contract check";
-export const RUN_CHECK_HINT = "Delta Convergence ran its own deterministic check on the pushed code at this commit. Not the project's test suite.";
+export const RUN_CHECK_HINT = "Delta Convergence ran its own deterministic check on the pushed files at this commit. Not the project's test suite.";
 
 export type CheckDescriptor = { kind: "delta-claims-check" | "delta-run-check"; label: string; hint: string };
 

@@ -19,7 +19,7 @@ export interface ModelPrice {
 }
 
 const MODEL_PRICES: Readonly<Record<string, ModelPrice>> = {
-	"openai/gpt-6-luna": { inPerM: 0.25, outPerM: 0.75 },
+	"openai/gpt-6-luna": { inPerM: 0.1, outPerM: 0.5 },
 	"z-ai/glm-5.3-flash": { inPerM: 0.0261, outPerM: 0.9 },
 	"minimax/minimax-m3": { inPerM: 0.3, outPerM: 1.2 },
 	"anthropic/claude-sonnet-5.5": { inPerM: 4, outPerM: 10 },

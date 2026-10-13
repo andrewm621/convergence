@@ -645,6 +645,8 @@ describe("model price table", () => {
 			expect(modelPrice(slug)).not.toBeNull();
 		}
 		expect(modelPrice("minimax/minimax-m3")).toEqual({ inPerM: 0.3, outPerM: 1.2 });
+		// Dollars per million tokens, as OpenRouter lists them: $0.10 in, $0.50 out.
+		expect(modelPrice("openai/gpt-6-luna")).toEqual({ inPerM: 0.1, outPerM: 0.5 });
 	});
 
 	it("has no price for an unknown model, a suffixed or aliased slug, or an inherited property name", () => {

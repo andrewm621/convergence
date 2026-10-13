@@ -4,8 +4,9 @@ import { redactDeep, redactText } from "./artifacts/tokens";
 import { DispatchError, dispatchAgent, presentRun } from "./agents/dispatch";
 import { DispatchRequest, IdempotencyKey, REPO_NAME_RE, RefName, WORK_ITEM_ID_RE } from "./agents/protocol";
 import { POINTER_SCENARIO } from "./cell/pointer-scenario";
-import { NOTIFICATIONS_SCENARIO_FILES, PointerForkRequest, PointerPushRequest, SMOKE_LABEL_RE, SmokeDeleteRequest, seedLabelAllowed, deleteSmokeRepos, forkPointer, purgeSmokeRepos, pushPointer, runSmoke, seedForks } from "./smoke";
+import { NOTIFICATIONS_SCENARIO_FILES, PointerForkRequest, PointerPushRequest, SEED_SCENARIOS, SMOKE_LABEL_RE, SmokeDeleteRequest, seedLabelAllowed, seedScenarioAllowed, deleteSmokeRepos, forkPointer, purgeSmokeRepos, pushPointer, runSmoke, seedForks } from "./smoke";
 import { buildPointerSeed } from "./smoke-build";
+import { SHELTER_SCENARIO, buildShelterSeed } from "./smoke-shelter";
 import { bearerGuard } from "./cell/auth";
 import { cellApi } from "./cell/routes";
 import { jsonNotFound } from "./not-found";
@@ -66,6 +67,8 @@ app.delete("/api/smoke", async (c) => {
 // ?scenario=notifications seeds the baseline with Scenario A's accepted records, for the control loop.
 // ?scenario=delta-convergence-build seeds our own build at the replay's end state (docs/dogfooding.md): the six records at
 // their latest versions and seven pointer forks (the forks count is fixed), and answers with what to init and register.
+// ?scenario=shelter-intake seeds the Larkhaven County shelter policy at v1 and two forks (the forks count is fixed), and answers with
+// what to init and register, the prompts, and the mid-run decision to apply (scripts/check-live-shelter.mjs).
 // ?label=<name> puts the name in the repo names (smoke-<name>-<time>-baseline), to tell a demo's repos apart.
 app.post("/api/smoke/seed", async (c) => {
 	const count = Math.min(Math.max(Number(c.req.query("forks") ?? 2) || 2, 1), 10);
@@ -74,8 +77,8 @@ app.post("/api/smoke/seed", async (c) => {
 	if (label !== undefined && !SMOKE_LABEL_RE.test(label)) {
 		return c.json({ error: { code: "INVALID_INPUT", message: "label must be 1-40 lowercase letters, digits or hyphens" } }, 400);
 	}
-	if (scenario !== undefined && scenario !== "notifications" && scenario !== POINTER_SCENARIO) {
-		return c.json({ error: { code: "INVALID_INPUT", message: `scenario must be notifications or ${POINTER_SCENARIO}` } }, 400);
+	if (!seedScenarioAllowed(scenario)) {
+		return c.json({ error: { code: "INVALID_INPUT", message: `scenario must be one of ${SEED_SCENARIOS.join(", ")}` } }, 400);
 	}
 	if (!seedLabelAllowed(scenario, label)) {
 		return c.json({ error: { code: "INVALID_INPUT", message: `label must not start with ${POINTER_SCENARIO} unless scenario=${POINTER_SCENARIO}` } }, 400);
@@ -89,6 +92,19 @@ app.post("/api/smoke/seed", async (c) => {
 				scenario: POINTER_SCENARIO,
 				policy: seed.policy,
 				workItems: seed.workItems.map(({ forkFiles: _files, commitMessage: _message, ...item }, i) => ({ ...item, forkRepo: seeded.forks[i]?.name })),
+			}),
+		);
+	}
+	if (scenario === SHELTER_SCENARIO) {
+		const seed = buildShelterSeed();
+		const seeded = await seedForks(c.env, seed.workItems.length, seed.baselineFiles, label ?? SHELTER_SCENARIO);
+		return c.json(
+			redactDeep({
+				...seeded,
+				scenario: SHELTER_SCENARIO,
+				policy: seed.policy,
+				contextChange: seed.contextChange,
+				workItems: seed.workItems.map((item, i) => ({ ...item, forkRepo: seeded.forks[i]?.name })),
 			}),
 		);
 	}
