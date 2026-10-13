@@ -108,7 +108,8 @@ function versionRows(history: RecordHistory): VersionRow[] {
 }
 
 function RecordCard({ recordId, history, editing, onEdit, onClose }: { recordId: string; history: RecordHistory; editing: boolean; onEdit(): void; onClose(): void }) {
-	const { view, editorRequest } = useConsole();
+	const { view, editorRequest, client } = useConsole();
+	const readOnly = SCENARIO_META[client.scenario].readOnlyReason;
 	const rows = useMemo(() => versionRows(history), [history]);
 	const head = rows.find((row) => row.current);
 	const edits = useMemo(() => proseEdits(view, recordId), [view, recordId]);
@@ -204,9 +205,11 @@ function RecordCard({ recordId, history, editing, onEdit, onClose }: { recordId:
 							Prose edited {edits.length > 1 ? `${edits.length} times` : `at ${formatDateTime(edits[edits.length - 1]?.ts ?? "")}`}. No facet changed, so no work was re-evaluated.
 						</p>
 					)}
-					<Button variant="outline" size="sm" className="mt-3 w-full" onClick={onEdit}>
-						<ChevronRight aria-hidden /> Propose change
-					</Button>
+					<UnavailableHint available={!readOnly} reason={readOnly ?? ""}>
+						<Button variant="outline" size="sm" className="mt-3 w-full" disabled={Boolean(readOnly)} onClick={onEdit}>
+							<ChevronRight aria-hidden /> Propose change
+						</Button>
+					</UnavailableHint>
 				</>
 			)}
 		</article>

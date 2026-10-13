@@ -7,6 +7,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useConsole } from "@/state/console-context";
 import { isDegraded } from "@/state/store";
 import { useGate } from "@/state/use-gate";
+import { SCENARIO_META } from "./scenario-meta";
 
 /**
  * Promote, gated. The button is disabled unless `GET /work-items/:id/gate` says the dry run
@@ -24,7 +25,8 @@ export function PromoteButton({ workItemId, className, showReasons = false }: { 
 	const promoted = wi.item.status === "promoted";
 	const degraded = isDegraded(view);
 	// While the poller is degraded a baseline change could be unread, so even a passing gate is not trusted.
-	const canPromote = Boolean(gate?.pass) && !promoted && !promoting && wi.headSha !== null && !degraded;
+	const readOnly = SCENARIO_META[client.scenario].readOnlyReason;
+	const canPromote = Boolean(gate?.pass) && !promoted && !promoting && wi.headSha !== null && !degraded && !readOnly;
 
 	async function promote() {
 		if (!wi?.headSha) return;
@@ -53,7 +55,9 @@ export function PromoteButton({ workItemId, className, showReasons = false }: { 
 					</span>
 				</TooltipTrigger>
 				<TooltipContent side="bottom" align="start" className="w-72">
-					{promoted ? (
+					{readOnly ? (
+						<p>{readOnly}</p>
+					) : promoted ? (
 						<p>Already merged into the baseline.</p>
 					) : degraded ? (
 						<p>The poller is degraded, so Delta Convergence cannot confirm this work is current. Promote reopens when the poller recovers.</p>

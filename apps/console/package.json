@@ -22,6 +22,7 @@
     "radix-ui": "^1.8.1",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
+    "scenario-delta-convergence-build": "workspace:*",
     "scenario-notifications": "workspace:*",
     "scenario-sales-ops": "workspace:*",
     "scenario-shelter-intake": "workspace:*",

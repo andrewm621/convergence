@@ -158,7 +158,7 @@ const shelterChanges: Record<string, FileChange[]> = {
 	"WI-5": [addedDocument(shelter.SCHEDULE_PATH, shelter.SCHEDULE_V1)],
 };
 
-export function changesFor(scenario: "notifications" | "sales-ops" | "shelter-intake", wi: WorkItemState): FileChange[] {
+export function changesFor(scenario: "notifications" | "sales-ops" | "shelter-intake" | "delta-convergence-build", wi: WorkItemState): FileChange[] {
 	if (wi.item.source === "seeded" || wi.headSha === null) return [];
 	const revalidated = wi.revalidations > 0;
 	if (scenario === "shelter-intake") {

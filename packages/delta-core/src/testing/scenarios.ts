@@ -1,3 +1,4 @@
+import { buildDogfoodBuildScenario } from "scenario-delta-convergence-build";
 import { buildNotificationsScenario } from "scenario-notifications";
 import { buildSalesOpsScenario } from "scenario-sales-ops";
 import { buildShelterIntakeScenario } from "scenario-shelter-intake";
@@ -8,6 +9,7 @@ import type { InvariantScenario } from "./invariants";
 export const notifications = await buildNotificationsScenario();
 export const salesOps = await buildSalesOpsScenario();
 export const shelterIntake = await buildShelterIntakeScenario();
+export const dogfoodBuild = await buildDogfoodBuildScenario();
 
 export const stores: Array<[string, () => CellStore]> = [
 	["in-memory store", () => new InMemoryStore()],
@@ -59,6 +61,21 @@ export const invariantScenarios: InvariantScenario[] = [
 		affectedPrep: [shelterIntake.events.wi1Pushed],
 		contextChange: shelterIntake.events.v2,
 		proseOnly: shelterIntake.events.proseOnly,
+	},
+	{
+		label: "delta-convergence-build (retrofitted history)",
+		seed: dogfoodBuild.seed,
+		policy: dogfoodBuild.policy,
+		human: dogfoodBuild.actors.decisionOwner,
+		agent: dogfoodBuild.actors.buildAgent,
+		recordId: "evidence-policy",
+		setup: Object.values(dogfoodBuild.events.register),
+		affectedId: "WI-1",
+		controlId: "WI-7",
+		controlPrep: [dogfoodBuild.events.push["WI-7"]!],
+		affectedPrep: [dogfoodBuild.events.push["WI-1"]!],
+		contextChange: dogfoodBuild.events.evidenceV2,
+		proseOnly: dogfoodBuild.events.productNamingProse,
 	},
 ];
 

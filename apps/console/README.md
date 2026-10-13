@@ -26,11 +26,13 @@ pnpm --filter console test
 
 Beats, Scenario A: two agents running, typo (`PROSE_ONLY`, nothing goes red), draft the decision change, v2 lands (WI-2 stale, WI-1 untouched, one edge red), WI-2 pushes (claim conflict and a failing check), WI-1 promotes, revalidate, the re-run lands, WI-2 promotes. The same controls drive the **Larkhaven County Shelter** scenario (`scenario=shelter-intake`, knowledge work, synthetic: a policy changes under five drafting agents; three go stale, two are untouched, one takes a scoped exception, two are revalidated; four drafts promote, then a last beat moves the policy to v3 before the signage is promoted: its exception card flips to **Lapsed** with `EXCEPTION_LAPSED` and the signage is blocked again; the "Synthetic scenario. Not operational guidance." note stays in view), Scenario B (Northwind Sales Ops: one exception, one revalidation, one untouched) and the **fan-out** script (40 seeded items, one decision change, `N evaluated · K stale · M untouched · time`).
 
+**Our own build (replay)** (`scenario=delta-convergence-build`) replays real stale events from this repo's git history, in commit order and with the commits' own timestamps, through the same engine: six beats (the work begins, the county is renamed, more work lands, what counts as a test changes twice, a wording-only edit). It is retrofitted, and a banner says so for as long as it is open: decisions made before Delta Convergence was recording them, dependencies declared by us, humans resolve. Cards say "recorded build session" where a model name would be. Commit shas link to GitHub, an all-zero sha reads "not in git", and Revalidate, Accept exception, Reject, Promote and Propose change are disabled with a tooltip, because nothing here was resolved in the console. The fixture is `scenarios/delta-convergence-build/` (see its README).
+
 Every action in the UI (Propose change, Revalidate, Accept exception, Reject, Promote) also works by hand in the mock, through the same engine.
 
 | URL parameter | Does |
 |---|---|
-| `scenario=notifications`, `shelter-intake` or `sales-ops` | scenario to open (Northwind Sales Ops is not in the switcher; `?scenario=sales-ops` opens it, and it then shows) |
+| `scenario=notifications`, `shelter-intake`, `delta-convergence-build` or `sales-ops` | scenario to open (Northwind Sales Ops is not in the switcher; `?scenario=sales-ops` opens it, and it then shows). `delta-convergence-build` is "Our own build (replay)" and exists only with `mock=1` |
 | `script=fanout` | open the fan-out script (notifications only) |
 | `start=empty` | no accepted context, to show the empty state |
 | `controls=0` | start with the replay controls hidden |

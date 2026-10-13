@@ -5,11 +5,11 @@ import type { Dependency, FacetValue, ReasonCode, RecordHistory, ResolutionBindi
  * (`src/client/live.ts`) both implement `ConsoleClient`, so switching is one line in `create-client.ts`.
  */
 
-export const SCENARIOS = ["notifications", "shelter-intake", "sales-ops"] as const;
+export const SCENARIOS = ["notifications", "shelter-intake", "delta-convergence-build", "sales-ops"] as const;
 export type ScenarioName = (typeof SCENARIOS)[number];
 
 export function isScenarioName(value: string | null | undefined): value is ScenarioName {
-	return value === "notifications" || value === "sales-ops" || value === "shelter-intake";
+	return value === "notifications" || value === "sales-ops" || value === "shelter-intake" || value === "delta-convergence-build";
 }
 
 export type ConnectionState = "connecting" | "live" | "reconnecting" | "polling" | "offline" | "unauthorized" | "mock";

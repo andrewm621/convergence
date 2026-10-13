@@ -1,9 +1,11 @@
+import { buildDogfoodBuildScenario } from "scenario-delta-convergence-build";
 import { buildNotificationsScenario } from "scenario-notifications";
 import { buildSalesOpsScenario } from "scenario-sales-ops";
 import { buildShelterIntakeScenario } from "scenario-shelter-intake";
 import type { ClientHandlers, CommandResult, ConsoleClient, ConsoleMessage, ScenarioName } from "@/client/types";
 import type { ActivityLine, BeatContext, MockScript, UiHint } from "./beats";
 import { MockCell, type MockScenario } from "./cell";
+import { buildScript } from "./script-build";
 import { fanoutScript } from "./script-fanout";
 import { notificationsScript } from "./script-notifications";
 import { salesOpsScript } from "./script-sales-ops";
@@ -56,6 +58,12 @@ async function load(name: ScenarioName): Promise<Loaded> {
 	if (name === "notifications") {
 		const bundle = await buildNotificationsScenario();
 		return { scenario: bundle, scripts: [notificationsScript(bundle), fanoutScript(bundle)] };
+	}
+	if (name === "delta-convergence-build") {
+		const bundle = await buildDogfoodBuildScenario();
+		// The fixture's events are keyed by step; the mock looks them up flat, and keeps their real timestamps.
+		const events = Object.fromEntries(bundle.timeline.map((step) => [step.key, step.event]));
+		return { scenario: { ...bundle, events, realTimestamps: true }, scripts: [buildScript(bundle)] };
 	}
 	if (name === "shelter-intake") {
 		const bundle = await buildShelterIntakeScenario();

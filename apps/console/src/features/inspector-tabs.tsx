@@ -2,6 +2,7 @@ import type { WorkItemState } from "contracts";
 import { ArrowRight, Check, CircleHelp, Copy, FileDiff, Swords, TriangleAlert } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { FileChange } from "@/client/types";
+import { CommitSha, isNotInGit } from "@/components/commit-sha";
 import { EpistemicChip } from "@/components/status";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { useConsole } from "@/state/console-context";
 import { analysisOf, currentRecord, semanticDiff, type ClaimVerdict } from "@/state/derive";
 import { ReceiptFacetList } from "./receipt-facets";
+import { SCENARIO_META } from "./scenario-meta";
 
 // ---------- Receipt ----------
 
@@ -97,7 +99,9 @@ export function ReceiptTab({ wi }: { wi: WorkItemState }) {
 
 			<dl className="grid grid-cols-[auto_1fr] items-center gap-x-4 gap-y-1.5 rounded-lg bg-muted/60 p-3 text-sm">
 				<dt className="text-muted-foreground">Baseline commit</dt>
-				<dd className="font-mono">{shortHash(receipt.baselineCommit, 12)}</dd>
+				<dd className="font-mono">
+					<CommitSha sha={receipt.baselineCommit} length={12} />
+				</dd>
 				<dt className="text-muted-foreground">Packet hash</dt>
 				<dd className="truncate font-mono" title={receipt.contextPacketHash}>
 					{shortHash(receipt.contextPacketHash, 16)}
@@ -105,7 +109,9 @@ export function ReceiptTab({ wi }: { wi: WorkItemState }) {
 				<dt className="text-muted-foreground">Revalidations</dt>
 				<dd>{wi.revalidations}</dd>
 				<dt className="text-muted-foreground">Fork head</dt>
-				<dd className="font-mono">{shortHash(wi.headSha, 12)}</dd>
+				<dd className="font-mono">
+					<CommitSha sha={wi.headSha} length={12} />
+				</dd>
 			</dl>
 
 			{noteCommand && (
@@ -246,6 +252,18 @@ export function ChangesTab({ wi }: { wi: WorkItemState }) {
 		// `key` captures the item, its head and its revalidation count.
 	}, [client, key, wi.item.id, available]);
 
+	// A replay of recorded history has no file contents to diff; what it has is the commit the work lives in.
+	if (SCENARIO_META[client.scenario].realHistory) {
+		return (
+			<div className="space-y-2 p-4 text-[13px]" data-testid="changes-recorded">
+				<p className="text-muted-foreground">File diffs are not rebuilt for this replay. The work is in this commit:</p>
+				<p className="font-mono text-sm">
+					<CommitSha sha={wi.headSha} length={12} />
+				</p>
+				{isNotInGit(wi.headSha) && <p className="text-muted-foreground">It lives outside git, so there is nothing to open.</p>}
+			</div>
+		);
+	}
 	if (!available) {
 		return (
 			<p className="p-4 text-[13px] text-muted-foreground" data-testid="changes-unavailable">
