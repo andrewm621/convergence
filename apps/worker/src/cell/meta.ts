@@ -19,6 +19,7 @@ const SCHEMA = [
 		last_polled_at TEXT
 	)`,
 	"CREATE TABLE IF NOT EXISTS written_commits (sha TEXT PRIMARY KEY, kind TEXT NOT NULL CHECK (kind IN ('context', 'merge')), actor TEXT NOT NULL)",
+	"CREATE TABLE IF NOT EXISTS eval_ms (seq INTEGER PRIMARY KEY, ms REAL NOT NULL)",
 	"CREATE TABLE IF NOT EXISTS record_paths (record_id TEXT PRIMARY KEY, path TEXT NOT NULL)",
 	"CREATE TABLE IF NOT EXISTS idempotency (key TEXT PRIMARY KEY, fingerprint TEXT NOT NULL, status INTEGER NOT NULL, body TEXT NOT NULL, created_at TEXT NOT NULL)",
 ];
@@ -122,6 +123,21 @@ export class CellMeta {
 		for (const [recordId, path] of Object.entries(paths)) {
 			this.#db.all("INSERT OR REPLACE INTO record_paths (record_id, path) VALUES (?, ?)", recordId, path);
 		}
+	}
+
+	// ---------- how long the reconciler took per ledger line (for the results strip) ----------
+
+	recordEvaluation(seq: number, ms: number): void {
+		this.#db.all("INSERT OR REPLACE INTO eval_ms (seq, ms) VALUES (?, ?)", seq, ms);
+	}
+
+	evaluationMs(seq: number): number | null {
+		return this.#db.all<{ ms: number }>("SELECT ms FROM eval_ms WHERE seq = ?", seq)[0]?.ms ?? null;
+	}
+
+	evaluationsAfter(seq: number): Record<string, number> {
+		const rows = this.#db.all<{ seq: number; ms: number }>("SELECT seq, ms FROM eval_ms WHERE seq > ? ORDER BY seq", seq);
+		return Object.fromEntries(rows.map((r) => [String(r.seq), r.ms]));
 	}
 
 	// ---------- commits the Worker pushed to the baseline ----------

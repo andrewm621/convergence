@@ -4,12 +4,14 @@ import {
 	CellSnapshot,
 	DeltaEvent,
 	canonicalJson,
+	parseContextRecord,
 	sha256Hex,
 	type Actor,
 	type CellState,
 	type Effect,
 	type Policy,
 	type ReconciliationEvent,
+	type WsMessage,
 	type WorkItemState,
 } from "contracts";
 import {
@@ -21,7 +23,7 @@ import {
 	processEvent,
 	type ProcessResult,
 } from "delta-core";
-import { PromoteRequest, RegisterRequest, ResolveRequest, InitRequest, failure, invalidInput, refusalOf, type CellResult, type WsFrame } from "./api";
+import { PromoteRequest, RegisterRequest, ResolveRequest, InitRequest, failure, invalidInput, refusalOf, type CellResult, type WsFrame, type WsMeta } from "./api";
 import { WS_PROTOCOL } from "./auth";
 import { ContextChangeRequest, planContextChange } from "./context-change";
 import { ContextReader, snapshotHashOf } from "./context-tree";
@@ -33,6 +35,8 @@ import { SqliteCellStore, type LedgerVerdict } from "./sqlite-store";
 import type { FlatTree } from "../artifacts/tree-diff";
 
 const LEDGER_TAIL = 50;
+/** The snapshot's ledgerTail reaches back to the latest BaselinePushed, but never further than this many lines. */
+const LEDGER_TAIL_MAX = 300;
 const REPLAY_LIMIT = 200;
 const POLL_WINDOW = 50;
 /** After this many failed attempts at one commit the poller gives up on it (and says so) instead of retrying forever. */
@@ -169,8 +173,14 @@ export abstract class CellBase extends DurableObject<Env> {
 	// ---------- the pipeline: event in, state + ledger line + effects + broadcast out ----------
 
 	async #submit(input: unknown): Promise<ProcessResult> {
+		const started = performance.now();
 		const result = await processEvent(this.#store, input, this.#requirePolicy());
-		if (result.outcome === "applied") await this.#afterApplied(result.entry, result.effects);
+		if (result.outcome === "applied") {
+			// The reconciler plus the atomic commit, in ms: what the console's "N evaluated, K stale, time" strip shows.
+			const evaluationMs = Math.round((performance.now() - started) * 100) / 100;
+			this.#meta.recordEvaluation(result.entry.seq, evaluationMs);
+			await this.#afterApplied(result.entry, result.effects, evaluationMs);
+		}
 		return result;
 	}
 
@@ -180,10 +190,10 @@ export abstract class CellBase extends DurableObject<Env> {
 	 * to the dispatch hook. ALLOW_PROMOTION is acted on by `promote`, which is waiting for it.
 	 * A failing effect never fails the request that caused it; the ledger line is already written.
 	 */
-	async #afterApplied(entry: ReconciliationEvent, effects: Effect[]): Promise<void> {
+	async #afterApplied(entry: ReconciliationEvent, effects: Effect[], evaluationMs: number): Promise<void> {
 		try {
 			const state = await this.#store.load();
-			if (state) this.#broadcast({ seq: entry.seq, message: { type: "event", event: entry, workItems: touchedItems(state, entry) } });
+			if (state) this.#broadcast(this.#frame({ type: "event", event: entry, workItems: touchedItems(state, entry) }, liveEventMeta(state, entry, evaluationMs)));
 		} catch (error) {
 			console.error("broadcast failed", error instanceof Error ? error.message : error);
 		}
@@ -198,6 +208,10 @@ export abstract class CellBase extends DurableObject<Env> {
 	}
 
 	// ---------- WebSocket (hibernation API) ----------
+
+	#frame(message: WsMessage, meta: WsMeta): WsFrame {
+		return { ...message, meta } as WsFrame;
+	}
 
 	#broadcast(frame: WsFrame): void {
 		const text = JSON.stringify(frame);
@@ -255,12 +269,20 @@ export abstract class CellBase extends DurableObject<Env> {
 		const head = snapshot.ledgerHead.seq;
 		const resuming = since !== null && since < head;
 		const gap = since !== null && (since > head || head - since > REPLAY_LIMIT);
-		const frames: WsFrame[] = [{ seq: head, ...(gap ? { gap: true } : {}), message: { type: "snapshot", snapshot } }];
+		const frames: WsFrame[] = [
+			this.#frame(
+				{ type: "snapshot", snapshot },
+				{ seq: head, ...(gap ? { gap: true } : {}), evaluationMsBySeq: this.#meta.evaluationsAfter(snapshot.ledgerTail[0] ? snapshot.ledgerTail[0].seq - 1 : head) },
+			),
+		];
 		if (resuming) {
 			const state = await this.#requireState();
 			const lines = await this.#store.ledger({ afterSeq: Math.max(since, head - REPLAY_LIMIT), limit: REPLAY_LIMIT });
 			// Replayed lines carry the work items' state now, not as it was at that line.
-			for (const line of lines) frames.push({ seq: line.seq, replay: true, message: { type: "event", event: line, workItems: touchedItems(state, line) } });
+			for (const line of lines) {
+				const evaluationMs = this.#meta.evaluationMs(line.seq);
+				frames.push(this.#frame({ type: "event", event: line, workItems: touchedItems(state, line) }, { seq: line.seq, replay: true, ...(evaluationMs !== null ? { evaluationMs } : {}) }));
+			}
 		}
 		for (const frame of frames) ws.send(JSON.stringify(frame));
 	}
@@ -268,7 +290,11 @@ export abstract class CellBase extends DurableObject<Env> {
 	async #snapshot(): Promise<CellSnapshot> {
 		const state = await this.#requireState();
 		const head = await this.#store.head();
-		const tail = await this.#store.ledger({ afterSeq: Math.max(0, head.seq - LEDGER_TAIL) });
+		// At least the last LEDGER_TAIL lines, and far enough back to include the latest baseline push:
+		// that line holds the "left alone" decisions for every unaffected work item.
+		const latestPush = this.#store.latestSeqOfType("BaselinePushed");
+		const from = Math.max(0, head.seq - LEDGER_TAIL_MAX, Math.min(head.seq - LEDGER_TAIL, latestPush === null ? Infinity : latestPush - 1));
+		const tail = await this.#store.ledger({ afterSeq: from });
 		return {
 			scenario: this.#meta.scenario() ?? "unknown",
 			baselineCommit: state.baselineCommit,
@@ -285,7 +311,7 @@ export abstract class CellBase extends DurableObject<Env> {
 	/** Live agent output (stream-json lines) for the console. Not persisted: the agent runtime keeps its own log. */
 	async publishActivity(input: unknown): Promise<void> {
 		const activity = AgentActivity.parse(input);
-		this.#broadcast({ seq: (await this.#store.head()).seq, message: activity });
+		this.#broadcast(this.#frame(activity, { seq: (await this.#store.head()).seq }));
 	}
 
 	// ---------- the poller ----------
@@ -555,6 +581,19 @@ export abstract class CellBase extends DurableObject<Env> {
 		});
 	}
 
+	/** The prose of a record's accepted version (the editor prefills with it). */
+	recordText(recordId: string): Promise<CellResult> {
+		return this.#answer(async () => {
+			const state = await this.#requireState();
+			const sitting = currentSnapshot(state, recordId);
+			if (!sitting) return failure(404, "UNKNOWN_RECORD", `no accepted version of ${recordId}`);
+			const text = await this.#artifacts.readBlob(this.#baselineRepo(), sitting.blobHash);
+			const parsed = text === null ? null : parseContextRecord(text);
+			if (!parsed?.ok) return failure(404, "RECORD_UNREADABLE", `the accepted version of ${recordId} cannot be read`);
+			return { status: 200, body: parsed.record.body };
+		});
+	}
+
 	// ---------- context changes: the Worker commits to the baseline as the authority ----------
 
 	changeContext(input: unknown, actor: Actor, key: string): Promise<CellResult> {
@@ -639,6 +678,7 @@ export abstract class CellBase extends DurableObject<Env> {
 			const parsed = ResolveRequest.safeParse(input);
 			if (!parsed.success) return invalidInput(parsed.error, "resolution");
 			const req = parsed.data;
+			if (req.workItemId !== undefined && req.workItemId !== workItemId) return failure(400, "WORK_ITEM_MISMATCH", "workItemId in the body does not match the path");
 			const ts = this.now();
 			// The actor is the authenticated session's, handed in by the Worker; the body has no such field.
 			const event = {
@@ -675,6 +715,7 @@ export abstract class CellBase extends DurableObject<Env> {
 			const parsed = PromoteRequest.safeParse(input);
 			if (!parsed.success) return invalidInput(parsed.error, "promote request");
 			const req = parsed.data;
+			if (req.workItemId !== undefined && req.workItemId !== workItemId) return failure(400, "WORK_ITEM_MISMATCH", "workItemId in the body does not match the path");
 			const baselineRepo = this.#baselineRepo();
 			const before = await this.#requireState();
 			const forkRepo = before.workItems[workItemId]?.item.forkRepo;
@@ -766,6 +807,22 @@ export abstract class CellBase extends DurableObject<Env> {
 			return { outcome: result.outcome, seq: result.entry?.seq ?? null };
 		});
 	}
+}
+
+/** What a live `event` frame carries beyond the contract: enough that a client need not re-read the state. */
+function liveEventMeta(state: CellState, entry: ReconciliationEvent, evaluationMs: number): WsMeta {
+	const event = entry.payload.event;
+	const meta: WsMeta = { seq: entry.seq, evaluationMs, baselineCommit: state.baselineCommit, snapshotHash: state.snapshotHash };
+	if (event.type === "WorkItemRegistered" || event.type === "ForkPushed" || event.type === "DependencyDecided") meta.dependencies = state.dependencies;
+	if (event.type === "BaselinePushed") {
+		const records: NonNullable<WsMeta["records"]> = {};
+		for (const record of event.records) {
+			const history = state.records[record.recordId];
+			if (history) records[record.recordId] = history;
+		}
+		meta.records = records;
+	}
+	return meta;
 }
 
 /** The work items an event touched, in id order: those named by its effects or by the event itself. */

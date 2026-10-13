@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { CommitSha, FacetKey, Policy, ResolutionBinding, Slug, WorkItemId, WsMessage, type Effect, type ReasonCode } from "contracts";
+import { CommitSha, Dependency, FacetKey, Policy, RecordHistory, ResolutionBinding, Sha256, Slug, WorkItemId, WsMessage as WsMessageSchema, type Effect, type ReasonCode, type WsMessage } from "contracts";
 
 // Request and response shapes for the cell API. Every request body is a strict object: an unknown
 // key, such as `actor`, is a 400. Who is acting never comes from a body (see auth.ts).
@@ -31,6 +31,8 @@ export const RegisterRequest = z.strictObject({
 export type RegisterRequest = z.infer<typeof RegisterRequest>;
 
 export const ResolveRequest = z.strictObject({
+	/** Optional, for clients that repeat the path's id in the body. It must match the path. */
+	workItemId: WorkItemId.optional(),
 	kind: z.enum(["revalidate", "accept-exception", "reject"]),
 	rationale: z.string().trim().min(1).max(2000),
 	scope: z.string().trim().min(1).max(500).optional(),
@@ -40,6 +42,8 @@ export const ResolveRequest = z.strictObject({
 export type ResolveRequest = z.infer<typeof ResolveRequest>;
 
 export const PromoteRequest = z.strictObject({
+	/** Optional, for clients that repeat the path's id in the body. It must match the path. */
+	workItemId: WorkItemId.optional(),
 	/** Compare-and-swap: the baseline commit the caller saw. */
 	expectedBaselineCommit: CommitSha,
 	forkHeadSha: CommitSha,
@@ -91,17 +95,40 @@ export function refusalOf(effects: Effect[]): { status: number; code: ReasonCode
 }
 
 /**
- * One WebSocket text frame. `message` is a contracts `WsMessage`, untouched. The envelope adds
- * `seq` because `agent-activity` has none of its own: for `snapshot` it is the ledger head the
- * snapshot is current at, for `event` the ledger line's seq, and for `agent-activity` the ledger
- * head at the moment it was sent. A client resumes with `?since=<highest seq it saw>`.
+ * A WebSocket frame is a contracts `WsMessage`, exactly as the contract defines it, plus one extra
+ * top-level key, `meta`. The strict `WsMessage` schemas know nothing about `meta`, so a client
+ * strips it before parsing (`parseFrame` does). It carries what the contract has no room for:
+ *
+ *  - `seq`: for `snapshot` the ledger head it is current at; for `event` the ledger line's seq;
+ *    for `agent-activity` (which has no seq of its own) the ledger head when it was sent.
+ *  - `replay`: an `event` re-sent after a reconnect (`?since=`).
+ *  - `gap`: on a snapshot, more lines were missed than are replayed (or `since` is ahead of the
+ *    server): trust the snapshot, not the replay.
+ *  - `evaluationMs`: how long the reconciler took for this line (`evaluationMsBySeq` on a snapshot,
+ *    for the lines in its ledgerTail).
+ *  - on a live `event`: `baselineCommit`, `snapshotHash`, `dependencies` (when the event can change
+ *    them) and `records` (the histories of the records a BaselinePushed touched), so a client need
+ *    not re-read the state.
  */
-export const WsFrame = z.strictObject({
+export const WsMeta = z.object({
 	seq: z.number().int().min(0),
-	/** True on events re-sent after a reconnect (`?since=`), so a client can tell them from live ones. */
 	replay: z.boolean().optional(),
-	/** On a snapshot: more lines were missed than the server replays; rely on the snapshot. */
 	gap: z.boolean().optional(),
-	message: WsMessage,
+	evaluationMs: z.number().optional(),
+	evaluationMsBySeq: z.record(z.string(), z.number()).optional(),
+	baselineCommit: CommitSha.optional(),
+	snapshotHash: Sha256.optional(),
+	dependencies: z.array(Dependency).optional(),
+	records: z.record(z.string(), RecordHistory).optional(),
 });
-export type WsFrame = z.infer<typeof WsFrame>;
+export type WsMeta = z.infer<typeof WsMeta>;
+export type WsFrame = WsMessage & { meta: WsMeta };
+
+/** Split a received frame into the contract message and its meta. Null if either does not parse. */
+export function parseFrame(raw: unknown): { message: WsMessage; meta: WsMeta } | null {
+	if (!raw || typeof raw !== "object") return null;
+	const { meta, ...rest } = raw as { meta?: unknown };
+	const message = WsMessageSchema.safeParse(rest);
+	const parsedMeta = WsMeta.safeParse(meta);
+	return message.success && parsedMeta.success ? { message: message.data, meta: parsedMeta.data } : null;
+}

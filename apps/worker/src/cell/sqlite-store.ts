@@ -15,7 +15,8 @@ const SCHEMA = [
 	"CREATE TABLE IF NOT EXISTS cell_records (record_id TEXT PRIMARY KEY, json TEXT NOT NULL)",
 	"CREATE TABLE IF NOT EXISTS cell_work_items (id TEXT PRIMARY KEY, json TEXT NOT NULL)",
 	"CREATE TABLE IF NOT EXISTS cell_processed (dedupe_key TEXT PRIMARY KEY, fingerprint TEXT NOT NULL)",
-	"CREATE TABLE IF NOT EXISTS ledger (seq INTEGER PRIMARY KEY, hash TEXT NOT NULL, prev_hash TEXT NOT NULL, json TEXT NOT NULL)",
+	"CREATE TABLE IF NOT EXISTS ledger (seq INTEGER PRIMARY KEY, type TEXT NOT NULL, hash TEXT NOT NULL, prev_hash TEXT NOT NULL, json TEXT NOT NULL)",
+	"CREATE INDEX IF NOT EXISTS ledger_by_type ON ledger (type, seq)",
 	"CREATE TABLE IF NOT EXISTS ledger_head (id INTEGER PRIMARY KEY CHECK (id = 1), seq INTEGER NOT NULL, hash TEXT NOT NULL)",
 ];
 
@@ -105,6 +106,11 @@ export class SqliteCellStore implements CellStore {
 	async ledger(options: { afterSeq?: number; limit?: number } = {}): Promise<ReconciliationEvent[]> {
 		const rows = this.#db.all<{ json: string }>("SELECT json FROM ledger WHERE seq > ? ORDER BY seq LIMIT ?", options.afterSeq ?? 0, options.limit ?? -1);
 		return rows.map((row) => ReconciliationEvent.parse(JSON.parse(row.json)));
+	}
+
+	/** The seq of the newest ledger line of this type, or null. */
+	latestSeqOfType(type: string): number | null {
+		return this.#db.all<{ seq: number }>("SELECT seq FROM ledger WHERE type = ? ORDER BY seq DESC LIMIT 1", type)[0]?.seq ?? null;
 	}
 
 	/**
@@ -206,7 +212,7 @@ export class SqliteCellStore implements CellStore {
 
 		if (entry) {
 			// Plain JSON, in the order the line was built: the hash already covers a canonical form, and callers may compare serialisations.
-			this.#db.all("INSERT INTO ledger (seq, hash, prev_hash, json) VALUES (?, ?, ?, ?)", entry.seq, entry.hash, entry.prevHash, JSON.stringify(entry));
+			this.#db.all("INSERT INTO ledger (seq, type, hash, prev_hash, json) VALUES (?, ?, ?, ?, ?)", entry.seq, entry.type, entry.hash, entry.prevHash, JSON.stringify(entry));
 			this.#db.all("INSERT OR REPLACE INTO ledger_head (id, seq, hash) VALUES (1, ?, ?)", entry.seq, entry.hash);
 		}
 	}

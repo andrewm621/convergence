@@ -97,6 +97,12 @@ cellApi.get("/scenarios/:scenario/work-items/:id/gate", async (c) => {
 	return respond(c, await cell(c).gate(id.id));
 });
 
+// The prose of a record's accepted version, as Markdown (prefills the Propose change editor).
+cellApi.get("/scenarios/:scenario/context/:recordId", async (c) => {
+	const result = (await cell(c).recordText(c.req.param("recordId"))) as unknown as CellResult;
+	return result.status === 200 ? c.text(result.body as string, 200, { "Content-Type": "text/markdown; charset=utf-8" }) : respond(c, result);
+});
+
 // ---------- commands ----------
 
 cellApi.post("/scenarios/:scenario/context-changes", jsonBody, (c) => mutate(c, (key, body) => cell(c).changeContext(body, c.get("actor"), key)));
