@@ -125,18 +125,24 @@ All of these run through the same engine, with different fixtures.
 | Goes stale | WI-2 notification delivery | Front-desk script, door signage, volunteer briefing | Whatever declared a dependency on the changed facet |
 | Left alone | WI-1 status badges | Supply list, shift schedule | The rest, including a negative control |
 | Resolution | Revalidate, then promote | Script and briefing revalidated; signage gets a scoped exception that lapses when the policy moves to v3 | Humans resolve outside the console |
-| Where it runs | Console replay; live on the Worker with stub agents | Console replay and engine tests | Console replay, plus a live cell |
+| Where it runs | Console replay; live on the Worker with stub agents | Console replay and engine tests; also live on the Worker with two real agents (replay is the fallback) | Console replay, plus a live cell |
 | Extra beats | A typo edit stales nothing. A fan-out of 40 seeded items in one pass | Exception lapse (`EXCEPTION_LAPSED`) | Wording-only edit |
 
 **Notifications** is the main demo. Two agents run at once on separate forks, a decision changes mid-flight, delivery goes stale and badges stay green. The delivery work is blocked even though a plain git merge of both forks is clean.
 
-**Larkhaven County shelter** is a synthetic scenario, not operational guidance. The county, its flood and its volunteer network are invented, and nothing in it should be used as an alert, as eligibility guidance or as an operating instruction. The console keeps that note on screen while it is open. It is replayed in the console and walked through in engine tests; it has not been run with live agents on the Worker. Details: [`scenarios/shelter-intake/README.md`](scenarios/shelter-intake/README.md).
+**Larkhaven County shelter** is a synthetic scenario, not operational guidance. The county, its flood and its volunteer network are invented, and nothing in it should be used as an alert, as eligibility guidance or as an operating instruction. The console keeps that note on screen while it is open. The console replays it from fixtures, engine tests walk through it, and it has also been run live with real agents on the deployed Worker (below). Details: [`scenarios/shelter-intake/README.md`](scenarios/shelter-intake/README.md).
 
 **Our own build** is Delta Convergence governing its own build. The replay (`?mock=1&scenario=delta-convergence-build`) reconstructs our decisions from this repo's git history, and the console says it is retrofitted: nothing in it was detected at the time. A live cell has recorded real decisions since Oct 13. Its work items are pointers to real pull requests, it never dispatches an agent and never merges, and humans resolve outside the console. Details and the commands: [`docs/dogfooding.md`](docs/dogfooding.md).
 
 Seeded work items (`source: seeded`) have no model behind them and are always labelled as seeded. A fourth fixture, Northwind sales ops, is still in the repo and in the engine tests, and is hidden from the console tabs (`?scenario=sales-ops` opens it in replay).
 
-The shelter act also runs live, with two real model agents on real Artifacts forks: one writes the front-desk script (relies on `pets` and `id_required`), one the supply list (relies on `capacity_note`), and the policy changes while they work. Only the script goes stale, in a different file from the record that changed. `WORKER_URL=... DEV_TOKEN=... node scripts/check-live-shelter.mjs` runs it end to end, and `--cell shelter-intake-demo --stop-before-revalidate` stages it. See [docs/shelter-live.md](docs/shelter-live.md).
+The shelter act also runs live on the deployed Worker, with two real model agents running at once in Sandbox containers on separate Artifacts forks: one writes the front-desk script (SH-1, relies on `pets` and `id_required`), one the supply list (SH-2, relies on `capacity_note`), and the decision owner changes the intake policy while they work (v2: crated pets admitted, ID not required). In the verified run on Oct 13, SH-1 went stale and was blocked within about 64 ms of v2 being accepted, in a different file from the record that changed. SH-2 stayed green and promoted. SH-1 was revalidated by a rerun and then promoted, and the ledger hash chain verified. The agents in that run were GLM, through OpenRouter. Replay remains as the fallback.
+
+```bash
+WORKER_URL=https://<your-worker>.workers.dev DEV_TOKEN=... node scripts/check-live-shelter.mjs
+```
+
+`--cell shelter-intake-demo --stop-before-revalidate` stages it instead. It needs `ENABLE_SMOKE=1` and `AGENT_MODE=claude`. See [docs/shelter-live.md](docs/shelter-live.md).
 
 ## Architecture
 
@@ -202,6 +208,7 @@ In words:
 | **Durable Objects** | `WorkspaceCell` (SQLite) holds state, ledger, poller and WebSocket fan-out. `AgentSandbox` runs one agent per work item. | `apps/worker/src/cell/`, `apps/worker/src/agents/sandbox.ts` |
 | **Sandbox containers** | One container per agent: clone the fork, run the agent, commit as the work item, push. | `apps/worker/container/`, `apps/worker/src/agents/`, `apps/worker/wrangler.jsonc` |
 | **Queues** | Not used. Push detection is polling. | n/a |
+| **AI Gateway** | Not used. The "gateways" in the diagram are our own outbound handlers on the `AgentSandbox` Durable Object, which add credentials and enforce caps. | `apps/worker/src/agents/` |
 
 ### Repo layout
 
@@ -211,7 +218,7 @@ packages/delta-core/  pure reconcile(state, event, policy); rules R1-R9; WebCryp
 apps/worker/          Hono API, WorkspaceCell DO, poller, Artifacts adapter, Sandbox agent runtime
 apps/console/         React SPA: live client and in-browser replay
 scenarios/            notifications, shelter-intake, delta-convergence-build, sales-ops fixtures
-scripts/              check-live.mjs, check-overlap.mjs, dogfood.mjs, try-models.mjs
+scripts/              check-live.mjs, check-live-shelter.mjs, check-overlap.mjs, dogfood.mjs, try-models.mjs
 docs/                 spec, control loop, agent runtime, live verification, dogfooding, submission drafts
 ```
 
@@ -240,7 +247,8 @@ pnpm --filter worker exec wrangler deploy
 
   It needs `ENABLE_SMOKE=1` and `AGENT_MODE=stub`. What it has been seen to do on a deployed Worker, and what is still unverified, is in [`docs/live-verification.md`](docs/live-verification.md).
 - **Concurrency proof.** `node scripts/check-overlap.mjs --forks 2 --cleanup` dispatches one work item per fork at once and asserts that the run windows overlap and that each fork has its own author.
-- **Real agents.** `AGENT_MODE=stub` (the default) runs a scripted agent and needs no model key. `AGENT_MODE=claude` runs Claude Code headless through OpenRouter. Set the key as a Worker secret and never commit it:
+- **The shelter act, live.** `scripts/check-live-shelter.mjs` runs the Larkhaven County act end to end with two real agents, needs `ENABLE_SMOKE=1` and `AGENT_MODE=claude`, and deletes the repos it made. Command and options: [`docs/shelter-live.md`](docs/shelter-live.md).
+- **Real agents.** `AGENT_MODE=stub` (the default) runs a scripted agent and needs no model key. `AGENT_MODE=claude` runs the Claude Code harness headless through OpenRouter, and the model behind it is whichever allowlisted slug you set. Set the key as a Worker secret and never commit it:
 
   ```bash
   wrangler secret put OPENROUTER_API_KEY
@@ -280,6 +288,8 @@ What these tests are, plainly:
 - **Stale is not wrong.** Stale means the work was built on a version that has since been replaced, and the work may well still be right, which is why a human decides.
 - **Approval needs a basis, not just a status.** A resolution is only meaningful if it is bound to the exact decision version, base commit and fork head it was made against, so a bare "approved" flag would not be enough.
 - **A receipt is not proof of complete dependency coverage.** It says what an agent was handed and what was declared, not that every decision the work really relied on was listed.
+- **Reconciliation safety is not semantic correctness.** The rules show which work was built on an old decision and keep it from merging. They do not show that the work is right.
+- **Unknown is not unaffected.** Where the rules cannot tell (a missing or malformed claim, an unreadable file), the item is marked `Uncertain` or the gate blocks. A dependency nobody declared is the exception: it stays invisible, as the next list says.
 
 And the limits of the system itself:
 
@@ -290,7 +300,9 @@ And the limits of the system itself:
 - **Polling latency.** Pushes are noticed on a poll (3 s by default) rather than pushed to the Worker. On the deployed Worker, a decision change showed up as stale in 1.2 to 4 seconds in recorded runs. That timing includes the commit push itself.
 - **Identity is simulated.** The demo uses one shared bearer token and a labelled "Decision owner (demo identity)". In the solo demo, one person holds both exception and promote authority. Real per-user auth is not built.
 - **A merge can still conflict.** If a fork's text conflicts with the baseline at promotion, the promote is refused with `MERGE_CONFLICT`. Delta Convergence reports it and does not resolve it.
-- **Replay is replay.** The console's replay mode runs the real rule code on scripted events. The agents, git and the clock are scripted, and the header says so. The shelter scenario, the fan-out strip and the build history are replay or seeded, not live agents.
+- **A permanently unreadable blob wedges a cell.** The poller never skips a baseline commit, so promotes and context changes return `503 POLLER_BEHIND`, and there is no operator escape yet.
+- **A crash mid-promote, then a retry, returns a 409 rather than resuming.**
+- **Replay is replay.** The console's replay mode runs the real rule code on scripted events. The agents, git and the clock are scripted, and the header says so. The fan-out strip and the build history are replay or seeded, not live agents, and the shelter act in the console is replay too; its live run is the separate script above.
 - **It does not auto-resolve consequential conflicts**, replace Git or Artifacts, or build a knowledge graph.
 - **Artifacts is in open beta**, and the behavior described here is what we observed on it.
 
@@ -311,13 +323,14 @@ As of 2026-10-13, checked against `main`. "Built" means code on `main` with test
 | Resolve (revalidate, accept exception, reject) and promote with a real merge | Built, observed live | With stub agents. Promote fast-forward and a true merge were both seen on Artifacts |
 | Revalidate re-dispatch: new receipt, agent re-run, new claims | Built, observed live | With the stub agent. The agent run is dispatched by the cell itself |
 | Sandbox agent runtime, concurrent runs, credential isolation | Built, observed live | Concurrent stub runs on separate forks were seen overlapping. Gateways enforce request, token and dollar caps |
-| Claude agents through OpenRouter (`AGENT_MODE=claude`) | Observed live on three models; default deploy is stub | `openai/gpt-6-luna`, `z-ai/glm-5.3-flash` and `minimax/minimax-m3` each completed the notifications task on a fork with a verified push. Anthropic-hosted models have not yet been shown to complete a run. |
+| Agents through OpenRouter (`AGENT_MODE=claude`) | Observed live on the deployed Worker; default deploy is stub | `openai/gpt-6-luna`, `z-ai/glm-5.3-flash` and `minimax/minimax-m3` each completed the notifications task on a fork with a verified push. The shelter run on Oct 13 used GLM. A Claude Sonnet run also completed, but it finished before the decision changed, so the demo uses GLM. |
 | Receipts as git notes | Partly | Written by the Worker when a revalidation is dispatched and read back with `git notes --ref=delta show` on Artifacts. The first receipt a fork gets is not yet written as a note. |
 | Checks run by Delta Convergence (R8) at the pushed head | Built, narrow | Plain-text match for Notifications and the shelter scenario. No project test suite is run. Sales ops has no check. |
 | Convergence Console: work graph, inspector, "Why is this blocked?", actions | Built | Live client and replay. Live mode was checked in a headless browser on the deployed Worker |
 | Replay mode (`?mock=1`) | Built | Deployed URL above returns 200. Replay is labelled as replay in the header |
 | Fan-out over seeded items | Built | Engine test with 50 items, plus a 300-item timing test. The console script shows 40 seeded items, labelled as seeded |
-| Larkhaven County shelter scenario | Replay and engine tests; live with two real agents (`scripts/check-live-shelter.mjs`) | The live act has two drafts, not the replay's five, and has been run against a local dev Worker with real Artifacts, not yet the deployed one |
+| Larkhaven County shelter scenario | Replay and engine tests; observed live with two real agents on the deployed Worker (`scripts/check-live-shelter.mjs`) | Synthetic, not operational guidance. The live act has two drafts, not the replay's five. Verified Oct 13: two agents ran at once on separate forks, the policy changed mid-run, SH-1 went stale and blocked within about 64 ms, SH-2 stayed green and promoted, SH-1 was revalidated and promoted, and the ledger chain verified. Replay is the fallback |
+| Gate fails closed (R5, R7) | Built, tested | An unreadable decision blob leaves the commit unobserved rather than reading it as valid. A promote with a moved `expectedBaselineCommit` gets `409 BASELINE_MOVED`. Two promotes fired together against one baseline merge exactly once. Worker tests, not a live run |
 | Our own build, live cell | Built (code and tests) | Pointer work items and humans resolving outside the console, per `docs/dogfooding.md`. Its cell needs the bearer token, so the public link shows the replay only |
 | Queues push events | Not built | Polling is used instead |
 | Local agent runner fallback (`apps/runner`) | Not built | Sandbox worked, so it was not needed |
@@ -345,8 +358,8 @@ These were compared from each tool's published documentation, not tested hands-o
 ## Prior art and credit
 
 - **Kubernetes controllers.** The shape of comparing desired state against actual state. Delta Convergence compares accepted decisions with in-flight work instead of infrastructure.
-- **Git and [Radicle](https://radicle.xyz).** Provenance of who changed what and who authorized it, as described in their public docs. Delta Convergence tracks a different thing: which work depended on which accepted decision. <!-- VERIFY: Radicle description against its docs before submission -->
-- **Requirements traceability and "suspect links".** Traceability tools flag downstream items when an upstream requirement changes. <!-- TODO(prior-art): credit and comparison pending the prior-art research run. Fill in tools and wording; do not claim novelty over this line of work. -->
+- **Git and [Radicle](https://radicle.xyz).** Signed provenance of who authored which change, as described in their public docs: Radicle says it verifies the authenticity and authorship of repository data, including issues and code review. Delta Convergence tracks a different thing: which work depended on which accepted decision.
+- **Requirements traceability and "suspect links".** Traceability tools flag downstream items when an upstream requirement changes, and the idea is theirs. For example, the open-source [Doorstop](https://doorstop.readthedocs.io) keeps requirements in version control, stores a fingerprint of the parent item in each link, and reports the link as suspect during validation when that fingerprint changes. Delta Convergence borrows the idea and points it at accepted decisions and the agent work built from them, adding a receipt of what was handed over and a promotion gate. We do not claim novelty over suspect links, and we have not compared against commercial traceability tools.
 - **Our own earlier spikes.** The Artifacts in-memory fs for isomorphic-git, the ledger hash chain and the graph layout patterns are the author's own prior code, reused. The commit history of this repo stays inside the contest window.
 
 ## Where this goes
