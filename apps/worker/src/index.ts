@@ -4,6 +4,8 @@ import { redactDeep, redactText } from "./artifacts/tokens";
 import { DispatchError, dispatchAgent, presentRun } from "./agents/dispatch";
 import { DispatchRequest, REPO_NAME_RE, WORK_ITEM_ID_RE } from "./agents/protocol";
 import { purgeSmokeRepos, runSmoke, seedForks } from "./smoke";
+import { bearerFromRequest } from "./cell/auth";
+import { cellApi } from "./cell/routes";
 
 export { WorkspaceCell } from "./workspace-cell";
 export { AgentSandbox } from "./agents/sandbox";
@@ -16,8 +18,7 @@ app.get("/health", (c) => c.json({ ok: true, version: c.env.APP_VERSION }));
 // Everything under /api needs the bearer secret. Fails closed when DEV_TOKEN is unset.
 app.use("/api/*", async (c, next) => {
 	const expected = c.env.DEV_TOKEN;
-	const header = c.req.header("Authorization") ?? "";
-	const given = header.startsWith("Bearer ") ? header.slice("Bearer ".length) : "";
+	const given = bearerFromRequest(c.req.raw); // Authorization: Bearer, or the WebSocket subprotocol form
 	if (!expected || !given || !(await safeEqual(given, expected))) {
 		return c.json({ error: { code: "UNAUTHORIZED", message: "missing or invalid bearer token" } }, 401);
 	}
@@ -119,6 +120,8 @@ app.get("/api/cell/:name", async (c) => {
 	const stub = c.env.WORKSPACE_CELL.get(c.env.WORKSPACE_CELL.idFromName(c.req.param("name")));
 	return c.json({ id: await stub.getId() });
 });
+
+app.route("/api", cellApi); // WorkspaceCell API: scenarios, work items, resolutions, promote, WebSocket (docs/control-loop.md)
 
 app.onError((err, c) => {
 	const code = errorCode(err);

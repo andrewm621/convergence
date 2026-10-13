@@ -9,6 +9,9 @@ interface __BaseEnv_Env {
 	AGENT_MODEL: string;
 	STUB_STEP_MS: string;
 	SANDBOX_INSTANCE: string;
+	POLL_INTERVAL_MS: string;
+	DEMO_ACTOR_ID: string;
+	DEMO_ACTOR_NAME: string;
 	DEV_TOKEN: string;
 	OPENROUTER_API_KEY: string;
 	WORKSPACE_CELL: DurableObjectNamespace<import("./src/index").WorkspaceCell>;
@@ -26,7 +29,7 @@ type StringifyValues<EnvType extends Record<string, unknown>> = {
 	[Binding in keyof EnvType]: EnvType[Binding] extends string ? EnvType[Binding] : string;
 };
 declare namespace NodeJS {
-	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "APP_VERSION" | "ENABLE_SMOKE" | "AGENT_MODE" | "AGENT_MODEL" | "STUB_STEP_MS" | "SANDBOX_INSTANCE" | "DEV_TOKEN" | "OPENROUTER_API_KEY">> {}
+	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "APP_VERSION" | "ENABLE_SMOKE" | "AGENT_MODE" | "AGENT_MODEL" | "STUB_STEP_MS" | "SANDBOX_INSTANCE" | "POLL_INTERVAL_MS" | "DEMO_ACTOR_ID" | "DEMO_ACTOR_NAME" | "DEV_TOKEN" | "OPENROUTER_API_KEY">> {}
 }
 declare module "*.txt" {
 	const value: string;
