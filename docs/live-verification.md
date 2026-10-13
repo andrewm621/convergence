@@ -87,3 +87,34 @@ Findings from getting there:
 - Poller failure paths against the real service (backoff, degraded notes, a baseline far ahead), alarm cadence over a long idle period, and the Queue path (not implemented).
 - Subrequest limits and latency on a large repository, and a merge conflict (`MERGE_CONFLICT`).
 - `meta.evaluationMs` is `0` in live frames: the runtime clock only advances on I/O, so the strip should use request timings, not that field.
+
+## Console live verification
+
+The console (PR #4) was deployed from `main` (head `2181838`) and checked on the deployed Worker on 2026-10-12 with a headless browser, stub agents only, and no model calls.
+
+| Check | Result | Observed |
+|---|---|---|
+| `pnpm -r typecheck` and `pnpm -r test` | pass | all packages green (delta-core 233, console 94, worker 583) |
+| `wrangler deploy` with the built console | pass | 3 assets uploaded; the new asset hash answered on the first poll |
+| `/` serves the console HTML | pass | 200, `text/html` |
+| `/health` is answered by the Worker | pass | JSON `{ ok, version }` |
+| `/api/*` without a bearer | pass | `401` JSON |
+| `/api/smoke/*` with `ENABLE_SMOKE=0` | pass | `404` `SMOKE_DISABLED`, stable over 30 s of probes after the deploy |
+| Populate the `notifications` cell with stub agents | pass | seed 5.6 s, both runs 18 s, v2 change 1.8 s, WI-2 `conflict` and WI-1 `ready` 1.9 s after the request |
+| Token in `#token=...` is cleared from the address bar | pass | hash empty after load; token only in `sessionStorage` |
+| **Browser WebSocket with the `delta.v1` + bearer subprotocol** | pass | header reads **Live** (the client only shows it for an open socket), the first `snapshot` rendered with no REST read and no polling fallback |
+| Context timeline, work graph, inspector, ledger tail | pass | v1/v2 diff, one red `stale: v1 -> v2` edge, "Why is this blocked?" for WI-2 (`STALE_RECEIPT`, `FACET_CHANGED`, `CLAIM_CONFLICT`, `SUPERSEDED_BASIS`), "chain verified, 5 lines" |
+| No "Poller degraded" badge; "Acting as: Decision owner (demo identity)" | pass | |
+| Page errors and console messages | pass | none |
+| `/?mock=1` | pass | renders, header reads "Mock · replay" |
+
+Found, fixed on branch `fix/live-console` (not merged):
+
+1. **A deep path rendered a blank page.** `/foo/bar` got the SPA fallback, but the build used a relative base, so `./assets/index-*.js` resolved to `/foo/assets/...`, which the fallback answered with HTML. Fix: `base: "/"` in `apps/console/vite.config.ts`, with a test.
+2. **An unknown authenticated `/api/*` route returned Hono's plain-text `404 Not Found`**, not the `{ error: { code, message } }` body every other error uses. Fix: `app.notFound(jsonNotFound)`, with a test.
+
+Notes:
+- The unauthenticated `/api/<unknown>` gets `401` (the guard runs first), so the JSON 404 is only visible with a bearer.
+- A `POST /api/smoke*` probe during the `ENABLE_SMOKE` rollback reached the previous version once and created stray repos. A redeploy flips back and forth for a few seconds, so probe a rollback with a method that does nothing (`GET /api/smoke/seed` answers `SMOKE_DISABLED` when off). `wrangler artifacts repos list` and `repos delete` remove stray repos without enabling smoke.
+- The work graph's evaluation strip shows `<0.01 ms` live (the known `meta.evaluationMs` clock issue above); it should show the request timing or be hidden.
+- The `notifications` cell and its three `smoke-m1-*` repos were left in place as the console's demo data; with smoke off they can only be removed with `wrangler artifacts repos delete`.
