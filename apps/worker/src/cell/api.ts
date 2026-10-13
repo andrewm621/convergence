@@ -51,7 +51,7 @@ export const PromoteRequest = z.strictObject({
 export type PromoteRequest = z.infer<typeof PromoteRequest>;
 
 /** What a cell method hands back to the HTTP layer. */
-export type CellResult = { status: number; body: unknown; replay?: boolean };
+export type CellResult = { status: number; body: unknown; replay?: boolean; headers?: Record<string, string> };
 
 export function failure(status: number, code: string, message: string, extra: Record<string, unknown> = {}): CellResult {
 	return { status, body: { error: { code, message, ...extra } } };
@@ -106,10 +106,18 @@ export function refusalOf(effects: Effect[]): { status: number; code: ReasonCode
  *    server): trust the snapshot, not the replay.
  *  - `evaluationMs`: how long the reconciler took for this line (`evaluationMsBySeq` on a snapshot,
  *    for the lines in its ledgerTail).
+ *  - `poller`: on a snapshot and on a live `event`, whether the poller is healthy and, if not, which
+ *    repos are failing and why ("poller degraded"). A snapshot is also re-sent when health changes.
  *  - on a live `event`: `baselineCommit`, `snapshotHash`, `dependencies` (when the event can change
  *    them) and `records` (the histories of the records a BaselinePushed touched), so a client need
  *    not re-read the state.
  */
+export const PollerMeta = z.object({
+	healthy: z.boolean(),
+	degraded: z.array(z.object({ repo: z.string(), kind: z.enum(["baseline", "fork"]), lastError: z.string().nullable(), note: z.string().nullable() })),
+});
+export type PollerMeta = z.infer<typeof PollerMeta>;
+
 export const WsMeta = z.object({
 	seq: z.number().int().min(0),
 	replay: z.boolean().optional(),
@@ -120,6 +128,7 @@ export const WsMeta = z.object({
 	snapshotHash: Sha256.optional(),
 	dependencies: z.array(Dependency).optional(),
 	records: z.record(z.string(), RecordHistory).optional(),
+	poller: PollerMeta.optional(),
 });
 export type WsMeta = z.infer<typeof WsMeta>;
 export type WsFrame = WsMessage & { meta: WsMeta };

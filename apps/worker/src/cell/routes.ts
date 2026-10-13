@@ -36,6 +36,7 @@ function cell(c: Ctx) {
 
 function respond(c: Ctx, result: CellResult) {
 	if (result.replay) c.header("Idempotent-Replay", "true");
+	for (const [name, value] of Object.entries(result.headers ?? {})) c.header(name, value);
 	return c.json(result.body as never, result.status as ContentfulStatusCode);
 }
 
@@ -71,9 +72,9 @@ async function mutate(c: Ctx, act: (key: string, body: unknown) => Promise<CellR
 
 // ---------- setup ----------
 
-cellApi.post("/scenarios/:scenario/init", jsonBody, (c) => mutate(c, (key, body) => cell(c).init(c.get("scenario"), body, key)));
+cellApi.post("/scenarios/:scenario/init", jsonBody, (c) => mutate(c, (key, body) => cell(c).init(c.get("scenario"), body, c.get("actor"), key)));
 
-cellApi.post("/scenarios/:scenario/work-items", jsonBody, (c) => mutate(c, (key, body) => cell(c).registerWorkItem(body, key)));
+cellApi.post("/scenarios/:scenario/work-items", jsonBody, (c) => mutate(c, (key, body) => cell(c).registerWorkItem(body, c.get("actor"), key)));
 
 // ---------- reads ----------
 

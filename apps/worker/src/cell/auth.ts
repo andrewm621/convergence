@@ -1,3 +1,4 @@
+import type { MiddlewareHandler } from "hono";
 import type { Actor } from "contracts";
 
 // Who is calling, as far as the Worker can tell. There is one shared bearer secret and no user
@@ -16,12 +17,14 @@ const BEARER_PROTOCOL_PREFIX = "bearer.";
 
 /**
  * The bearer secret from `Authorization: Bearer <secret>`, or, for browsers (whose WebSocket
- * cannot set headers), from `Sec-WebSocket-Protocol: delta.v1, bearer.<base64url(secret)>`.
+ * cannot set headers), from `Sec-WebSocket-Protocol: delta.v1, bearer.<base64url(secret)>`. The
+ * subprotocol form counts only on a WebSocket upgrade: nothing else has a reason to send it.
  * Returns "" when there is none.
  */
 export function bearerFromRequest(request: Request): string {
 	const header = request.headers.get("Authorization") ?? "";
 	if (header.startsWith("Bearer ")) return header.slice("Bearer ".length);
+	if (request.headers.get("Upgrade")?.toLowerCase() !== "websocket") return "";
 	for (const part of (request.headers.get("Sec-WebSocket-Protocol") ?? "").split(",")) {
 		const protocol = part.trim();
 		if (protocol.startsWith(BEARER_PROTOCOL_PREFIX)) return decodeBase64Url(protocol.slice(BEARER_PROTOCOL_PREFIX.length));
@@ -38,6 +41,22 @@ function decodeBase64Url(value: string): string {
 		return "";
 	}
 }
+
+async function safeEqual(a: string, b: string): Promise<boolean> {
+	const enc = new TextEncoder();
+	const [ha, hb] = await Promise.all([crypto.subtle.digest("SHA-256", enc.encode(a)), crypto.subtle.digest("SHA-256", enc.encode(b))]);
+	return crypto.subtle.timingSafeEqual(ha, hb);
+}
+
+/** The guard for everything under /api: the shared bearer secret. Fails closed when `DEV_TOKEN` is unset. */
+export const bearerGuard: MiddlewareHandler<{ Bindings: { DEV_TOKEN?: string } }> = async (c, next) => {
+	const expected = c.env.DEV_TOKEN;
+	const given = bearerFromRequest(c.req.raw);
+	if (!expected || !given || !(await safeEqual(given, expected))) {
+		return c.json({ error: { code: "UNAUTHORIZED", message: "missing or invalid bearer token" } }, 401);
+	}
+	await next();
+};
 
 export type SessionEnv = { DEMO_ACTOR_ID?: string; DEMO_ACTOR_NAME?: string };
 

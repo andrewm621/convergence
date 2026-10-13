@@ -8,7 +8,7 @@ import { startWorkerd, type Workerd } from "./testing/workerd";
 // real hibernating WebSockets, real Hono routes. Only Artifacts is the in-memory fake, so these
 // prove the logic and the wiring, not the live binding (docs/control-loop.md lists what to check live).
 
-let w: Workerd;
+let w: Workerd; // reassigned by the one test that needs a slower poller
 let n = 0;
 
 beforeAll(async () => {
@@ -504,4 +504,131 @@ describe("console compatibility", () => {
 		const match = await post(s, "/work-items/WI-2/resolutions", { workItemId: "WI-2", kind: "reject", rationale: "x", binding: { ...binding, forkHeadSha: "c".repeat(40) } });
 		expect(match.body.error.code).toBe("STALE_BINDING"); // it got as far as the reconciler
 	});
+});
+
+describe("poller: never loses a baseline change, and says when it is struggling", () => {
+	it("keeps retrying a baseline commit it cannot read, reports itself degraded meanwhile, then records it", async () => {
+		const s = await scenario();
+		const state = () => w.api("GET", `/scenarios/${s}/state`);
+		expect((await state()).headers.get("x-delta-poller")).toBe("healthy");
+		await w.world(s, { op: "fail", method: "tree", times: 5 });
+		const sha = await w.world(s, { op: "push", repo: BASELINE, files: { "src/new.ts": "x" }, author: "delta-convergence" });
+		await until(async () => (await state()).headers.get("x-delta-poller") === "degraded", 8000, "the poller to report trouble");
+		const poller = (await get(s, "/poller")).body;
+		expect(poller.health.healthy).toBe(false);
+		expect(poller.health.degraded[0]).toMatchObject({ repo: BASELINE, kind: "baseline" });
+		// Past the point where an older version gave up (4 failures): the commit is still not lost.
+		const recorded = await until(
+			async () => (await ledger(s)).some((e) => e.payload.event.type === "BaselinePushed" && e.payload.event.commitSha === sha),
+			20_000,
+			"the baseline commit to be recorded after the failures end",
+		);
+		expect(recorded).toBe(true);
+		await until(async () => (await state()).headers.get("x-delta-poller") === "healthy", 8000, "the poller to recover");
+	}, 40_000);
+
+	it("tells the console in the snapshot meta, and refuses to promote or change context on a baseline it has not caught up with", async () => {
+		const s = await scenario();
+		await w.world(s, { op: "push", repo: WI1, files: { ".delta/claims.json": JSON.stringify(claims.wi1) } });
+		await w.cell(s, "pollNow");
+		await evidence(s, WI1, "WI-1", (await item(s, "WI-1"))?.headSha as string, "tests/contract/status-model.test.ts");
+		const state = (await get(s, "/state")).body;
+		const headSha = (await item(s, "WI-1"))?.headSha;
+		// The baseline moves and the cell cannot read it.
+		await w.world(s, { op: "push", repo: BASELINE, files: { "src/other.ts": "x" } });
+		await w.world(s, { op: "fail", method: "tree", times: 40 });
+		const promote = await post(s, "/work-items/WI-1/promote", { expectedBaselineCommit: state.baselineCommit, forkHeadSha: headSha });
+		expect([promote.status, promote.body.error.code]).toEqual([503, "POLLER_BEHIND"]);
+		const change = await post(s, "/context-changes", { recordId: "notifications", facets: V2_FACETS, rationale: "x" });
+		expect([change.status, change.body.error.code]).toEqual([503, "POLLER_BEHIND"]);
+		const socket = await w.openSocket(s);
+		const snapshot = await socket.waitFor(() => true);
+		expect(snapshot.meta.poller.healthy).toBe(false);
+		socket.close();
+		await w.world(s, { op: "fail", method: "tree", times: 0 });
+	});
+
+	it("a fork push it cannot read is retried, then delivered fail-closed rather than dropped", async () => {
+		const s = await scenario();
+		await w.world(s, { op: "fail", method: "readFile", times: 3 });
+		await w.world(s, { op: "push", repo: WI1, files: { ".delta/claims.json": JSON.stringify(claims.wi1), "src/wi1.ts": "export const x = 1;\n" }, author: "workitem-wi-1" });
+		const wi1 = await until(async () => {
+			const found = await item(s, "WI-1");
+			return found?.headSha ? found : false;
+		}, 15_000, "the push to be delivered");
+		expect(wi1.conditions.flatMap((c) => c.reasonCodes)).toContain("MALFORMED_CLAIMS");
+		await w.cell(s, "pollNow"); // a clean read of the same head is a no-op; the next real push reads normally
+		await w.world(s, { op: "push", repo: WI1, files: { ".delta/claims.json": JSON.stringify(claims.wi1) }, author: "workitem-wi-1" });
+		await until(async () => !(await item(s, "WI-1"))?.conditions.some((c) => c.reasonCodes.includes("MALFORMED_CLAIMS")), 8000, "the readable push to replace it");
+	}, 30_000);
+
+	it("catches up on a baseline that moved more than 50 commits between polls", async () => {
+		const slow = await startWorkerd({ pollIntervalMs: 60_000 }); // the alarm will not fire during this test
+		const fast = w;
+		w = slow; // the helpers above talk to `w`; tests in a file run one at a time
+		try {
+			const s = await scenario();
+			await w.world(s, { op: "pushMany", repo: BASELINE, count: 120 });
+			await w.cell(s, "pollNow");
+			const pushes = (await ledger(s)).filter((e) => e.type === "BaselinePushed");
+			expect(pushes).toHaveLength(120);
+		} finally {
+			w = fast;
+			await slow.dispose();
+		}
+	}, 60_000);
+});
+
+describe("promotion that lands but is not recorded", () => {
+	it("is finalized on the next poll when the merge commit is the head", async () => {
+		const s = await scenario();
+		await w.world(s, { op: "push", repo: WI1, files: { ".delta/claims.json": JSON.stringify(claims.wi1), "src/wi1.ts": "export const badge = 1;\n" }, author: "workitem-wi-1" });
+		await w.cell(s, "pollNow");
+		const head = (await item(s, "WI-1"))?.headSha as string;
+		await evidence(s, WI1, "WI-1", head, "tests/contract/status-model.test.ts");
+		const state = (await get(s, "/state")).body;
+
+		await w.world(s, { op: "failAfter", method: "mergeFork" }); // the merge lands, the answer is lost
+		const lost = await post(s, "/work-items/WI-1/promote", { expectedBaselineCommit: state.baselineCommit, forkHeadSha: head });
+		expect([lost.status, lost.body.error.code]).toEqual([502, "MERGE_FAILED"]);
+		expect((await w.world(s, { op: "files", repo: BASELINE }))["src/wi1.ts"]).toContain("badge"); // it did land
+
+		await until(async () => (await item(s, "WI-1"))?.item.status === "promoted", 8000, "the poller to finalize the promotion");
+		expect((await ledger(s)).filter((e) => e.type === "PromotionMerged")).toHaveLength(1);
+		const after = (await get(s, "/state")).body;
+		expect(after.baselineCommit).toBe(await w.world(s, { op: "head", repo: BASELINE }));
+		expect((await get(s, "/ledger/verify")).body.ok).toBe(true);
+	});
+});
+
+describe("registration and setup hygiene", () => {
+	it("refuses to track the baseline, or a repo that is already tracked, as a fork", async () => {
+		const s = await scenario({ register: false });
+		const asBaseline = await post(s, "/work-items", { id: "WI-1", title: "x", forkRepo: BASELINE, dependencies: [] });
+		expect([asBaseline.status, asBaseline.body.error.code]).toEqual([409, "REPO_ALREADY_TRACKED"]);
+		expect((await post(s, "/work-items", { id: "WI-1", title: "x", forkRepo: WI1, dependencies: [] })).status).toBe(201);
+		const twice = await post(s, "/work-items", { id: "WI-9", title: "y", forkRepo: WI1, dependencies: [] });
+		expect([twice.status, twice.body.error.code]).toEqual([409, "REPO_ALREADY_TRACKED"]);
+		// The baseline is still watched as the baseline.
+		expect((await get(s, "/poller")).body.repos.find((r: { repo: string }) => r.repo === BASELINE).kind).toBe("baseline");
+	});
+
+	it("only a human can initialise a scenario or register work", async () => {
+		const s = `n-${++n}`;
+		await w.world(s, { op: "create", repo: BASELINE, files: { "context/notifications.md": NOTIFICATIONS_V1 } });
+		const asAgent = await post(s, "/init", { baselineRepo: BASELINE, policy }, key(), { "X-Delta-Principal": "agent:agent-b" });
+		expect([asAgent.status, asAgent.body.error.code]).toEqual([403, "FORBIDDEN_ACTOR"]);
+		const ok = await scenario({ register: false });
+		const reg = await post(ok, "/work-items", { id: "WI-1", title: "x", forkRepo: WI1, dependencies: [] }, key(), { "X-Delta-Principal": "agent:agent-b" });
+		expect([reg.status, reg.body.error.code]).toEqual([403, "FORBIDDEN_ACTOR"]);
+	});
+
+	it("reports observed:false when the cell could not read its own commit yet, and then catches up", async () => {
+		const s = await scenario();
+		await w.world(s, { op: "fail", method: "tree", times: 3, skip: 1 }); // let the planner's read through, fail the observation
+		const res = await post(s, "/context-changes", { recordId: "notifications", facets: V2_FACETS, rationale: "opt-in" });
+		expect(res.status).toBe(201);
+		expect(res.body.observed).toBe(false);
+		await until(async () => (await get(s, "/state")).body.records.notifications.current === 2, 15_000, "the poller to pick up the change");
+	}, 30_000);
 });

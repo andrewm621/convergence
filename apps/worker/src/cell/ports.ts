@@ -59,7 +59,7 @@ export interface MergeRequest {
 
 export interface ArtifactsPort {
 	/** Newest first along the first-parent chain of the default branch. Empty when the repo has no commits. */
-	log(repo: string, options: { limit: number }): Promise<RepoCommit[]>;
+	log(repo: string, options: { limit: number; offset?: number }): Promise<RepoCommit[]>;
 	/** Text of a file at a ref (branch or commit sha), or null. */
 	readFile(repo: string, ref: string, path: string): Promise<string | null>;
 	/** Text of a blob by object id, or null. */

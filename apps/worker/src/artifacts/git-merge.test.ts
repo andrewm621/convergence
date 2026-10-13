@@ -37,6 +37,33 @@ async function forkFrom(fs: MemoryFS, base: string, files: Record<string, string
 	return sha;
 }
 
+describe("mergeInto: the heads are re-checked after the fetch", () => {
+	it("refuses (STALE_HEAD) when the fork ref is no longer the head the approval was given against", async () => {
+		const { fs, base } = await setup();
+		await forkFrom(fs, base, { "c.txt": "c\n" });
+		await expect(
+			mergeInto(fs, DIR, { ours: "main", theirs: "refs/remotes/fork/main", message: "promote", author: HUMAN, expect: { ours: base, theirs: "d".repeat(40) } }),
+		).rejects.toMatchObject({ code: "STALE_HEAD" });
+		expect(await git.resolveRef({ fs, dir: DIR, ref: "main" })).toBe(base); // nothing merged
+	});
+
+	it("refuses (STALE_HEAD) when the cloned baseline is not the head the approval was given against", async () => {
+		const { fs, base } = await setup();
+		const forkHead = await forkFrom(fs, base, { "c.txt": "c\n" });
+		await commit(fs, { "b.txt": "b2\n" }, "baseline moved after the approval");
+		await expect(
+			mergeInto(fs, DIR, { ours: "main", theirs: "refs/remotes/fork/main", message: "promote", author: HUMAN, expect: { ours: base, theirs: forkHead } }),
+		).rejects.toBeInstanceOf(PortError);
+	});
+
+	it("merges when both heads are what was approved", async () => {
+		const { fs, base } = await setup();
+		const forkHead = await forkFrom(fs, base, { "c.txt": "c\n" });
+		const result = await mergeInto(fs, DIR, { ours: "main", theirs: "refs/remotes/fork/main", message: "promote", author: HUMAN, expect: { ours: base, theirs: forkHead } });
+		expect(result.oid).toBe(forkHead);
+	});
+});
+
 describe("mergeInto", () => {
 	it("fast-forwards when the baseline has not moved", async () => {
 		const { fs, base } = await setup();

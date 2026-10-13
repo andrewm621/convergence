@@ -13,9 +13,9 @@ export class BindingArtifactsPort implements ArtifactsPort {
 		this.#env = env;
 	}
 
-	async log(repo: string, options: { limit: number }): Promise<RepoCommit[]> {
+	async log(repo: string, options: { limit: number; offset?: number }): Promise<RepoCommit[]> {
 		return this.#read(repo, async (handle) => {
-			const commits = await handle.log({ ref: BRANCH, limit: options.limit });
+			const commits = await handle.log({ ref: BRANCH, limit: options.limit, ...(options.offset ? { offset: options.offset } : {}) });
 			return commits.map((c) => ({ sha: c.hash, message: c.message, authorName: c.author.name, committerName: c.committer.name, parents: c.parents, committedAt: c.committedAt }));
 		});
 	}

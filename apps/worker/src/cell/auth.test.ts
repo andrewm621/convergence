@@ -10,13 +10,17 @@ describe("bearerFromRequest", () => {
 	});
 
 	it("reads the WebSocket subprotocol form a browser has to use", () => {
-		expect(bearerFromRequest(req({ "Sec-WebSocket-Protocol": `delta.v1, bearer.${b64url("pa ss/+word=")}` }))).toBe("pa ss/+word=");
+		expect(bearerFromRequest(req({ Upgrade: "websocket", "Sec-WebSocket-Protocol": `delta.v1, bearer.${b64url("pa ss/+word=")}` }))).toBe("pa ss/+word=");
+	});
+
+	it("ignores the subprotocol secret on anything that is not a WebSocket upgrade", () => {
+		expect(bearerFromRequest(req({ "Sec-WebSocket-Protocol": `delta.v1, bearer.${b64url("s3cret")}` }))).toBe("");
 	});
 
 	it("returns an empty string for nothing, a wrong scheme or junk", () => {
 		expect(bearerFromRequest(req({}))).toBe("");
 		expect(bearerFromRequest(req({ Authorization: "Basic abc" }))).toBe("");
-		expect(bearerFromRequest(req({ "Sec-WebSocket-Protocol": "delta.v1, bearer.***" }))).toBe("");
+		expect(bearerFromRequest(req({ Upgrade: "websocket", "Sec-WebSocket-Protocol": "delta.v1, bearer.***" }))).toBe("");
 	});
 });
 

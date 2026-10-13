@@ -22,6 +22,8 @@ export const CLAIMS_PATH = ".delta/claims.json";
 const MAX_CLAIMS_BYTES = 256 * 1024;
 /** Shown instead of a path when the fork could not be compared with its base. It fails closed: any entry blocks promotion. */
 export const UNVERIFIED_CONTEXT_PATH = "context/(fork could not be compared with its base)";
+/** Delivered as the claims when the claims file could not be read. Not an array, so it fails closed. */
+export const UNREADABLE_CLAIMS = "claims file could not be read";
 
 export type ObserveDeps = {
 	port: ArtifactsPort;
@@ -126,15 +128,22 @@ function refuseAcceptance(deps: ObserveDeps, commit: RepoCommit, written: Writte
 /**
  * A fork commit as a ForkPushed event. The claims are read at that commit; `contextPaths` comes
  * from a tree diff of the fork against the baseline commit it was forked from (not from anything
- * the agent says), so a fork that edits `context/**` is always seen. If the diff cannot be made
- * and `degraded` is set, the push is delivered with a sentinel path instead: fail closed.
+ * the agent says), so a fork that edits `context/**` is always seen. If the claims cannot be read,
+ * or the diff cannot be made, and `degraded` is set, the push is delivered with a marker instead
+ * (malformed claims, a sentinel context path): fail closed.
  */
 export async function observeForkCommit(deps: ObserveDeps, tracked: TrackedRepo, baselineRepo: string, commit: RepoCommit, options: { degraded?: boolean } = {}): Promise<DeltaEvent> {
 	const { port } = deps;
 	if (!tracked.workItemId) throw new Error(`${tracked.repo} is not a fork of a work item`);
 
-	const text = await port.readFile(tracked.repo, commit.sha, CLAIMS_PATH);
+	let text: string | null = null;
 	let claims: unknown = null;
+	try {
+		text = await port.readFile(tracked.repo, commit.sha, CLAIMS_PATH);
+	} catch (error) {
+		if (!options.degraded) throw error;
+		claims = UNREADABLE_CLAIMS; // a non-array: the reconciler reads it as MALFORMED_CLAIMS and blocks
+	}
 	if (text !== null) {
 		if (text.length > MAX_CLAIMS_BYTES) claims = "claims file is too large";
 		else {

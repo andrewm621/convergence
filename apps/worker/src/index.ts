@@ -4,7 +4,7 @@ import { redactDeep, redactText } from "./artifacts/tokens";
 import { DispatchError, dispatchAgent, presentRun } from "./agents/dispatch";
 import { DispatchRequest, REPO_NAME_RE, WORK_ITEM_ID_RE } from "./agents/protocol";
 import { purgeSmokeRepos, runSmoke, seedForks } from "./smoke";
-import { bearerFromRequest } from "./cell/auth";
+import { bearerGuard } from "./cell/auth";
 import { cellApi } from "./cell/routes";
 
 export { WorkspaceCell } from "./workspace-cell";
@@ -16,14 +16,7 @@ const app = new Hono<{ Bindings: Env }>();
 app.get("/health", (c) => c.json({ ok: true, version: c.env.APP_VERSION }));
 
 // Everything under /api needs the bearer secret. Fails closed when DEV_TOKEN is unset.
-app.use("/api/*", async (c, next) => {
-	const expected = c.env.DEV_TOKEN;
-	const given = bearerFromRequest(c.req.raw); // Authorization: Bearer, or the WebSocket subprotocol form
-	if (!expected || !given || !(await safeEqual(given, expected))) {
-		return c.json({ error: { code: "UNAUTHORIZED", message: "missing or invalid bearer token" } }, 401);
-	}
-	await next();
-});
+app.use("/api/*", bearerGuard);
 
 // Smoke endpoints create and delete real repos. Off unless ENABLE_SMOKE=1.
 app.use("/api/smoke/*", requireSmoke);
@@ -135,15 +128,6 @@ async function requireSmoke(c: Context<{ Bindings: Env }>, next: Next) {
 		return c.json({ error: { code: "SMOKE_DISABLED", message: "smoke endpoints are disabled (set ENABLE_SMOKE=1)" } }, 404);
 	}
 	await next();
-}
-
-async function safeEqual(a: string, b: string): Promise<boolean> {
-	const enc = new TextEncoder();
-	const [ha, hb] = await Promise.all([
-		crypto.subtle.digest("SHA-256", enc.encode(a)),
-		crypto.subtle.digest("SHA-256", enc.encode(b)),
-	]);
-	return crypto.subtle.timingSafeEqual(ha, hb);
 }
 
 export default app;

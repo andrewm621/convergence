@@ -23,7 +23,7 @@ import {
 	processEvent,
 	type ProcessResult,
 } from "delta-core";
-import { PromoteRequest, RegisterRequest, ResolveRequest, InitRequest, failure, invalidInput, refusalOf, type CellResult, type WsFrame, type WsMeta } from "./api";
+import { PromoteRequest, RegisterRequest, ResolveRequest, InitRequest, failure, invalidInput, refusalOf, type CellResult, type PollerMeta, type WsFrame, type WsMeta } from "./api";
 import { WS_PROTOCOL } from "./auth";
 import { ContextChangeRequest, planContextChange } from "./context-change";
 import { ContextReader, snapshotHashOf } from "./context-tree";
@@ -32,15 +32,23 @@ import { WORKER_COMMITTER, observeBaselineCommit, observeForkCommit, type Observ
 import { PortError, type ArtifactsPort, type RepoCommit } from "./ports";
 import { durableObjectSql } from "./sql";
 import { SqliteCellStore, type LedgerVerdict } from "./sqlite-store";
+import { redactText } from "../artifacts/tokens";
 import type { FlatTree } from "../artifacts/tree-diff";
 
 const LEDGER_TAIL = 50;
 /** The snapshot's ledgerTail reaches back to the latest BaselinePushed, but never further than this many lines. */
 const LEDGER_TAIL_MAX = 300;
 const REPLAY_LIMIT = 200;
-const POLL_WINDOW = 50;
-/** After this many failed attempts at one commit the poller gives up on it (and says so) instead of retrying forever. */
-const MAX_COMMIT_FAILURES = 4;
+/** The poller reads history this many commits at a time, newest first. */
+const POLL_PAGE = 50;
+/** A baseline further ahead than this is reported as an error rather than read: it cannot be a normal catch-up. */
+const BASELINE_CATCHUP_MAX = 5000;
+/** A fork commit that keeps failing is delivered fail-closed after the first number of attempts, and skipped (with a note) after the second. A baseline commit is never skipped. */
+const FORK_DEGRADE_AFTER = 2;
+const FORK_SKIP_AFTER = 6;
+const MAX_BACKOFF_MS = 30_000;
+/** A promotion whose merge never shows up in the baseline is forgotten after this long. */
+const PENDING_PROMOTION_TTL_MS = 10 * 60_000;
 const DEFAULT_POLL_MS = 3000;
 const WORKER_IDENTITY = { name: WORKER_COMMITTER, email: "delta@example.invalid" };
 
@@ -102,6 +110,11 @@ export abstract class CellBase extends DurableObject<Env> {
 	}
 
 	// ---------- plumbing ----------
+
+	/** Log an error without leaking a token or an account id that an Artifacts error message may carry. */
+	#logError(what: string, error: unknown): void {
+		console.error(what, redactText(error instanceof Error ? error.message : String(error)));
+	}
 
 	get #artifacts(): ArtifactsPort {
 		return (this.#port ??= this.createPort());
@@ -193,16 +206,16 @@ export abstract class CellBase extends DurableObject<Env> {
 	async #afterApplied(entry: ReconciliationEvent, effects: Effect[], evaluationMs: number): Promise<void> {
 		try {
 			const state = await this.#store.load();
-			if (state) this.#broadcast(this.#frame({ type: "event", event: entry, workItems: touchedItems(state, entry) }, liveEventMeta(state, entry, evaluationMs)));
+			if (state) this.#broadcast(this.#frame({ type: "event", event: entry, workItems: touchedItems(state, entry) }, liveEventMeta(state, entry, evaluationMs, this.#pollerMeta())));
 		} catch (error) {
-			console.error("broadcast failed", error instanceof Error ? error.message : error);
+			this.#logError("broadcast failed", error);
 		}
 		for (const effect of effects) {
 			if (effect.type !== "DISPATCH_WORK") continue;
 			try {
 				await this.onDispatchWork(effect);
 			} catch (error) {
-				console.error("dispatch effect failed", error instanceof Error ? error.message : error);
+				this.#logError("dispatch effect failed", error);
 			}
 		}
 	}
@@ -270,10 +283,7 @@ export abstract class CellBase extends DurableObject<Env> {
 		const resuming = since !== null && since < head;
 		const gap = since !== null && (since > head || head - since > REPLAY_LIMIT);
 		const frames: WsFrame[] = [
-			this.#frame(
-				{ type: "snapshot", snapshot },
-				{ seq: head, ...(gap ? { gap: true } : {}), evaluationMsBySeq: this.#meta.evaluationsAfter(snapshot.ledgerTail[0] ? snapshot.ledgerTail[0].seq - 1 : head) },
-			),
+			this.#frame({ type: "snapshot", snapshot }, { ...this.#snapshotMeta(snapshot), ...(gap ? { gap: true } : {}) }),
 		];
 		if (resuming) {
 			const state = await this.#requireState();
@@ -285,6 +295,16 @@ export abstract class CellBase extends DurableObject<Env> {
 			}
 		}
 		for (const frame of frames) ws.send(JSON.stringify(frame));
+	}
+
+	#snapshotMeta(snapshot: CellSnapshot): WsMeta {
+		const head = snapshot.ledgerHead.seq;
+		return { seq: head, poller: this.#pollerMeta(), evaluationMsBySeq: this.#meta.evaluationsAfter(snapshot.ledgerTail[0] ? snapshot.ledgerTail[0].seq - 1 : head) };
+	}
+
+	#pollerMeta(): PollerMeta {
+		const { healthy, degraded } = this.#meta.health();
+		return { healthy, degraded: degraded.map(({ repo, kind, lastError, note }) => ({ repo, kind, lastError, note })) };
 	}
 
 	async #snapshot(): Promise<CellSnapshot> {
@@ -315,6 +335,10 @@ export abstract class CellBase extends DurableObject<Env> {
 	}
 
 	// ---------- the poller ----------
+	//
+	// Its promises: a baseline commit is never skipped (a lost change would show a stale work item as
+	// Fresh); a failing repo is retried with backoff and reported, not abandoned; only a fork commit,
+	// which a later push supersedes anyway, may degrade, and then it fails closed.
 
 	async #ensureAlarm(): Promise<void> {
 		if ((await this.ctx.storage.getAlarm()) === null) await this.ctx.storage.setAlarm(Date.now() + this.pollIntervalMs());
@@ -322,19 +346,45 @@ export abstract class CellBase extends DurableObject<Env> {
 
 	override async alarm(): Promise<void> {
 		try {
-			await this.#serial(() => this.#pollAll());
+			await this.#serial(() => this.#pollAll({ backoff: true }));
 		} catch (error) {
-			console.error("poll failed", error instanceof Error ? error.message : error);
+			this.#logError("poll failed", error);
 		} finally {
 			// Always schedule the next tick: a failed one must not stop the loop.
 			if (this.#meta.baselineRepo()) await this.ctx.storage.setAlarm(Date.now() + this.pollIntervalMs());
 		}
 	}
 
+	/** When to try a repo again after `streak` failures in a row: the interval, doubling, capped. */
+	#retryAt(streak: number): number {
+		return Date.now() + Math.min(this.pollIntervalMs() * 2 ** Math.max(streak - 1, 0), MAX_BACKOFF_MS);
+	}
+
+	#healthKey(): string {
+		return JSON.stringify(this.#meta.health().degraded.map((d) => [d.repo, d.note]));
+	}
+
 	/** Look at every tracked repo once. A cheap `log({limit: 1})` per repo; only a moved head costs more. */
-	async #pollAll(repos?: string[]): Promise<number> {
+	async #pollAll(options: { repos?: string[]; backoff?: boolean } = {}): Promise<number> {
+		const before = this.#healthKey();
+		try {
+			return await this.#pollOnce(options);
+		} finally {
+			await this.#announceHealth(before);
+		}
+	}
+
+	async #pollOnce(options: { repos?: string[]; backoff?: boolean }): Promise<number> {
+		const baselineRepo = this.#meta.baselineRepo();
 		let applied = 0;
-		const tracked = this.#meta.tracked().filter((t) => !repos || repos.includes(t.repo));
+		// A promotion that landed but was never recorded is finalized first, so its merge commit is read as a merge.
+		if (baselineRepo && (!options.repos || options.repos.includes(baselineRepo))) applied += await this.#finalizePromotions(baselineRepo);
+
+		const now = Date.now();
+		const tracked = this.#meta
+			.tracked()
+			.filter((t) => !options.repos || options.repos.includes(t.repo))
+			.filter((t) => !options.backoff || t.retryAt === null || t.retryAt <= now);
 		const heads = await Promise.all(
 			tracked.map((t) =>
 				this.#artifacts.log(t.repo, { limit: 1 }).then(
@@ -347,11 +397,11 @@ export abstract class CellBase extends DurableObject<Env> {
 			const seen = heads[i];
 			if (!seen) continue;
 			if (!seen.ok) {
-				this.#meta.fail(t.repo, seen.error instanceof Error ? seen.error.message : String(seen.error), this.now());
+				this.#recordRepoError(t, seen.error);
 				continue;
 			}
 			if (!seen.head || seen.head.sha === t.cursor) {
-				this.#meta.touch(t.repo, this.now());
+				this.#meta.touchOk(t.repo, this.now());
 				continue;
 			}
 			applied += await this.#pollRepo(t);
@@ -359,35 +409,80 @@ export abstract class CellBase extends DurableObject<Env> {
 		return applied;
 	}
 
+	#recordRepoError(t: TrackedRow, error: unknown): void {
+		this.#meta.repoError(t.repo, redactText(error instanceof Error ? error.message : String(error)), this.now(), this.#retryAt(t.streak + 1));
+	}
+
+	/** Tell every connected console when the poller's health changes, with a fresh snapshot (its meta carries the health). */
+	async #announceHealth(before: string): Promise<void> {
+		if (this.#healthKey() === before || this.ctx.getWebSockets().length === 0) return;
+		try {
+			const snapshot = await this.#snapshot();
+			this.#broadcast(this.#frame({ type: "snapshot", snapshot }, this.#snapshotMeta(snapshot)));
+		} catch (error) {
+			this.#logError("health broadcast failed", error);
+		}
+	}
+
+	/**
+	 * The commits after this repo's cursor, oldest first, or null if they could not be listed (the
+	 * error is recorded). A baseline is read page by page until the cursor is found, so a catch-up of
+	 * any size loses nothing. A fork only ever needs its newest commit: each push replaces the claims.
+	 */
+	async #commitsSince(t: TrackedRow): Promise<RepoCommit[] | null> {
+		try {
+			if (t.kind === "fork") {
+				const head = (await this.#artifacts.log(t.repo, { limit: 1 }))[0];
+				return head && head.sha !== t.cursor ? [head] : [];
+			}
+			const found: RepoCommit[] = [];
+			for (let offset = 0; offset < BASELINE_CATCHUP_MAX; offset += POLL_PAGE) {
+				const page = await this.#artifacts.log(t.repo, { limit: POLL_PAGE, offset });
+				const at = t.cursor ? page.findIndex((c) => c.sha === t.cursor) : -1;
+				if (at !== -1) return [...found, ...page.slice(0, at)].reverse();
+				found.push(...page);
+				if (page.length < POLL_PAGE) return found.reverse(); // reached the first commit
+			}
+			throw new Error(`the last commit read (${(t.cursor ?? "none").slice(0, 7)}) was not found in the newest ${BASELINE_CATCHUP_MAX} commits`);
+		} catch (error) {
+			this.#recordRepoError(t, error);
+			return null;
+		}
+	}
+
 	/** Read the commits after this repo's cursor and turn each into events. Returns how many ledger lines it added. */
 	async #pollRepo(t: TrackedRow): Promise<number> {
-		let window: RepoCommit[];
-		try {
-			window = await this.#artifacts.log(t.repo, { limit: POLL_WINDOW });
-		} catch (error) {
-			this.#meta.fail(t.repo, error instanceof Error ? error.message : String(error), this.now());
-			return 0;
-		}
-		const at = t.cursor ? window.findIndex((c) => c.sha === t.cursor) : -1;
-		let fresh = (at === -1 ? window : window.slice(0, at)).reverse(); // oldest first
-		// A fork's claims and context paths are replaced by every push, so only its newest commit matters.
-		// Baseline commits each matter: a typo fix and a decision change can land within one poll.
-		if (t.kind === "fork") fresh = fresh.slice(-1);
-
+		const fresh = await this.#commitsSince(t);
+		if (!fresh) return 0;
 		let added = 0;
 		for (const commit of fresh) {
-			try {
-				const result = await this.#observeCommit(t, commit, { degraded: t.failures >= MAX_COMMIT_FAILURES - 2 });
-				if (result?.outcome === "applied") added += 1;
-				this.#meta.advance(t.repo, commit.sha, this.now());
-			} catch (error) {
-				const failures = this.#meta.fail(t.repo, `${commit.sha.slice(0, 7)}: ${error instanceof Error ? error.message : String(error)}`, this.now());
-				if (failures >= MAX_COMMIT_FAILURES) this.#meta.advance(t.repo, commit.sha, this.now()); // give up on it; last_error says why
-				break;
-			}
+			const outcome = await this.#observeOne(t, commit);
+			if (outcome === "stop") break;
+			if (outcome === "applied") added += 1;
 			t = this.#meta.trackedRepo(t.repo) ?? t;
 		}
 		return added;
+	}
+
+	/** One commit, with failure bookkeeping. "stop" means the commit was not recorded and nothing after it may be. */
+	async #observeOne(t: TrackedRow, commit: RepoCommit): Promise<"applied" | "ignored" | "stop"> {
+		const failedBefore = t.failingSha === commit.sha ? t.failures : 0;
+		try {
+			const result = await this.#observeCommit(t, commit, { degraded: t.kind === "fork" && failedBefore >= FORK_DEGRADE_AFTER });
+			this.#meta.advance(t.repo, commit.sha, this.now());
+			return result?.outcome === "applied" ? "applied" : "ignored";
+		} catch (error) {
+			const short = commit.sha.slice(0, 7);
+			const message = redactText(error instanceof Error ? error.message : String(error));
+			const failures = this.#meta.failCommit(t.repo, commit.sha, `${short}: ${message}`, this.now(), this.#retryAt(t.streak + 1));
+			this.#logError(`poller could not record ${t.repo}@${short} (attempt ${failures})`, error);
+			if (t.kind === "fork" && failures >= FORK_SKIP_AFTER) {
+				// Only a fork commit may be given up on: a later push supersedes it. The note says so until a later commit reads cleanly.
+				this.#meta.skip(t.repo, commit.sha, `skipped ${short} after ${failures} failed attempts: ${message}`, this.now());
+				return "ignored";
+			}
+			return "stop";
+		}
 	}
 
 	/** Turn one commit into events and run them. The poller and `observePush` (the Queue path) both end here. */
@@ -412,7 +507,44 @@ export abstract class CellBase extends DurableObject<Env> {
 		return this.#submit(await observeForkCommit(deps, t, this.#baselineRepo(), commit, options));
 	}
 
-	/** Test and operations hook: poll now instead of waiting for the alarm. */
+	/**
+	 * A promotion whose merge landed but whose PromotionMerged was never written (a lost response, a
+	 * failure in between). The merge commit is the baseline commit whose first parent is the baseline
+	 * the approval named and whose second parent is the fork head, or, for a fast-forward, the fork
+	 * head itself. Recording it now is what the promote request would have done.
+	 */
+	async #finalizePromotions(baselineRepo: string): Promise<number> {
+		const pending = this.#meta.pendingPromotions();
+		if (pending.length === 0) return 0;
+		let applied = 0;
+		let window: RepoCommit[] | null = null;
+		for (const p of pending) {
+			try {
+				const state = await this.#requireState();
+				if (Date.now() - p.createdMs > PENDING_PROMOTION_TTL_MS || state.workItems[p.workItemId]?.item.status === "promoted") {
+					this.#meta.clearPromotion(p.workItemId);
+					continue;
+				}
+				let sha = p.mergeSha;
+				if (!sha) {
+					window ??= await this.#artifacts.log(baselineRepo, { limit: POLL_PAGE });
+					sha = window.find((c) => c.sha === p.forkHead || (c.parents[0] === p.expectedBaseline && c.parents[1] === p.forkHead))?.sha ?? null;
+					if (!sha) continue; // the merge has not shown up (it may never have landed); try again next tick
+					this.#meta.setPromotionMerge(p.workItemId, sha);
+				}
+				// A fast-forward's merge commit is the agent-authored fork head: it must be read as a merge, never as context.
+				this.#meta.markWritten(sha, "merge", p.actor);
+				const merged = await this.#submit({ type: "PromotionMerged", ts: this.now(), workItemId: p.workItemId, repo: baselineRepo, mergeCommitSha: sha });
+				if (merged.outcome === "applied") applied += 1;
+				this.#meta.clearPromotion(p.workItemId);
+			} catch (error) {
+				this.#logError(`could not finalize the promotion of ${p.workItemId}`, error);
+			}
+		}
+		return applied;
+	}
+
+	/** Test and operations hook: poll now instead of waiting for the alarm (ignores any backoff). */
 	pollNow(): Promise<{ lines: number }> {
 		return this.#serial(async () => ({ lines: await this.#pollAll() }));
 	}
@@ -425,23 +557,37 @@ export abstract class CellBase extends DurableObject<Env> {
 		return this.#serial(async () => {
 			const t = this.#meta.trackedRepo(repo);
 			if (!t) return { outcome: "untracked" };
-			const window = await this.#artifacts.log(repo, { limit: POLL_WINDOW });
+			const window = await this.#artifacts.log(repo, { limit: POLL_PAGE });
 			const commit = window.find((c) => c.sha === sha);
 			if (!commit) return { outcome: "unknown-commit" };
 			return { outcome: (await this.#observeCommit(t, commit))?.outcome ?? "ignored" };
 		});
 	}
 
-	pollerStatus(): Promise<{ intervalMs: number; repos: TrackedRow[] }> {
-		return Promise.resolve({ intervalMs: this.pollIntervalMs(), repos: this.#meta.tracked() });
+	pollerStatus(): Promise<{ intervalMs: number; repos: TrackedRow[]; health: ReturnType<CellMeta["health"]> }> {
+		return Promise.resolve({ intervalMs: this.pollIntervalMs(), repos: this.#meta.tracked(), health: this.#meta.health() });
+	}
+
+	/**
+	 * After catching up, is the poller's cursor on the baseline's head? If not, whatever the caller is
+	 * about to judge would be judged against a stale picture, so the request waits (503 + Retry-After).
+	 */
+	async #behindBaseline(): Promise<CellResult | null> {
+		const repo = this.#baselineRepo();
+		const head = (await this.#artifacts.log(repo, { limit: 1 }))[0];
+		const row = this.#meta.trackedRepo(repo);
+		if (!head || row?.cursor === head.sha) return null;
+		const message = `the cell has not yet recorded the baseline's newest commit (${head.sha.slice(0, 7)}); try again shortly`;
+		return { ...failure(503, "POLLER_BEHIND", message, row?.lastError ? { lastError: row.lastError } : {}), headers: { "Retry-After": "2" } };
 	}
 
 	// ---------- setup ----------
 
-	init(scenario: string, input: unknown, key: string): Promise<CellResult> {
-		return this.#idempotent(key, "init", { scenario, input }, async () => {
+	init(scenario: string, input: unknown, actor: Actor, key: string): Promise<CellResult> {
+		return this.#idempotent(key, "init", { scenario, actor, input }, async () => {
 			const parsed = InitRequest.safeParse(input);
 			if (!parsed.success) return invalidInput(parsed.error, "init request");
+			if (actor.kind !== "human") return failure(403, "FORBIDDEN_ACTOR", `${actor.kind} ${actor.id} cannot set up a scenario; only a human can.`);
 			if (await this.#store.load()) return failure(409, "ALREADY_INITIALIZED", "this scenario is already initialised");
 			const { baselineRepo, policy } = parsed.data;
 
@@ -487,13 +633,18 @@ export abstract class CellBase extends DurableObject<Env> {
 		});
 	}
 
-	registerWorkItem(input: unknown, key: string): Promise<CellResult> {
-		return this.#idempotent(key, "register", input, async () => {
+	registerWorkItem(input: unknown, actor: Actor, key: string): Promise<CellResult> {
+		return this.#idempotent(key, "register", { actor, input }, async () => {
 			const parsed = RegisterRequest.safeParse(input);
 			if (!parsed.success) return invalidInput(parsed.error, "work item");
+			if (actor.kind !== "human") return failure(403, "FORBIDDEN_ACTOR", `${actor.kind} ${actor.id} cannot register work; only a human can.`);
 			const req = parsed.data;
 			const state = await this.#requireState();
 			if (state.workItems[req.id]) return failure(409, "ALREADY_REGISTERED", `${req.id} is already registered`);
+			// A repo is watched under one role. Registering the baseline (or a repo already in use) as a fork would replace its cursor.
+			if (req.forkRepo === this.#baselineRepo() || this.#meta.trackedRepo(req.forkRepo)) {
+				return failure(409, "REPO_ALREADY_TRACKED", `${req.forkRepo} is already watched (as the baseline or another work item's fork)`);
+			}
 			const missing = req.dependencies.map((d) => d.recordId).filter((id) => !currentSnapshot(state, id));
 			if (missing.length > 0) return failure(409, "UNKNOWN_RECORD", `no accepted version of: ${[...new Set(missing)].join(", ")}`);
 			if ((await this.#artifacts.log(req.forkRepo, { limit: 1 })).length === 0) return failure(404, "NOT_FOUND", `${req.forkRepo} has no commits (is it a fork of the baseline?)`);
@@ -536,7 +687,7 @@ export abstract class CellBase extends DurableObject<Env> {
 	// ---------- reads ----------
 
 	snapshot(): Promise<CellResult> {
-		return this.#answer(async () => ({ status: 200, body: await this.#snapshot() }));
+		return this.#answer(async () => ({ status: 200, body: await this.#snapshot(), headers: { "X-Delta-Poller": this.#meta.health().healthy ? "healthy" : "degraded" } }));
 	}
 
 	ledger(options: { afterSeq?: number; limit?: number } = {}): Promise<CellResult> {
@@ -606,7 +757,9 @@ export abstract class CellBase extends DurableObject<Env> {
 			const baselineRepo = this.#baselineRepo();
 			const policy = this.#requirePolicy();
 			// Be current before judging anything: another commit may have landed since the last tick.
-			await this.#pollAll([baselineRepo]);
+			await this.#pollAll({ repos: [baselineRepo] });
+			const behind = await this.#behindBaseline();
+			if (behind) return behind;
 			const state = await this.#requireState();
 
 			const head = (await this.#artifacts.log(baselineRepo, { limit: 1 }))[0];
@@ -656,13 +809,14 @@ export abstract class CellBase extends DurableObject<Env> {
 			}
 
 			// Do not wait for the next tick: observe the commit now. The poller will see it too, and R9 drops the repeat.
-			let observed = true;
+			let observed = false;
 			try {
 				const row = this.#meta.trackedRepo(baselineRepo);
 				if (row) await this.#pollRepo(row);
+				// Recorded, not merely attempted: the poller records its failures instead of throwing them.
+				observed = `${baselineRepo}@${committed.commitSha}` in (await this.#requireState()).processed;
 			} catch (error) {
-				observed = false;
-				console.error("could not observe our own commit yet", error instanceof Error ? error.message : error);
+				this.#logError("could not observe our own commit yet", error);
 			}
 			return {
 				status: 201,
@@ -721,7 +875,9 @@ export abstract class CellBase extends DurableObject<Env> {
 			const forkRepo = before.workItems[workItemId]?.item.forkRepo;
 
 			// Be current first, so the reconciler's re-check (R7) runs against the heads that exist now.
-			await this.#pollAll(forkRepo ? [baselineRepo, forkRepo] : [baselineRepo]);
+			await this.#pollAll({ repos: forkRepo ? [baselineRepo, forkRepo] : [baselineRepo] });
+			const behind = await this.#behindBaseline();
+			if (behind) return behind;
 
 			// Phase 1: PromotionRequested. The reconciler re-runs the gate and either refuses or emits ALLOW_PROMOTION.
 			const requested = await this.#submit({
@@ -745,6 +901,8 @@ export abstract class CellBase extends DurableObject<Env> {
 			}
 
 			// Phase 2: the merge, compare-and-swap on the baseline commit the approval was given against.
+			// Written down first: if the merge lands and the answer is lost, the poller finalizes it from this.
+			this.#meta.startPromotion({ workItemId, expectedBaseline: allow.baselineCommit, forkHead: allow.forkHeadSha, actor: actor.id, createdMs: Date.now() });
 			let mergeCommitSha: string;
 			try {
 				const wi = (await this.#requireState()).workItems[workItemId] as WorkItemState;
@@ -759,13 +917,17 @@ export abstract class CellBase extends DurableObject<Env> {
 				}));
 				// A promotion carries a fork's files; it is recorded so it can never be read back as a context change.
 				this.#meta.markWritten(mergeCommitSha, "merge", actor.id);
+				this.#meta.setPromotionMerge(workItemId, mergeCommitSha);
 			} catch (error) {
+				if (error instanceof PortError && (error.code === "STALE_HEAD" || error.code === "MERGE_CONFLICT")) this.#meta.clearPromotion(workItemId); // nothing was merged
 				if (error instanceof PortError && error.code === "STALE_HEAD") {
 					return { status: 409, body: { error: { code: "BASELINE_MOVED", message: "the baseline or the fork moved before the merge; request promotion again" }, promoted: false } };
 				}
 				if (error instanceof PortError && error.code === "MERGE_CONFLICT") {
 					return { status: 409, body: { error: { code: "MERGE_CONFLICT", message: error.message }, promoted: false } };
 				}
+				// The merge may have landed anyway; the pending record lets the poller finalize it.
+				this.#logError(`merge of ${workItemId} failed`, error);
 				// Stored on purpose: a retry with this key would find the request already recorded. Use a new key.
 				return {
 					status: 502,
@@ -776,6 +938,7 @@ export abstract class CellBase extends DurableObject<Env> {
 
 			// Phase 3: PromotionMerged. The reconciler runs the gate once more; it only records a promotion if it still passes.
 			const merged = await this.#submit({ type: "PromotionMerged", ts: this.now(), workItemId, repo: baselineRepo, mergeCommitSha });
+			this.#meta.clearPromotion(workItemId);
 			const row = this.#meta.trackedRepo(baselineRepo);
 			if (row) await this.#pollRepo(row).catch(() => 0); // consume the merge commit as a baseline push
 			const after = (await this.#requireState()).workItems[workItemId];
@@ -810,9 +973,9 @@ export abstract class CellBase extends DurableObject<Env> {
 }
 
 /** What a live `event` frame carries beyond the contract: enough that a client need not re-read the state. */
-function liveEventMeta(state: CellState, entry: ReconciliationEvent, evaluationMs: number): WsMeta {
+function liveEventMeta(state: CellState, entry: ReconciliationEvent, evaluationMs: number, poller: PollerMeta): WsMeta {
 	const event = entry.payload.event;
-	const meta: WsMeta = { seq: entry.seq, evaluationMs, baselineCommit: state.baselineCommit, snapshotHash: state.snapshotHash };
+	const meta: WsMeta = { seq: entry.seq, evaluationMs, baselineCommit: state.baselineCommit, snapshotHash: state.snapshotHash, poller };
 	if (event.type === "WorkItemRegistered" || event.type === "ForkPushed" || event.type === "DependencyDecided") meta.dependencies = state.dependencies;
 	if (event.type === "BaselinePushed") {
 		const records: NonNullable<WsMeta["records"]> = {};

@@ -19,8 +19,21 @@ type Identity = { name: string; email: string };
 /**
  * Merge `theirs` into `ours` (a branch) in an already-cloned repo. Fast-forwards when it can;
  * otherwise makes a merge commit. A real conflict is MERGE_CONFLICT; the repo is left untouched.
+ *
+ * `expect` pins what was actually cloned and fetched: the heads are resolved after the transfer and
+ * must be the commits the approval was given against, else STALE_HEAD. The check that ran before the
+ * clone cannot cover a push that lands between it and the fetch.
  */
-export async function mergeInto(fs: MemoryFS, dir: string, options: { ours: string; theirs: string; message: string; author: Identity; committer?: Identity }): Promise<{ oid: string; fastForward: boolean }> {
+export async function mergeInto(
+	fs: MemoryFS,
+	dir: string,
+	options: { ours: string; theirs: string; message: string; author: Identity; committer?: Identity; expect?: { ours: string; theirs: string } },
+): Promise<{ oid: string; fastForward: boolean }> {
+	if (options.expect) {
+		const [ours, theirs] = await Promise.all([git.resolveRef({ fs, dir, ref: options.ours }), git.resolveRef({ fs, dir, ref: options.theirs })]);
+		if (ours !== options.expect.ours) throw new PortError("STALE_HEAD", "the baseline moved between the approval and the clone");
+		if (theirs !== options.expect.theirs) throw new PortError("STALE_HEAD", "the fork moved between the approval and the fetch");
+	}
 	try {
 		const result = await git.merge({
 			fs,
@@ -68,7 +81,14 @@ export async function mergeForkIntoBaseline(env: Env, request: MergeRequest): Pr
 		await git.addRemote({ fs, dir: DIR, remote: "fork", url: forkInfo.remote });
 		await git.fetch({ fs, http, dir: DIR, remote: "fork", ref: BRANCH, singleBranch: true, onAuth });
 
-		const merged = await mergeInto(fs, DIR, { ours: BRANCH, theirs: FORK_REF, message: request.message, author: request.author, committer: request.committer });
+		const merged = await mergeInto(fs, DIR, {
+			ours: BRANCH,
+			theirs: FORK_REF,
+			message: request.message,
+			author: request.author,
+			committer: request.committer,
+			expect: { ours: request.expectedBaselineCommit, theirs: request.forkHeadSha },
+		});
 		const push = await git.push({ fs, http, dir: DIR, url: baselineInfo.remote, ref: BRANCH, remoteRef: BRANCH, onAuth });
 		if (!push.ok) {
 			if (/stale ref/i.test(push.error ?? "")) throw new PortError("STALE_HEAD", "the baseline moved during the merge");

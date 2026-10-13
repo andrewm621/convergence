@@ -5,7 +5,7 @@
 import { DurableObject } from "cloudflare:workers";
 import { Hono } from "hono";
 import { LedgerConflictError } from "delta-core";
-import { bearerFromRequest } from "../auth";
+import { bearerGuard } from "../auth";
 import { CellBase } from "../cell-base";
 import type { ArtifactsPort } from "../ports";
 import { cellApi } from "../routes";
@@ -31,7 +31,9 @@ export type WorldOp =
 	| { op: "push"; repo: string; files: Record<string, string | null>; author?: string; message?: string }
 	| { op: "head"; repo: string }
 	| { op: "files"; repo: string }
-	| { op: "fail"; method: PortMethod; times?: number }
+	| { op: "pushMany"; repo: string; count: number }
+	| { op: "fail"; method: PortMethod; times?: number; skip?: number }
+	| { op: "failAfter"; method: PortMethod }
 	| { op: "calls" };
 
 export class TestCell extends CellBase {
@@ -52,8 +54,16 @@ export class TestCell extends CellBase {
 				return world.headOf(op.repo);
 			case "files":
 				return world.filesAt(op.repo);
+			case "pushMany": {
+				let last = "";
+				for (let i = 0; i < op.count; i++) last = await world.push(op.repo, { [`src/bulk-${i}.ts`]: `export const n = ${i};\n` }, { author: "delta-convergence" });
+				return last;
+			}
 			case "fail":
-				world.failNext(op.method, op.times ?? 1);
+				world.failNext(op.method, op.times ?? 1, undefined, op.skip ?? 0);
+				return null;
+			case "failAfter":
+				world.failAfterNext(op.method);
 				return null;
 			case "calls":
 				return world.calls;
@@ -115,12 +125,8 @@ type TestEnv = Env & { STORE: DurableObjectNamespace<StoreHarness> };
 
 const app = new Hono<{ Bindings: TestEnv }>();
 
-// The same shape as the guard in index.ts: a bearer secret, from the header or the WebSocket subprotocol.
-app.use("/api/*", async (c, next) => {
-	const given = bearerFromRequest(c.req.raw);
-	if (!c.env.DEV_TOKEN || given !== c.env.DEV_TOKEN) return c.json({ error: { code: "UNAUTHORIZED", message: "missing or invalid bearer token" } }, 401);
-	await next();
-});
+// The very guard index.ts mounts on /api.
+app.use("/api/*", bearerGuard);
 app.route("/api", cellApi);
 
 app.post("/__test/store/:id", async (c) => c.env.STORE.getByName(c.req.param("id")).fetch(c.req.raw));

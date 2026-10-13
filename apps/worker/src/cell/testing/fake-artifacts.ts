@@ -35,7 +35,7 @@ export type PortMethod = "log" | "readFile" | "readBlob" | "tree" | "commitFiles
 export class FakeWorld {
 	readonly repos = new Map<string, FakeRepo>();
 	#clock = 1_760_000_000;
-	readonly #failures = new Map<PortMethod, { times: number; error: Error }>();
+	readonly #failures = new Map<PortMethod, { times: number; skip: number; error: Error }>();
 	/** Every call the cell made, for tests that count reads. */
 	readonly calls: PortMethod[] = [];
 
@@ -45,14 +45,25 @@ export class FakeWorld {
 		return repo;
 	}
 
-	/** Make the next `times` calls to `method` throw. */
-	failNext(method: PortMethod, times = 1, error: Error = new PortError("UNAVAILABLE", `injected ${method} failure`)): void {
-		this.#failures.set(method, { times, error });
+	readonly #failAfter = new Set<PortMethod>();
+
+	/** Make the next call to `method` do its work and THEN throw, as a lost response would. */
+	failAfterNext(method: PortMethod): void {
+		this.#failAfter.add(method);
+	}
+
+	/** Make `times` calls to `method` throw, after letting `skip` calls through. */
+	failNext(method: PortMethod, times = 1, error: Error = new PortError("UNAVAILABLE", `injected ${method} failure`), skip = 0): void {
+		this.#failures.set(method, { times, skip, error });
 	}
 
 	#enter(method: PortMethod): void {
 		this.calls.push(method);
 		const failure = this.#failures.get(method);
+		if (failure && failure.skip > 0) {
+			failure.skip -= 1;
+			return;
+		}
 		if (failure && failure.times > 0) {
 			failure.times -= 1;
 			throw failure.error;
@@ -116,13 +127,19 @@ export class FakeWorld {
 
 	port(): ArtifactsPort {
 		return {
-			log: async (repo, { limit }) => {
+			log: async (repo, { limit, offset = 0 }) => {
 				this.#enter("log");
 				const r = this.#repo(repo);
 				const out: RepoCommit[] = [];
+				let skipped = 0;
 				for (let sha = r.head; sha && out.length < limit; ) {
 					const c = r.commits.get(sha);
 					if (!c) break;
+					if (skipped < offset) {
+						skipped += 1;
+						sha = c.parents[0] ?? null;
+						continue;
+					}
 					out.push({ sha: c.sha, message: c.message, authorName: c.authorName, committerName: c.committerName, parents: c.parents, committedAt: c.committedAt });
 					sha = c.parents[0] ?? null;
 				}
@@ -154,7 +171,9 @@ export class FakeWorld {
 			},
 			mergeFork: async (request: MergeRequest) => {
 				this.#enter("mergeFork");
-				return { mergeCommitSha: await this.#merge(request) };
+				const mergeCommitSha = await this.#merge(request);
+				if (this.#failAfter.delete("mergeFork")) throw new PortError("UNAVAILABLE", "the response was lost after the merge landed");
+				return { mergeCommitSha };
 			},
 		};
 	}
