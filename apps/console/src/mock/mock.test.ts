@@ -157,6 +157,53 @@ describe("revalidating twice", () => {
 	});
 });
 
+describe("a failed revalidation releases the item", () => {
+	/** Scenario A up to the Revalidate click (WI-2 revalidating), run on a bare cell so a test can fail the run by hand. */
+	async function revalidating() {
+		const { buildNotificationsScenario } = await import("scenario-notifications");
+		const { notificationsScript } = await import("./script-notifications");
+		const { MockCell } = await import("./cell");
+		const { MockSession } = await import("./session");
+		const bundle = await buildNotificationsScenario();
+		const cell = new MockCell(bundle, () => {});
+		await cell.init("seeded");
+		const session = new MockSession(cell, { promoteDelayMs: 0 });
+		for (const beat of notificationsScript(bundle).beats.slice(0, 7)) await beat.run({ session, cell, drip: () => {} });
+		expect((await cell.state()).workItems["WI-2"]?.revalidating).toBe(true);
+		return { cell, session };
+	}
+
+	it("a failed re-run clears revalidating, and Revalidate can be requested again", async () => {
+		const { cell, session } = await revalidating();
+		const runId = (await cell.state()).workItems["WI-2"]?.revalidationRun;
+		expect(runId).toBeDefined();
+		await session.finishRun("WI-2", runId as string, "failure");
+		const wi = (await cell.state()).workItems["WI-2"] as WorkItemState;
+		expect(wi.revalidating).toBe(false);
+		expect(wi.item.status).not.toBe("revalidating"); // still blocked by its old claims, not "revalidating"
+		const again = await session.resolveNow("revalidate", "WI-2", "notifications", "Try again.");
+		expect(again.ok).toBe(true);
+		expect((await cell.state()).workItems["WI-2"]?.revalidating).toBe(true);
+	});
+
+	it("a dispatch that failed before any run releases it too, and the ledger line says so in plain words", async () => {
+		const { dispatchFailedRunId } = await import("contracts");
+		const { summarizeLedgerLine } = await import("@/state/derive");
+		const { cell, session } = await revalidating();
+		const wi = (await cell.state()).workItems["WI-2"] as WorkItemState;
+		const requestId = wi.resolutions.filter((r) => r.kind === "revalidate").at(-1)?.requestId as string;
+		await session.finishRun("WI-2", dispatchFailedRunId(requestId), "failure");
+		expect((await cell.state()).workItems["WI-2"]?.revalidating).toBe(false);
+
+		const entry = (await cell.store.ledger()).filter((e) => e.payload.event.type === "AgentRunFinished").at(-1);
+		if (!entry) throw new Error("no AgentRunFinished on the ledger");
+		const line = summarizeLedgerLine(entry);
+		expect(line.label).toBe("Agent dispatch failed before the run started");
+		expect(line.detail).toBe("revalidation released");
+		expect(`${line.label} ${line.detail}`).not.toMatch(/dispatch-failed:|Agent run/);
+	});
+});
+
 describe("mock replay of the shelter scenario (knowledge work) uses the same engine", () => {
 	it("three drafts go stale, two are untouched, then one exception and two revalidations clear the way", async () => {
 		const mock = await startMock({ scenario: "shelter-intake" });

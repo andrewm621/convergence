@@ -220,6 +220,16 @@ function describeLine(entry: ReconciliationEvent): Omit<LedgerSummary, "noAction
 		case "AgentRunStarted":
 			return { label: "Agent run started", detail: event.runId, workItemId: event.workItemId, reasonCodes: [] };
 		case "AgentRunFinished":
+			// The Worker writes this when a dispatch failed before any run existed. No agent ran, so it must not read as a run.
+			if (event.runId.startsWith("dispatch-failed:")) {
+				return {
+					label: "Agent dispatch failed before the run started",
+					hint: "No agent run was started. The Worker released the revalidation so it can be requested again.",
+					detail: "revalidation released",
+					workItemId: event.workItemId,
+					reasonCodes: [],
+				};
+			}
 			return { label: `Agent run ${event.outcome}`, detail: event.runId, workItemId: event.workItemId, reasonCodes: [] };
 	}
 }
