@@ -7,5 +7,8 @@
   "scripts": {
     "test": "vitest run --passWithNoTests",
     "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "contracts": "workspace:*"
   }
 }

@@ -44,11 +44,30 @@ importers:
         specifier: ^4.6.7
         version: 4.6.7
 
-  packages/delta-core: {}
+  packages/delta-core:
+    dependencies:
+      contracts:
+        specifier: workspace:*
+        version: link:../contracts
+    devDependencies:
+      scenario-notifications:
+        specifier: workspace:*
+        version: link:../../scenarios/notifications
+      scenario-sales-ops:
+        specifier: workspace:*
+        version: link:../../scenarios/sales-ops
 
-  scenarios/notifications: {}
+  scenarios/notifications:
+    dependencies:
+      contracts:
+        specifier: workspace:*
+        version: link:../../packages/contracts
 
-  scenarios/sales-ops: {}
+  scenarios/sales-ops:
+    dependencies:
+      contracts:
+        specifier: workspace:*
+        version: link:../../packages/contracts
 
 packages:
 

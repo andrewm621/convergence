@@ -7,5 +7,12 @@
   "scripts": {
     "test": "vitest run --passWithNoTests",
     "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "scenario-notifications": "workspace:*",
+    "scenario-sales-ops": "workspace:*"
   }
 }

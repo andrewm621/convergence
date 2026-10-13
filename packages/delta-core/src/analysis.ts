@@ -1,0 +1,244 @@
+import { canonicalJson, parseRecordRef, type Claim, type CellState, type Evidence, type ReasonCode, type WorkItemState } from "contracts";
+import { acceptedDependenciesOf, currentSnapshot, dependenciesOf, isPromoted, snapshotAt, workItemIds } from "./cell-state";
+import { diffFacets, facetValuesEqual } from "./facets";
+import type { Policy } from "contracts";
+
+export type StaleFinding = {
+	recordId: string;
+	fromVersion: number;
+	toVersion: number;
+	facetKeys: string[];
+	reasonCodes: ReasonCode[];
+};
+
+export type ConflictFinding = {
+	recordId: string;
+	subject: string;
+	basedOn: string;
+	reasonCodes: ReasonCode[];
+	message: string;
+};
+
+export type UncertainFinding = {
+	reasonCodes: ReasonCode[];
+	recordId: string | null;
+	subjects: string[];
+	message: string;
+};
+
+/** A claim that cites a record the work item was never given (rule R4). */
+export type OutsideReceipt = { recordId: string; subjects: string[] };
+
+/** Everything the rules say about one work item right now, derived from facts alone. */
+export type Analysis = {
+	stale: StaleFinding[];
+	conflicts: ConflictFinding[];
+	uncertain: UncertainFinding[];
+	outsideReceipt: OutsideReceipt[];
+	headEvidence: Evidence[];
+	requiredChecks: string[];
+	failedChecks: string[];
+	testsPassed: boolean;
+};
+
+/**
+ * R1: compare each accepted dependency's facets against the version in the receipt. Only facets
+ * the item depends on count; an empty `facetKeys` means the whole record. In `record` mode any
+ * new version or blob counts instead.
+ */
+export function findStale(state: CellState, wi: WorkItemState, policy: Policy): StaleFinding[] {
+	const findings: StaleFinding[] = [];
+	for (const dep of acceptedDependenciesOf(state, wi.item.id)) {
+		const current = currentSnapshot(state, dep.recordId);
+		if (!current) continue; // nothing accepted to be stale against
+		const entry = wi.receipt.accepted.find((e) => e.recordId === dep.recordId);
+		if (!entry) {
+			findings.push({ recordId: dep.recordId, fromVersion: 0, toVersion: current.version, facetKeys: [...dep.facetKeys].sort(), reasonCodes: ["STALE_RECEIPT"] });
+			continue;
+		}
+		if (entry.version > current.version) {
+			findings.push({ recordId: dep.recordId, fromVersion: entry.version, toVersion: current.version, facetKeys: [], reasonCodes: ["STALE_RECEIPT", "UNKNOWN_CONTEXT_VERSION"] });
+			continue;
+		}
+		if (policy.staleness === "record") {
+			if (entry.version !== current.version || entry.blobHash !== current.blobHash) {
+				findings.push({ recordId: dep.recordId, fromVersion: entry.version, toVersion: current.version, facetKeys: [], reasonCodes: ["STALE_RECEIPT"] });
+			}
+			continue;
+		}
+		if (entry.version === current.version) continue; // same version: at most a prose edit
+		const held = snapshotAt(state, dep.recordId, entry.version);
+		if (!held) {
+			findings.push({ recordId: dep.recordId, fromVersion: entry.version, toVersion: current.version, facetKeys: [], reasonCodes: ["STALE_RECEIPT", "UNKNOWN_CONTEXT_VERSION"] });
+			continue;
+		}
+		const changed = diffFacets(held, current).map((change) => change.key);
+		const relevant = dep.facetKeys.length === 0 ? changed : changed.filter((key) => dep.facetKeys.includes(key));
+		if (relevant.length > 0) {
+			findings.push({ recordId: dep.recordId, fromVersion: entry.version, toVersion: current.version, facetKeys: relevant, reasonCodes: ["STALE_RECEIPT", "FACET_CHANGED"] });
+		}
+	}
+	return findings.sort((a, b) => (a.recordId < b.recordId ? -1 : 1));
+}
+
+function validClaims(wi: WorkItemState): Claim[] | null {
+	const cs = wi.claims;
+	if (wi.headSha === null || !cs || cs.headSha !== wi.headSha || cs.status !== "ok") return null;
+	return cs.claims;
+}
+
+/** R3 and R4: compare claims to the current accepted facets; fail closed on missing or malformed ones. */
+function findClaimIssues(state: CellState, wi: WorkItemState): Pick<Analysis, "conflicts" | "uncertain" | "outsideReceipt"> {
+	const conflicts: ConflictFinding[] = [];
+	const uncertain: UncertainFinding[] = [];
+	const outside = new Map<string, Set<string>>();
+	if (wi.headSha === null) return { conflicts, uncertain, outsideReceipt: [] };
+
+	const cs = wi.claims;
+	if (!cs || cs.headSha !== wi.headSha || cs.status === "missing") {
+		uncertain.push({ reasonCodes: ["NO_CLAIMS"], recordId: null, subjects: [], message: "No claims were pushed for the current head, so nothing can be compared." });
+		return { conflicts, uncertain, outsideReceipt: [] };
+	}
+	if (cs.status === "malformed") {
+		uncertain.push({ reasonCodes: ["MALFORMED_CLAIMS"], recordId: null, subjects: [], message: `Claims could not be read: ${cs.error ?? "malformed"}.` });
+		return { conflicts, uncertain, outsideReceipt: [] };
+	}
+
+	const inReceipt = new Set(wi.receipt.accepted.map((e) => e.recordId));
+	const deps = dependenciesOf(state, wi.item.id);
+	for (const claim of cs.claims) {
+		const ref = parseRecordRef(claim.basedOn);
+		if (!ref) {
+			uncertain.push({ reasonCodes: ["MALFORMED_CLAIMS"], recordId: null, subjects: [claim.subject], message: `Claim basedOn "${claim.basedOn}" is not recordId@version.` });
+			continue;
+		}
+		const dep = deps.find((d) => d.recordId === ref.recordId);
+		if (!inReceipt.has(ref.recordId)) {
+			if (dep?.status === "rejected") continue; // a human said this reliance doesn't count
+			if (!dep || dep.status === "proposed") {
+				const subjects = outside.get(ref.recordId) ?? new Set<string>();
+				subjects.add(claim.subject);
+				outside.set(ref.recordId, subjects);
+				continue;
+			}
+		}
+		const current = currentSnapshot(state, ref.recordId);
+		const basis = snapshotAt(state, ref.recordId, ref.version);
+		if (!current || !basis) {
+			uncertain.push({ reasonCodes: ["UNKNOWN_CONTEXT_VERSION"], recordId: ref.recordId, subjects: [claim.subject], message: `Claim cites ${claim.basedOn}, which is not a version Delta has seen.` });
+			continue;
+		}
+		const nowValue = current.facets[claim.subject];
+		const basisValue = basis.facets[claim.subject];
+		if (nowValue === undefined && basisValue === undefined) continue; // not a governed facet: nothing to contradict
+		const superseded = ref.version !== current.version;
+		if (nowValue !== undefined && !facetValuesEqual(claim.value, nowValue)) {
+			conflicts.push({
+				recordId: ref.recordId,
+				subject: claim.subject,
+				basedOn: claim.basedOn,
+				reasonCodes: superseded ? ["CLAIM_CONFLICT", "SUPERSEDED_BASIS"] : ["CLAIM_CONFLICT"],
+				message: `Claims ${claim.subject} = ${canonicalJson(claim.value)}; accepted ${ref.recordId}@${current.version} says ${canonicalJson(nowValue)}.`,
+			});
+		} else if (superseded && !facetValuesEqual(basisValue, nowValue)) {
+			conflicts.push({
+				recordId: ref.recordId,
+				subject: claim.subject,
+				basedOn: claim.basedOn,
+				reasonCodes: ["CLAIM_CONFLICT", "SUPERSEDED_BASIS"],
+				message: `Built on ${claim.basedOn}; ${claim.subject} has changed since (now ${ref.recordId}@${current.version}).`,
+			});
+		}
+	}
+
+	for (const [recordId, subjects] of [...outside.entries()].sort(([a], [b]) => (a < b ? -1 : 1))) {
+		uncertain.push({
+			reasonCodes: ["UNDECLARED_DEP"],
+			recordId,
+			subjects: [...subjects].sort(),
+			message: `Claims rely on ${recordId}, which was not in the receipt and has no accepted dependency. A human must accept or reject it.`,
+		});
+	}
+	return {
+		conflicts: conflicts.sort((a, b) => (a.subject < b.subject ? -1 : a.subject > b.subject ? 1 : 0)),
+		uncertain,
+		outsideReceipt: [...outside.entries()].map(([recordId, subjects]) => ({ recordId, subjects: [...subjects].sort() })).sort((a, b) => (a.recordId < b.recordId ? -1 : 1)),
+	};
+}
+
+function isGoverned(state: CellState, subject: string): boolean {
+	return Object.keys(state.records).some((recordId) => currentSnapshot(state, recordId)?.facets[subject] !== undefined);
+}
+
+/**
+ * R3b: another live work item claims a different value for a subject this item also claims.
+ * Only for subjects no accepted record governs (the "phone number" case): when a facet governs
+ * the subject, R3 already arbitrates against the accepted value, so two items disagreeing about
+ * it is a symptom, not a second finding.
+ */
+function findCrossClaimConflicts(state: CellState, wi: WorkItemState): UncertainFinding[] {
+	const mine = validClaims(wi);
+	if (!mine || mine.length === 0) return [];
+	const findings: UncertainFinding[] = [];
+	for (const otherId of workItemIds(state)) {
+		if (otherId === wi.item.id) continue;
+		const other = state.workItems[otherId];
+		if (!other || isPromoted(other)) continue;
+		const theirs = validClaims(other);
+		if (!theirs) continue;
+		const subjects = new Set<string>();
+		for (const a of mine) {
+			for (const b of theirs) {
+				if (a.subject === b.subject && !facetValuesEqual(a.value, b.value) && !isGoverned(state, a.subject)) subjects.add(a.subject);
+			}
+		}
+		if (subjects.size > 0) {
+			findings.push({
+				reasonCodes: ["CROSS_CLAIM_CONFLICT"],
+				recordId: null,
+				subjects: [...subjects].sort(),
+				message: `${otherId} claims a different value for ${[...subjects].sort().join(", ")}.`,
+			});
+		}
+	}
+	return findings;
+}
+
+/** The latest Evidence per check at the item's current head. Evidence for any other head does not count (R8). */
+export function evidenceAtHead(wi: WorkItemState): Evidence[] {
+	if (wi.headSha === null) return [];
+	const latest = new Map<string, Evidence>();
+	for (const evidence of wi.evidence) if (evidence.headSha === wi.headSha) latest.set(evidence.check, evidence);
+	return [...latest.values()].sort((a, b) => (a.check < b.check ? -1 : 1));
+}
+
+/** Checks the item's accepted dependencies require: the `validation` of each record it relies on. */
+export function requiredChecksFor(state: CellState, wi: WorkItemState): string[] {
+	const checks = new Set<string>();
+	for (const dep of acceptedDependenciesOf(state, wi.item.id)) {
+		const validation = currentSnapshot(state, dep.recordId)?.validation;
+		if (validation) checks.add(validation);
+	}
+	return [...checks].sort();
+}
+
+export function analyze(state: CellState, workItemId: string, policy: Policy): Analysis {
+	const wi = state.workItems[workItemId];
+	if (!wi) throw new Error(`analyze: unknown work item ${workItemId}`);
+	const claimIssues = findClaimIssues(state, wi);
+	const headEvidence = evidenceAtHead(wi);
+	const requiredChecks = requiredChecksFor(state, wi);
+	const failedChecks = headEvidence.filter((e) => !e.pass).map((e) => e.check);
+	const testsPassed =
+		headEvidence.length > 0 && failedChecks.length === 0 && requiredChecks.every((check) => headEvidence.some((e) => e.check === check && e.pass));
+	return {
+		stale: findStale(state, wi, policy),
+		conflicts: claimIssues.conflicts,
+		uncertain: [...claimIssues.uncertain, ...findCrossClaimConflicts(state, wi)],
+		outsideReceipt: claimIssues.outsideReceipt,
+		headEvidence,
+		requiredChecks,
+		failedChecks,
+		testsPassed,
+	};
+}
