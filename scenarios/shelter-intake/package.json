@@ -1,0 +1,14 @@
+{
+  "name": "scenario-shelter-intake",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "contracts": "workspace:*"
+  }
+}

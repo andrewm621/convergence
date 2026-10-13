@@ -23,7 +23,7 @@ packages/delta-core/  pure reconcile(state, event, policy) → { state, effects 
 apps/worker/          Hono API, WorkspaceCell Durable Object, Artifacts adapter, poller/queue consumer, agent dispatch
 apps/console/         React SPA (Vite, Tailwind v4, shadcn, React Flow) served as Worker static assets
 apps/runner/          local agent runner fallback (same protocol as the sandbox)
-scenarios/            seeded fixtures: notifications (coding), sales-ops (knowledge work)
+scenarios/            seeded fixtures: notifications (coding), shelter-intake (knowledge work, synthetic), sales-ops (knowledge work)
 docs/PRD.md           the spec
 ```
 

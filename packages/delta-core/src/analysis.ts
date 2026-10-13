@@ -125,7 +125,7 @@ function findClaimIssues(state: CellState, wi: WorkItemState): Pick<Analysis, "c
 		const current = currentSnapshot(state, ref.recordId);
 		const basis = snapshotAt(state, ref.recordId, ref.version);
 		if (!current || !basis) {
-			uncertain.push({ reasonCodes: ["UNKNOWN_CONTEXT_VERSION"], recordId: ref.recordId, subjects: [claim.subject], message: `Claim cites ${claim.basedOn}, which is not a version Delta has seen.` });
+			uncertain.push({ reasonCodes: ["UNKNOWN_CONTEXT_VERSION"], recordId: ref.recordId, subjects: [claim.subject], message: `Claim cites ${claim.basedOn}, which is not a version Delta Convergence has seen.` });
 			continue;
 		}
 		const nowValue = current.facets[claim.subject];

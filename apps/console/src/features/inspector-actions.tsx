@@ -1,0 +1,334 @@
+import type { ResolutionBinding, WorkItemState } from "contracts";
+import { CircleAlert, CircleCheck, Gavel, Loader, RefreshCw, ShieldAlert, ShieldCheck, ThumbsDown } from "lucide-react";
+import { useMemo, useState, type FormEvent } from "react";
+import { newIdempotencyKey, type ResolveInput } from "@/client/types";
+import { ActorChip, ReasonChip } from "@/components/status";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input, Label, NativeSelect, Textarea } from "@/components/ui/input";
+import { formatDateTime, formatTime, shortHash } from "@/lib/format";
+import { cn } from "@/lib/utils";
+import { useConsole } from "@/state/console-context";
+import { analysisOf, currentRecord } from "@/state/derive";
+import { useGate } from "@/state/use-gate";
+import { PromoteButton } from "./promote-button";
+
+export function ActionsTab({ wi }: { wi: WorkItemState }) {
+	const id = wi.item.id;
+	return (
+		<div className="space-y-5 p-4" data-testid="actions-tab">
+			<GatePreview workItemId={id} />
+			<section aria-label="Promote" className="space-y-2">
+				<h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Promote</h3>
+				<PromoteButton workItemId={id} showReasons />
+			</section>
+			<Resolutions wi={wi} />
+			<ResolutionHistory wi={wi} />
+		</div>
+	);
+}
+
+/** The dry run: what Promote would do right now, and why. It re-runs whenever anything it depends on changes. */
+export function GatePreview({ workItemId }: { workItemId: string }) {
+	const { view } = useConsole();
+	const { gate, loading, error } = useGate(workItemId);
+	const wi = view.workItems[workItemId];
+	const promoted = wi?.item.status === "promoted";
+
+	return (
+		<section aria-label="Gate preview" aria-live="polite" data-testid="gate-preview" className="rounded-xl border bg-card p-3.5">
+			<div className="flex items-center gap-2">
+				<h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Gate preview</h3>
+				<span className="ml-auto flex items-center gap-1.5 text-[11px] text-muted-foreground">
+					{loading && <Loader className="size-3 animate-spin" aria-hidden />}
+					dry run · baseline {shortHash(view.baselineCommit)} · head {shortHash(wi?.headSha)}
+				</span>
+			</div>
+			{promoted ? (
+				<p className="mt-2 flex items-center gap-2 text-sm">
+					<ShieldCheck className="size-4 text-merged" aria-hidden /> Already merged into the baseline.
+				</p>
+			) : error ? (
+				<p className="mt-2 text-sm text-danger">The gate could not be read: {error}</p>
+			) : !gate ? (
+				<p className="mt-2 text-sm text-muted-foreground">Checking the gate at the current heads.</p>
+			) : (
+				<div className="mt-2 space-y-2.5">
+					<p className={cn("flex items-center gap-2 text-sm font-semibold", gate.pass ? "text-foreground" : "text-danger")}>
+						{gate.pass ? <CircleCheck className="size-4" aria-hidden /> : <ShieldAlert className="size-4" aria-hidden />}
+						{gate.pass ? "Promote would pass the gate" : "Promote would be blocked"}
+					</p>
+					{!gate.pass && (
+						<ul className="flex flex-wrap gap-1.5" aria-label="Reason codes">
+							{gate.reasonCodes.map((code) => (
+								<li key={code}>
+									<ReasonChip code={code} />
+								</li>
+							))}
+						</ul>
+					)}
+					{gate.blockers.length > 0 && (
+						<ul className="space-y-1 text-[13px] text-muted-foreground">
+							{gate.blockers.map((line) => (
+								<li key={line} className="flex gap-2">
+									<CircleAlert className="mt-0.5 size-3.5 shrink-0 text-danger" aria-hidden />
+									{line}
+								</li>
+							))}
+						</ul>
+					)}
+					{gate.pass && gate.waivedBy.length > 0 && (
+						<p className="text-[13px] text-muted-foreground" data-testid="gate-waived">
+							Passes with {gate.waivedBy.length === 1 ? "an accepted exception" : `${gate.waivedBy.length} accepted exceptions`}
+							{gate.waivedBy.some((w) => w.scope) ? `: ${gate.waivedBy.map((w) => w.scope).filter(Boolean).join("; ")}` : ""}.
+						</p>
+					)}
+					{gate.pass && <p className="text-[13px] text-muted-foreground">A human still decides. Promote re-checks every rule at the current heads before it merges.</p>}
+				</div>
+			)}
+		</section>
+	);
+}
+
+function bindingFor(view: ReturnType<typeof useConsole>["view"], wi: WorkItemState, recordId: string): ResolutionBinding | null {
+	const record = currentRecord(view, recordId);
+	if (!record || !wi.headSha) return null;
+	return {
+		recordId,
+		version: record.version,
+		blobHash: record.blobHash,
+		baseSha: view.baselineCommit,
+		forkHeadSha: wi.headSha,
+		contextSnapshotHash: view.snapshotHash,
+	};
+}
+
+type Open = "exception" | "reject" | null;
+
+function Resolutions({ wi }: { wi: WorkItemState }) {
+	const { view, client, notify } = useConsole();
+	const [open, setOpen] = useState<Open>(null);
+	const [busy, setBusy] = useState<string | null>(null);
+	const analysis = useMemo(() => analysisOf(view, wi.item.id), [view, wi.item.id]);
+
+	// The records worth deciding about: stale or in conflict first, else everything it relies on.
+	const candidates = useMemo(() => {
+		const ids = new Set<string>();
+		for (const f of analysis?.stale ?? []) ids.add(f.recordId);
+		for (const f of analysis?.conflicts ?? []) ids.add(f.recordId);
+		if (ids.size === 0) for (const d of view.dependencies) if (d.workItemId === wi.item.id && d.status === "accepted") ids.add(d.recordId);
+		return [...ids].sort();
+	}, [analysis, view.dependencies, wi.item.id]);
+
+	const promoted = wi.item.status === "promoted";
+	const noPush = wi.headSha === null;
+	const defaultRecord = candidates[0] ?? null;
+	const reason = promoted ? "Already promoted." : noPush ? "Waiting for the agent's first push: a resolution binds to a specific head." : null;
+
+	async function submit(input: Omit<ResolveInput, "binding" | "workItemId">, recordId: string | null, label: string): Promise<boolean> {
+		const binding = recordId ? bindingFor(view, wi, recordId) : null;
+		if (!binding) {
+			notify("danger", "Nothing to bind this resolution to yet.");
+			return false;
+		}
+		setBusy(label);
+		const result = await client.api.resolve({ ...input, workItemId: wi.item.id, binding }, newIdempotencyKey());
+		setBusy(null);
+		notify(result.ok ? "success" : "danger", result.ok ? (result.message ?? `${label} recorded.`) : `${result.message}${result.reasonCodes?.length ? ` (${result.reasonCodes.join(", ")})` : ""}`);
+		return result.ok;
+	}
+
+	const staleNote = analysis?.stale.map((f) => `${f.recordId} v${f.fromVersion} to v${f.toVersion}`).join(", ");
+
+	return (
+		<section aria-label="Resolve" className="space-y-3">
+			<h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Resolve</h3>
+			<div className="flex flex-wrap gap-2">
+				<Button
+					size="sm"
+					variant="outline"
+					disabled={Boolean(reason) || wi.revalidating || busy !== null}
+					onClick={() => void submit({ kind: "revalidate", rationale: staleNote ? `Decision changed under this work: ${staleNote}.` : "Re-run on the current decisions." }, defaultRecord, "Revalidate")}
+				>
+					{busy === "Revalidate" ? <Loader className="animate-spin" aria-hidden /> : <RefreshCw aria-hidden />}
+					Revalidate
+				</Button>
+				<Button size="sm" variant="outline" disabled={Boolean(reason) || busy !== null} aria-expanded={open === "exception"} onClick={() => setOpen(open === "exception" ? null : "exception")}>
+					<Gavel aria-hidden /> Accept exception
+				</Button>
+				<Button size="sm" variant="outline" disabled={Boolean(reason) || busy !== null} aria-expanded={open === "reject"} onClick={() => setOpen(open === "reject" ? null : "reject")}>
+					<ThumbsDown aria-hidden /> Reject
+				</Button>
+			</div>
+			{reason && <p className="text-xs text-muted-foreground">{reason}</p>}
+			{!reason && wi.revalidating && <p className="text-xs text-muted-foreground">Revalidation is running. The agent will push again on the current decisions.</p>}
+
+			{open === "exception" && (
+				<ExceptionForm
+					candidates={candidates}
+					busy={busy === "Exception"}
+					onCancel={() => setOpen(null)}
+					onSubmit={async (recordId, scope, rationale) => {
+						if (await submit({ kind: "accept-exception", scope, rationale }, recordId, "Exception")) setOpen(null);
+					}}
+				/>
+			)}
+			{open === "reject" && (
+				<RejectForm
+					busy={busy === "Reject"}
+					onCancel={() => setOpen(null)}
+					onSubmit={async (rationale) => {
+						if (await submit({ kind: "reject", rationale }, defaultRecord, "Reject")) setOpen(null);
+					}}
+				/>
+			)}
+		</section>
+	);
+}
+
+/** Scope and rationale are both required, and validated here before anything is sent. */
+export function ExceptionForm({
+	candidates,
+	busy,
+	onCancel,
+	onSubmit,
+}: {
+	candidates: string[];
+	busy: boolean;
+	onCancel(): void;
+	onSubmit(recordId: string | null, scope: string, rationale: string): void | Promise<void>;
+}) {
+	const [recordId, setRecordId] = useState(candidates[0] ?? "");
+	const [scope, setScope] = useState("");
+	const [rationale, setRationale] = useState("");
+	const [attempted, setAttempted] = useState(false);
+	const scopeMissing = scope.trim() === "";
+	const rationaleMissing = rationale.trim() === "";
+
+	function handle(event: FormEvent) {
+		event.preventDefault();
+		setAttempted(true);
+		if (scopeMissing || rationaleMissing) return;
+		void onSubmit(recordId || null, scope.trim(), rationale.trim());
+	}
+
+	return (
+		<form onSubmit={handle} noValidate aria-label="Accept exception" className="space-y-3 rounded-xl border border-dashed bg-card p-3.5">
+			<p className="text-[13px] text-muted-foreground">An exception waives staleness and conflicts for one record, within a scope you name. It lapses if that record changes again.</p>
+			{candidates.length > 1 && (
+				<div className="space-y-1">
+					<Label htmlFor="exception-record">Record</Label>
+					<NativeSelect id="exception-record" value={recordId} onChange={(e) => setRecordId(e.target.value)}>
+						{candidates.map((id) => (
+							<option key={id} value={id}>
+								{id}
+							</option>
+						))}
+					</NativeSelect>
+				</div>
+			)}
+			<div className="space-y-1">
+				<Label htmlFor="exception-scope">Scope</Label>
+				<Input
+					id="exception-scope"
+					value={scope}
+					onChange={(e) => setScope(e.target.value)}
+					placeholder="e.g. reports/q4-forecast.md"
+					aria-invalid={attempted && scopeMissing ? true : undefined}
+					aria-describedby={attempted && scopeMissing ? "exception-scope-error" : undefined}
+				/>
+				{attempted && scopeMissing && (
+					<p id="exception-scope-error" role="alert" className="text-xs text-danger">
+						Scope is required: say what this exception covers.
+					</p>
+				)}
+			</div>
+			<div className="space-y-1">
+				<Label htmlFor="exception-rationale">Rationale</Label>
+				<Textarea
+					id="exception-rationale"
+					value={rationale}
+					onChange={(e) => setRationale(e.target.value)}
+					rows={3}
+					placeholder="Why is it safe to let this through?"
+					aria-invalid={attempted && rationaleMissing ? true : undefined}
+					aria-describedby={attempted && rationaleMissing ? "exception-rationale-error" : undefined}
+				/>
+				{attempted && rationaleMissing && (
+					<p id="exception-rationale-error" role="alert" className="text-xs text-danger">
+						Rationale is required: it goes on the record.
+					</p>
+				)}
+			</div>
+			<div className="flex gap-2">
+				<Button type="submit" size="sm" disabled={busy}>
+					{busy ? "Recording" : "Record exception"}
+				</Button>
+				<Button type="button" size="sm" variant="ghost" onClick={onCancel}>
+					Cancel
+				</Button>
+			</div>
+		</form>
+	);
+}
+
+export function RejectForm({ busy, onCancel, onSubmit }: { busy: boolean; onCancel(): void; onSubmit(rationale: string): void | Promise<void> }) {
+	const [rationale, setRationale] = useState("");
+	const [attempted, setAttempted] = useState(false);
+	const missing = rationale.trim() === "";
+	return (
+		<form
+			noValidate
+			aria-label="Reject"
+			className="space-y-3 rounded-xl border border-dashed bg-card p-3.5"
+			onSubmit={(event) => {
+				event.preventDefault();
+				setAttempted(true);
+				if (!missing) void onSubmit(rationale.trim());
+			}}
+		>
+			<div className="space-y-1">
+				<Label htmlFor="reject-rationale">Rationale</Label>
+				<Textarea id="reject-rationale" value={rationale} onChange={(e) => setRationale(e.target.value)} rows={3} placeholder="Why is this work being rejected?" aria-invalid={attempted && missing ? true : undefined} />
+				{attempted && missing && (
+					<p role="alert" className="text-xs text-danger">
+						Rationale is required: it goes on the record.
+					</p>
+				)}
+			</div>
+			<div className="flex gap-2">
+				<Button type="submit" size="sm" variant="destructive" disabled={busy}>
+					{busy ? "Recording" : "Reject work"}
+				</Button>
+				<Button type="button" size="sm" variant="ghost" onClick={onCancel}>
+					Cancel
+				</Button>
+			</div>
+		</form>
+	);
+}
+
+function ResolutionHistory({ wi }: { wi: WorkItemState }) {
+	if (wi.resolutions.length === 0) return null;
+	return (
+		<section aria-label="Resolutions on record" className="space-y-2">
+			<h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">On record</h3>
+			<ol className="space-y-2">
+				{wi.resolutions.map((r, index) => (
+					<li key={`${r.requestId ?? index}`} className="rounded-lg border bg-card p-3 text-[13px]">
+						<div className="flex items-center gap-2">
+							<Badge tone="primary">{r.kind}</Badge>
+							<ActorChip actor={r.actor} />
+							<span className="ml-auto text-xs text-muted-foreground">{formatDateTime(r.ts)}</span>
+						</div>
+						<p className="mt-1.5">{r.rationale}</p>
+						{r.scope && <p className="mt-1 text-xs text-muted-foreground">Scope: {r.scope}</p>}
+						<p className="mt-1 font-mono text-[11px] text-muted-foreground">
+							bound to {r.binding.recordId}@{r.binding.version} · head {shortHash(r.binding.forkHeadSha)} · {formatTime(r.ts)}
+						</p>
+					</li>
+				))}
+			</ol>
+		</section>
+	);
+}

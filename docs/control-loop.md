@@ -213,7 +213,7 @@ Checked against the console's live client (`apps/console/src/client/` on `claude
 | `meta` sits beside a strict `WsMessage` | Yes, that is the frame shape |
 | Some way to show "poller degraded" | `meta.poller` on snapshots and live events; `X-Delta-Poller` on `GET /state` |
 
-Deviations the client must adapt to:
+Deviations the client must adapt to (the console adopted all five in `cloud/stage-b-console`, and was checked live against this cell in Miniflare with the in-memory Artifacts fake):
 
 1. **Work item routes are scenario-scoped**: `/api/scenarios/:s/work-items/:id/{gate,resolutions,promote}`, not `/work-items/:id/...`. A cell exists per scenario and a work item id means nothing without it.
 2. **Error bodies** are `{ "error": { "code", "message", ... } }` (the Worker's existing convention), not top-level `{ code, message, reasonCodes }`. Blocked promotes put the reason codes in `error.reasonCodes`.

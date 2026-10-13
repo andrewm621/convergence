@@ -10,6 +10,7 @@
     "pnpm": ">=10"
   },
   "scripts": {
+    "build:console": "pnpm --filter console build",
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck"
   },

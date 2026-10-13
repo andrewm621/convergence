@@ -13,6 +13,7 @@
   },
   "devDependencies": {
     "scenario-notifications": "workspace:*",
-    "scenario-sales-ops": "workspace:*"
+    "scenario-sales-ops": "workspace:*",
+    "scenario-shelter-intake": "workspace:*"
   }
 }

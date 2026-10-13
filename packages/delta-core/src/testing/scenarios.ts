@@ -1,11 +1,13 @@
 import { buildNotificationsScenario } from "scenario-notifications";
 import { buildSalesOpsScenario } from "scenario-sales-ops";
+import { buildShelterIntakeScenario } from "scenario-shelter-intake";
 import { InMemoryStore, type CellStore } from "../store";
 import { SerializingStore } from "./serializing-store";
 import type { InvariantScenario } from "./invariants";
 
 export const notifications = await buildNotificationsScenario();
 export const salesOps = await buildSalesOpsScenario();
+export const shelterIntake = await buildShelterIntakeScenario();
 
 export const stores: Array<[string, () => CellStore]> = [
 	["in-memory store", () => new InMemoryStore()],
@@ -42,6 +44,21 @@ export const invariantScenarios: InvariantScenario[] = [
 		affectedPrep: [salesOps.events.wi3Pushed],
 		contextChange: salesOps.events.v2,
 		proseOnly: salesOps.events.proseOnly,
+	},
+	{
+		label: "shelter-intake (knowledge work)",
+		seed: shelterIntake.seed,
+		policy: shelterIntake.policy,
+		human: shelterIntake.actors.coordinator,
+		agent: shelterIntake.actors.scriptAgent,
+		recordId: "shelter-intake-policy",
+		setup: [shelterIntake.events.registerWi1, shelterIntake.events.registerWi2, shelterIntake.events.registerWi3, shelterIntake.events.registerWi4, shelterIntake.events.registerWi5],
+		affectedId: "WI-1",
+		controlId: "WI-4",
+		controlPrep: [shelterIntake.events.wi4Pushed, shelterIntake.events.wi4Evidence],
+		affectedPrep: [shelterIntake.events.wi1Pushed],
+		contextChange: shelterIntake.events.v2,
+		proseOnly: shelterIntake.events.proseOnly,
 	},
 ];
 
