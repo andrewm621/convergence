@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { ActorChip, RunningDot, SeededBadge, StatusChip } from "@/components/status";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useConsole, type InspectorTab } from "@/state/console-context";
-import { runningAgents, workItemsSorted } from "@/state/derive";
+import { agentModelOf, runningAgents, workItemsSorted } from "@/state/derive";
 import { useGate } from "@/state/use-gate";
 import { PaneHeader } from "./context-timeline";
 import { ActionsTab } from "./inspector-actions";
@@ -66,7 +66,7 @@ function WorkItemInspector({ wi }: { wi: WorkItemState }) {
 				<h2 className="text-[15px] leading-snug font-semibold">{wi.item.title}</h2>
 				<div className="flex flex-wrap items-center gap-2">
 					<StatusChip status={wi.item.status} />
-					<ActorChip actor={wi.item.actor} />
+					<ActorChip actor={wi.item.actor} label={agentModelOf(view.ledger, wi.item.id) ?? undefined} />
 					<PromoteButton workItemId={wi.item.id} className="ml-auto" />
 				</div>
 			</div>

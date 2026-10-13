@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { formatTime, shortHash } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useConsole } from "@/state/console-context";
-import { summarizeLedgerLine } from "@/state/derive";
+import { agentModelOf, summarizeLedgerLine } from "@/state/derive";
 
 const KIND_META: Record<AgentActivity["kind"], { icon: typeof Terminal; label: string; className: string }> = {
 	tool: { icon: Terminal, label: "tool", className: "text-muted-foreground" },
@@ -74,7 +74,7 @@ function ActivityStream() {
 								<button type="button" onClick={() => select(line.workItemId)} className="shrink-0 rounded px-1 font-semibold outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/50">
 									{line.workItemId}
 								</button>
-								{wi && <span className="shrink-0 text-muted-foreground">{wi.item.actor.displayName}</span>}
+								{wi && <span className="shrink-0 text-muted-foreground">{agentModelOf(view.ledger, wi.item.id) ?? wi.item.actor.displayName}</span>}
 								<Icon className={cn("size-3 shrink-0 translate-y-0.5", meta.className)} aria-hidden />
 								<span className="sr-only">{meta.label}: </span>
 								<span className={cn("min-w-0 break-words", meta.className)}>{line.text}</span>
@@ -143,7 +143,9 @@ function LedgerTail() {
 							<li key={entry.seq} data-seq={entry.seq} data-type={entry.type} className="row-in flex items-center gap-2 py-[3px] text-xs leading-5">
 								<span className="w-9 shrink-0 text-right font-mono text-muted-foreground tabular-nums">#{entry.seq}</span>
 								<span className="shrink-0 text-muted-foreground tabular-nums">{formatTime(entry.ts)}</span>
-								<span className="shrink-0 font-semibold">{summary.label}</span>
+								<span className="shrink-0 font-semibold" title={summary.hint}>
+									{summary.label}
+								</span>
 								{summary.workItemId && (
 									<button type="button" onClick={() => select(summary.workItemId)} className="shrink-0 rounded px-1 font-mono font-semibold outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/50">
 										{summary.workItemId}

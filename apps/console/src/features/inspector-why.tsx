@@ -1,10 +1,11 @@
-import type { Condition, ConditionType, WorkItemState } from "contracts";
+import type { Condition, ConditionType, Evidence, WorkItemState } from "contracts";
 import { diffFacets } from "delta-core";
-import { ArrowRight, BookMarked, Check, ChevronDown, ChevronRight, CircleAlert, FlaskConical, GitCommitHorizontal, Hourglass, Receipt, ShieldAlert, Sparkles, X } from "lucide-react";
+import { ArrowRight, BookMarked, Check, ChevronDown, ChevronRight, CircleAlert, FlaskConical, GitCommitHorizontal, Hourglass, Receipt, ShieldAlert, ShieldQuestion, Sparkles, X } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
 import { EpistemicChip, ReasonChip, useDegraded } from "@/components/status";
 import { Badge, badgeVariants } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { describeCheck } from "@/lib/evidence";
 import { formatDateTime, formatFacet, plural } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useConsole } from "@/state/console-context";
@@ -49,6 +50,8 @@ export function WhyTab({ wi }: { wi: WorkItemState }) {
 	const staleIds = new Set(analysis.stale.map((f) => f.recordId));
 	const problem = analysis.stale.length > 0 || analysis.conflicts.length > 0 || analysis.failedChecks.length > 0 || analysis.uncertain.length > 0;
 	const alone = leftAlone(view, wi.item.id);
+	// The Worker's claims check has its own row: the engine does not count it as a test, so the Test row does not list it.
+	const claimsChecks = analysis.headEvidence.filter((e) => !analysis.testEvidence.includes(e));
 	const summary = promoted
 		? "It cleared the gate at the current heads and was merged into the baseline."
 		: rerunning
@@ -180,29 +183,37 @@ export function WhyTab({ wi }: { wi: WorkItemState }) {
 					)}
 				</ChainLink>
 
+				{claimsChecks.length > 0 && (
+					<ChainLink
+						icon={ShieldQuestion}
+						step="3b"
+						title="Claims check"
+						subtitle="the Worker compared the claims with the receipt"
+						chip={<EpistemicChip kind="claims-checked" />}
+						tone={claimsChecks.some((e) => !e.pass) ? "danger" : "neutral"}
+					>
+						<ul className="space-y-1.5" aria-label="Claims checks">
+							{claimsChecks.map((e) => (
+								<CheckRow key={`${e.check}:${e.kind ?? ""}`} evidence={e} />
+							))}
+						</ul>
+					</ChainLink>
+				)}
+
 				<ChainLink
 					icon={FlaskConical}
 					step="4"
 					title="Test"
 					subtitle="a check Delta Convergence ran itself"
-					chip={analysis.headEvidence.length > 0 ? <EpistemicChip kind="verified" /> : undefined}
+					chip={analysis.testEvidence.length > 0 ? <EpistemicChip kind="verified" /> : undefined}
 					tone={analysis.failedChecks.length > 0 ? "danger" : "neutral"}
 				>
-					{analysis.headEvidence.length === 0 ? (
-						<p className="text-[13px] text-muted-foreground">{wi.headSha ? "No check has run at the current head." : "Nothing pushed yet, so nothing to check."}</p>
+					{analysis.testEvidence.length === 0 ? (
+						<p className="text-[13px] text-muted-foreground">{wi.headSha ? "No Delta Convergence contract check at this commit yet." : "Nothing pushed yet, so nothing to check."}</p>
 					) : (
 						<ul className="space-y-1.5" aria-label="Checks">
-							{analysis.headEvidence.map((e) => (
-								<li key={e.check} className="text-[13px]" data-check={e.check}>
-									<div className="flex items-center gap-2">
-										<Badge tone={e.pass ? "success" : "danger"}>
-											{e.pass ? <Check aria-hidden /> : <X aria-hidden />}
-											{e.pass ? "passed" : "failed"}
-										</Badge>
-										<span className="font-mono text-xs">{e.check.split("/").pop()}</span>
-									</div>
-									<p className="mt-0.5 pl-0.5 text-xs text-muted-foreground">{e.output}</p>
-								</li>
+							{analysis.testEvidence.map((e) => (
+								<CheckRow key={`${e.check}:${e.kind ?? ""}`} evidence={e} />
 							))}
 						</ul>
 					)}
@@ -284,6 +295,44 @@ function ReceiptChips({ wi, staleIds }: { wi: WorkItemState; staleIds: ReadonlyS
 				</div>
 			)}
 		</>
+	);
+}
+
+function CheckRow({ evidence: e }: { evidence: Evidence }) {
+	const kindOf = describeCheck(e);
+	return (
+		<li className="text-[13px]" data-check={e.check}>
+			<div className="flex items-center gap-2">
+				{kindOf ? (
+					<Badge tone={!e.pass ? "danger" : kindOf.kind === "delta-run-check" ? "success" : "info"} dashed={kindOf.kind === "delta-claims-check"} title={kindOf.hint} data-evidence-kind={kindOf.kind}>
+						{e.pass ? <Check aria-hidden /> : <X aria-hidden />}
+						{kindOf.label}
+						{e.pass && <span className="sr-only"> passed</span>}
+						{e.pass ? "" : ": failed"}
+					</Badge>
+				) : (
+					<Badge tone={e.pass ? "success" : "danger"}>
+						{e.pass ? <Check aria-hidden /> : <X aria-hidden />}
+						{e.pass ? "passed" : "failed"}
+					</Badge>
+				)}
+				<span className="font-mono text-xs">{e.check.split("/").pop()}</span>
+			</div>
+			<CheckOutput text={e.output} />
+		</li>
+	);
+}
+
+const OUTPUT_PREVIEW_CHARS = 240;
+
+/** Check output wraps, and anything long (the Worker caps it near 4 KB) folds behind a "Show full output" toggle. */
+function CheckOutput({ text }: { text: string }) {
+	if (text.length <= OUTPUT_PREVIEW_CHARS) return <p className="mt-0.5 pl-0.5 text-xs break-words whitespace-pre-wrap text-muted-foreground">{text}</p>;
+	return (
+		<details className="mt-0.5 pl-0.5 text-xs text-muted-foreground" data-testid="check-output">
+			<summary className="cursor-pointer break-words whitespace-pre-wrap">{text.slice(0, OUTPUT_PREVIEW_CHARS).trimEnd()}… <span className="font-medium text-foreground underline">Show full output</span></summary>
+			<pre className="mt-1 max-h-60 overflow-auto rounded-md bg-muted/60 p-2 font-mono text-[11px] break-words whitespace-pre-wrap">{text}</pre>
+		</details>
 	);
 }
 

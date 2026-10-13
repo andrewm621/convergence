@@ -68,10 +68,13 @@ describe("the console, mock-driven end to end", () => {
 		}
 	});
 
-	it("switches scenarios: Northwind Sales Ops is a first-class scenario on the same screen", async () => {
+	it("keeps Northwind Sales Ops out of the switcher, but opens it from ?scenario=sales-ops on the same screen", async () => {
 		const user = userEvent.setup();
-		render(<App runtime={runtime} />);
-		await user.click(screen.getByRole("radio", { name: /Northwind Sales Ops/ }));
+		const { unmount } = render(<App runtime={runtime} />);
+		expect(screen.queryByRole("radio", { name: /Northwind/ })).toBeNull();
+		unmount();
+		render(<App runtime={{ ...runtime, scenario: "sales-ops" }} />);
+		expect(screen.getByRole("radio", { name: /Northwind Sales Ops/ })).toBeInTheDocument();
 		expect(await screen.findByRole("heading", { name: "qualified-lead" })).toBeInTheDocument();
 		await next(user, 4);
 		const graph = await screen.findByRole("region", { name: "Work graph" });
@@ -81,11 +84,11 @@ describe("the console, mock-driven end to end", () => {
 		expect(screen.getByTestId("results-strip")).toHaveTextContent("3 items evaluated");
 	});
 
-	it("switches to the Larkhaven County shelter scenario, keeps the synthetic note in view, and keeps Northwind as another option", async () => {
+	it("switches to the Larkhaven County shelter scenario, and keeps the synthetic note in view", async () => {
 		const user = userEvent.setup();
 		render(<App runtime={runtime} />);
 		expect(screen.queryByTestId("scenario-note")).toBeNull();
-		expect(screen.getByRole("radio", { name: /Northwind Sales Ops/ })).toBeInTheDocument();
+		expect(screen.queryByRole("radio", { name: /Northwind/ })).toBeNull();
 		await user.click(screen.getByRole("radio", { name: /Larkhaven County Shelter · knowledge work/ }));
 		expect(await screen.findByRole("heading", { name: "shelter-intake-policy" })).toBeInTheDocument();
 		expect(screen.getByTestId("scenario-note")).toHaveTextContent("Synthetic scenario. Not operational guidance.");
@@ -103,8 +106,8 @@ describe("the console, mock-driven end to end", () => {
 		await next(user, 1);
 		await waitFor(() => expect(within(graph).getByRole("button", { name: /WI-4 .*ready/ })).toBeInTheDocument());
 		expect(within(graph).getByTestId("left-alone-WI-4")).toHaveTextContent("NO_DEPENDENCY_ON_CHANGED_FACETS");
-		await user.click(screen.getByRole("radio", { name: /Northwind Sales Ops/ }));
-		expect(await screen.findByRole("heading", { name: "qualified-lead" })).toBeInTheDocument();
+		await user.click(screen.getByRole("radio", { name: /Notifications/ }));
+		expect(await screen.findByRole("heading", { name: "notifications" })).toBeInTheDocument();
 		expect(screen.queryByTestId("scenario-note")).toBeNull();
 	});
 
