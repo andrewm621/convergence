@@ -300,10 +300,42 @@ describe("revalidate loop (M4)", () => {
 		expect((await ledger(s)).some((e) => e.type === "EvidenceRecorded")).toBe(false);
 		const gate = await gateOf(s);
 		expect(gate.pass).toBe(false);
-		expect(gate.reasonCodes).toContain("REVALIDATION_PENDING");
+		// The failed run ended the revalidation (no push is coming); the old claims still conflict, so promotion stays closed.
+		expect(gate.reasonCodes).toContain("CLAIM_CONFLICT");
+		expect(gate.reasonCodes).not.toContain("REVALIDATION_PENDING");
 		const promote = await post(s, "/work-items/WI-2/promote", { expectedBaselineCommit: gate.baselineCommit, forkHeadSha: gate.forkHeadSha });
 		expect([promote.status, promote.body.error.code]).toEqual([409, "PROMOTION_BLOCKED"]);
-	}, 30_000);
+
+		// The item is released: a human can revalidate again, that dispatches a second job, and this time it completes.
+		await w.world(s, { op: "agent", behavior: { outcome: "push" } });
+		const second = await revalidate(s);
+		expect(second.res.status).toBe(200);
+		await until(async () => ((await jobs(s)).filter((j) => j.phase === "done").length === 1 && (await jobs(s)).length === 2) || false, 15_000, "the second job to finish");
+		expect((await w.world(s, { op: "agentCalls" })).length).toBe(2);
+		expect((await gateOf(s)).pass).toBe(true);
+	}, 40_000);
+
+	it("a job that fails before any run starts also releases the item, and the next revalidate runs", async () => {
+		const s = await stale({ agent: { failDispatches: 1, failCode: "REFUSED", failRetryable: false } });
+		await revalidate(s);
+		const failed = await jobAt(s, "failed");
+		expect(failed.error).toMatch(/the runtime is busy/);
+		expect((await ledger(s)).filter((e) => e.type === "AgentRunStarted")).toHaveLength(0);
+		// The ledger records the end of the revalidation, under the id derived from the resolution's key.
+		const closing = (await ledger(s)).filter((e) => e.type === "AgentRunFinished");
+		expect(closing).toHaveLength(1);
+		expect(closing[0]?.payload.event).toMatchObject({ outcome: "failure", workItemId: "WI-2", runId: expect.stringMatching(/^dispatch-failed:/) });
+		const gate = await gateOf(s);
+		expect(gate.pass).toBe(false);
+		expect(gate.reasonCodes).not.toContain("REVALIDATION_PENDING");
+		expect(gate.reasonCodes).toContain("CLAIM_CONFLICT");
+
+		const second = await revalidate(s);
+		expect(second.res.status).toBe(200);
+		await until(async () => (await jobs(s)).filter((j) => j.phase === "done").length === 1 || false, 15_000, "the second job to finish");
+		expect((await jobs(s)).length).toBe(2);
+		expect((await gateOf(s)).pass).toBe(true);
+	}, 40_000);
 
 	it("a run that pushed the right code but never updated its claims passes the contract check and stays blocked on its claims", async () => {
 		const s = await stale({ agent: { outcome: "keep-old-claims" } });

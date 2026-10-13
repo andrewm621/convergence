@@ -23,6 +23,8 @@ export type FakeAgentBehavior = {
 	failDispatches: number;
 	/** The error code those throws carry (`RUN_IN_PROGRESS` is the busy runtime). */
 	failCode: string;
+	/** Whether those throws are retryable (a refusal the runtime will never accept is not). */
+	failRetryable: boolean;
 	/** The model the run reports. */
 	model: string;
 };
@@ -31,7 +33,7 @@ type Run = { view: AgentRunView; dueMs: number; request: AgentDispatch };
 
 export class FakeAgentRuntime implements AgentRuntimePort {
 	readonly calls: AgentDispatch[] = [];
-	behavior: FakeAgentBehavior = { delayMs: 0, hold: false, outcome: "push", failDispatches: 0, failCode: "UNAVAILABLE", model: "stub agent" };
+	behavior: FakeAgentBehavior = { delayMs: 0, hold: false, outcome: "push", failDispatches: 0, failCode: "UNAVAILABLE", failRetryable: true, model: "stub agent" };
 	readonly #world: FakeWorld;
 	readonly #runs = new Map<string, Run>();
 	readonly #keys = new Map<string, string>();
@@ -55,7 +57,7 @@ export class FakeAgentRuntime implements AgentRuntimePort {
 		if (replay) return { ...(this.#runs.get(replay) as Run).view };
 		if (this.behavior.failDispatches > 0) {
 			this.behavior = { ...this.behavior, failDispatches: this.behavior.failDispatches - 1 };
-			throw new AgentRuntimeError(this.behavior.failCode, "the runtime is busy", true);
+			throw new AgentRuntimeError(this.behavior.failCode, "the runtime is busy", this.behavior.failRetryable);
 		}
 		if (this.#runs.get(request.workItemId)?.view.state === "running") {
 			throw new AgentRuntimeError("RUN_IN_PROGRESS", `work item ${request.workItemId} already has a run in flight`, true);

@@ -133,6 +133,16 @@ export const AgentRunFinished = z.strictObject({
 	outcome: z.enum(["success", "failure", "cancelled"]),
 });
 
+/**
+ * The run id the Worker uses to close a revalidation whose dispatch failed without (or after) any real run:
+ * an `AgentRunFinished` with outcome `failure` and this id for the revalidate resolution's request key. The
+ * reducer treats it as the end of that revalidation, so a job that dies before a run starts cannot leave the
+ * item stuck. (An existing event, so older readers need no new case.)
+ */
+export function dispatchFailedRunId(requestId: string): string {
+	return `dispatch-failed:${requestId}`;
+}
+
 export const DeltaEvent = z.discriminatedUnion("type", [
 	BaselinePushed,
 	ForkPushed,

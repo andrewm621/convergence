@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { dispatchFailedRunId, type DeltaEvent } from "contracts";
 import { evaluateGate } from "./gate";
 import { conditionTypes, createCell, effectTypes, promotionEvent, reasonsOf, resolutionEvent, type Cell } from "./testing/harness";
 import { baselinePush, forkPush, notifications as n, variant } from "./testing/scenarios";
@@ -112,6 +113,84 @@ describe("R6: one revalidation at a time", () => {
 			expect((await c.wi("WI-2")).resolutions).toHaveLength(1);
 			await c.send(n.events.wi2ReceiptIssued);
 		}
+	});
+
+	const started = (runId: string): DeltaEvent => ({ type: "AgentRunStarted", ts: T, workItemId: "WI-2", runId });
+	const finished = (runId: string, outcome: "success" | "failure" | "cancelled"): DeltaEvent => ({ type: "AgentRunFinished", ts: T, workItemId: "WI-2", runId, outcome });
+	const again = async (c: Cell, requestId: string) => c.send(resolutionEvent(await c.state(), { kind: "revalidate", workItemId: "WI-2", recordId: "notifications", actor: owner, requestId, ts: T }));
+
+	it("a failed revalidation run releases the item for another revalidate", async () => {
+		const c = await revalidating();
+		await c.send(n.events.wi2ReceiptIssued);
+		await c.send(started("run-1"));
+		expect((await c.wi("WI-2")).revalidating).toBe(true);
+		await c.send(finished("run-1", "failure"));
+		const wi = await c.wi("WI-2");
+		expect(wi.revalidating).toBe(false);
+		expect(wi.revalidationRun).toBeUndefined();
+		// Still blocked: the old claims conflict, nothing was pushed, promotion stays closed.
+		const gate = evaluateGate(await c.state(), "WI-2", n.policy);
+		expect(gate.promotable).toBe(false);
+		expect(gate.reasonCodes).toContain("CLAIM_CONFLICT");
+		expect(gate.reasonCodes).not.toContain("REVALIDATION_PENDING");
+		expect(effectTypes(await request(c, "promote-after-failed-run"))).not.toContain("ALLOW_PROMOTION");
+		// And it can be revalidated again, which dispatches again and counts against the limit.
+		const second = await again(c, "rv-2");
+		expect(effectTypes(second)).toContain("DISPATCH_WORK");
+		expect((await c.wi("WI-2")).revalidations).toBe(2);
+		expect((await c.wi("WI-2")).revalidating).toBe(true);
+	});
+
+	it("a cancelled run releases it too; a successful finish does not (only the push ends the revalidation)", async () => {
+		const c = await revalidating();
+		await c.send(n.events.wi2ReceiptIssued);
+		await c.send(started("run-1"));
+		await c.send(finished("run-1", "success"));
+		expect((await c.wi("WI-2")).revalidating).toBe(true);
+		const d = await revalidating();
+		await d.send(started("run-1"));
+		await d.send(finished("run-1", "cancelled"));
+		expect((await d.wi("WI-2")).revalidating).toBe(false);
+	});
+
+	it("[negative] a failure of some other run does not end the revalidation", async () => {
+		const c = await revalidating();
+		await c.send(started("run-1"));
+		await c.send(finished("run-0-earlier", "failure"));
+		await c.send(finished(dispatchFailedRunId("some-other-request"), "failure"));
+		expect((await c.wi("WI-2")).revalidating).toBe(true);
+		expect(reasonsOf(await again(c, "rv-x"))).toContain("REVALIDATION_IN_PROGRESS");
+	});
+
+	it("a dispatch that failed before any run started releases the item through the resolution's request key", async () => {
+		const c = await revalidating(); // resolution request key "rv-1"; no run ever started
+		await c.send(finished(dispatchFailedRunId("rv-1"), "failure"));
+		expect((await c.wi("WI-2")).revalidating).toBe(false);
+		// The receipt was never replaced, so the item is stale as well as conflicting.
+		expect(evaluateGate(await c.state(), "WI-2", n.policy).reasonCodes).toEqual(expect.arrayContaining(["STALE_RECEIPT", "CLAIM_CONFLICT"]));
+		expect(effectTypes(await again(c, "rv-2"))).toContain("DISPATCH_WORK");
+	});
+
+	it("maxRevalidations still applies across failed runs", async () => {
+		const c = await revalidating();
+		await c.send(started("run-1"));
+		await c.send(finished("run-1", "failure"));
+		await again(c, "rv-2");
+		await c.send(started("run-2"));
+		await c.send(finished("run-2", "failure"));
+		const third = await again(c, "rv-3");
+		expect(effectTypes(third)).not.toContain("DISPATCH_WORK");
+		expect(reasonsOf(third)).toContain("REVALIDATION_LIMIT");
+		expect((await c.wi("WI-2")).revalidations).toBe(n.policy.maxRevalidations);
+	});
+
+	it("R9: a second finish for the same run, with another outcome, is a duplicate and changes nothing", async () => {
+		const c = await revalidating();
+		await c.send(started("run-1"));
+		await c.send(finished("run-1", "success"));
+		const second = await c.send(finished("run-1", "failure"));
+		expect(second.outcome).toBe("duplicate");
+		expect((await c.wi("WI-2")).revalidating).toBe(true);
 	});
 
 	it("[positive] the agent's push ends the revalidation, so the item is no longer pending", async () => {

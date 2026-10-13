@@ -40,6 +40,8 @@ export const WorkItemState = z.strictObject({
 	revalidations: z.number().int().min(0),
 	/** True from a `revalidate` Resolution until the agent's next push. */
 	revalidating: z.boolean(),
+	/** Additive and optional: the run that started while `revalidating` was true. A failed or cancelled finish of this run ends the revalidation (the item can be revalidated again). */
+	revalidationRun: z.string().min(1).optional(),
 	resolutions: z.array(Resolution),
 	promotionApproval: PromotionApproval.nullable(),
 	/**

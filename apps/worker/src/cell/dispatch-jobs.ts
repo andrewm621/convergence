@@ -3,6 +3,7 @@ import {
 	CommitSha,
 	ContextReceipt,
 	NOTES_REF,
+	dispatchFailedRunId,
 	formatNoteRef,
 	parseRecordRef,
 	serializeReceiptNote,
@@ -282,7 +283,28 @@ export class RevalidationDispatcher {
 				host.logError("could not record the failed run", error);
 			}
 		}
+		await this.#release(job);
 		await host.activity(job.workItemId, "error", `Revalidation did not complete: ${reason}`).catch(() => undefined);
+	}
+
+	/**
+	 * A job that ends in failure must not leave the item `revalidating`: that state ends only with the agent's next push,
+	 * and none is coming, so every later revalidate would be refused. The failed run's own finish line normally ends it
+	 * in the reducer; when it did not (the job died before a run started, or the run finished fine but left no verified
+	 * push) this closes it the same way, with a failure finish under the id derived from the resolution's key. The item
+	 * stays blocked by its stale or conflicting claims; a human can revalidate again, up to `maxRevalidations`.
+	 */
+	async #release(job: DispatchJobRow): Promise<void> {
+		const host = this.#host;
+		try {
+			const wi = (await host.loadState()).workItems[job.workItemId];
+			if (!wi || !wi.revalidating || wi.item.status === "promoted") return;
+			const latest = wi.resolutions.filter((r) => r.kind === "revalidate").at(-1);
+			if (latest?.requestId !== job.requestId) return; // a newer revalidation owns the state now
+			await host.submit({ type: "AgentRunFinished", ts: host.now(), workItemId: job.workItemId, runId: dispatchFailedRunId(job.requestId), outcome: "failure" });
+		} catch (error) {
+			host.logError("could not release the failed revalidation", error);
+		}
 	}
 
 	async #advance(first: DispatchJobRow): Promise<void> {
@@ -447,7 +469,8 @@ export class RevalidationDispatcher {
 		if (job.misses > 0) host.meta.updateDispatch(job.requestId, { misses: 0 }, Date.now());
 		if (run.state === "running") return;
 
-		// Closed once, whatever happens next: a retry (or a later failure of this job) must not add a second, contradicting line.
+		// Closed once, whatever happens next. A crash between the submit and the stored marker is harmless: the ledger dedupes
+		// a finish on (work item, run id), so the retry's submit is a no-op and no second, contradicting line can exist.
 		if (prepared.finished === undefined) {
 			const outcome = run.state === "succeeded" ? "success" : "failure";
 			await host.submit({ type: "AgentRunFinished", ts: iso(run.finishedAt ?? host.now()), workItemId: job.workItemId, runId: run.runId, outcome });

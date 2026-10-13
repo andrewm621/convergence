@@ -53,7 +53,7 @@ export type ContractCheck = {
 	reads(path: string): boolean;
 	/**
 	 * `required` is the facet keys the work item relied on for this check's records, derived by the Worker from the
-	 * item's accepted dependencies. The check asserts exactly those and fails closed when there are none, so it can
+	 * item's accepted dependencies. A check asserts those (a check that applies broader rules, like shelter-intake, uses the list only for this guard) and fails closed when there are none, so it can
 	 * never pass for having had nothing to check.
 	 */
 	run(files: Record<string, string>, facets: Record<string, FacetValue>, required: string[]): ContractCheckResult;
