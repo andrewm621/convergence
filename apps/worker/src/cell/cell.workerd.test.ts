@@ -400,6 +400,30 @@ describe("concurrent requests against one baseline", () => {
 		expect(second.body.error.baselineCommit).toBe(first.body.commitSha);
 		expect((await w.world(s, { op: "files", repo: BASELINE }))["context/notifications.md"]).not.toContain("daily-digest");
 	});
+
+	it("two promote requests fired together against one baseline: exactly one merges, the other is a clean 409, and the ledger has one PromotionMerged", async () => {
+		const s = await scenario();
+		await w.world(s, { op: "push", repo: WI1, files: { ".delta/claims.json": JSON.stringify(claims.wi1), "src/wi1.ts": "export const badge = 1;\n" }, author: "workitem-wi-1" });
+		await w.cell(s, "pollNow");
+		const head = (await item(s, "WI-1"))?.headSha as string;
+		await evidence(s, WI1, "WI-1", head, "tests/contract/status-model.test.ts");
+		const state = (await get(s, "/state")).body;
+		const body = { expectedBaselineCommit: state.baselineCommit, forkHeadSha: head };
+
+		const results = await Promise.all([post(s, "/work-items/WI-1/promote", body, key("race-a")), post(s, "/work-items/WI-1/promote", body, key("race-b"))]);
+		const outcomes = results.map((r) => [r.status, r.body.error?.code ?? null]).sort((a, b) => (a[0] as number) - (b[0] as number));
+		expect(outcomes[0]).toEqual([200, null]);
+		// The cell runs requests one at a time, so the loser is judged after the winner's merge is recorded: the item is already promoted.
+		expect(outcomes[1]).toEqual([409, "ALREADY_PROMOTED"]);
+		const entries = await ledger(s);
+		expect(entries.filter((e) => e.type === "PromotionMerged")).toHaveLength(1);
+		// Both requests are on the ledger, but only the first was allowed; the second is a recorded refusal.
+		const requests = entries.filter((e) => e.type === "PromotionRequested");
+		expect(requests.map((e) => reasons(e))).toEqual([[], ["ALREADY_PROMOTED"]]);
+		expect((await w.world(s, { op: "files", repo: BASELINE }))["src/wi1.ts"]).toContain("badge");
+		expect((await item(s, "WI-1"))?.item.status).toBe("promoted");
+		expect((await get(s, "/ledger/verify")).body).toMatchObject({ ok: true });
+	});
 });
 
 describe("ledger", () => {
