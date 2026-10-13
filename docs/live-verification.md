@@ -9,9 +9,11 @@ set -a; . ./.env; set +a          # DEV_TOKEN
 WORKER_URL=https://<worker>.workers.dev node scripts/check-live.mjs [--keep]
 ```
 
-It seeds a baseline and two forks (`POST /api/smoke/seed?scenario=notifications`), runs the whole of Scenario A and a second, fast-forward scenario, prints PASS/FAIL per check with timings, and deletes the repos it seeded unless `--keep`. `--cell <name>` runs in a named cell (`notifications-<something>`) and keeps it; `--stop-before-revalidate` stops with v2 accepted and WI-2 stale and blocked, for recording the human revalidate in the console. The last full run before the M4 loop was 40/40; see "Oct 13: M4 loop live" for the run that includes it. Cleanup deletes exactly the repos the run created, by name (`DELETE /api/smoke` with `{"repos": [...]}`); `?all=1` is the only way to wipe every `smoke-` repo.
+It seeds a baseline and two forks (`POST /api/smoke/seed?scenario=notifications`), runs the whole of Scenario A and a second scenario where the baseline has not moved since the fork, prints PASS/FAIL per check with timings, and deletes the repos it seeded unless `--keep`. `--cell <name>` runs in a named cell (`notifications-<something>`) and keeps it; `--stop-before-revalidate` stops with v2 accepted and WI-2 stale and blocked, for recording the human revalidate in the console. The last full run before the M4 loop was 40/40; see "Oct 13: M4 loop live" for the run that includes it. Cleanup deletes exactly the repos the run created, by name (`DELETE /api/smoke` with `{"repos": [...]}`); `?all=1` is the only way to wipe every `smoke-` repo.
 
 ## Verified live
+
+The fast-forward rows below were observed before the baseline stopped carrying a fork's `.delta/`. A fork that has it is now promoted with a merge commit (the baseline head and the fork head as parents) whose tree is the merge without `.delta/`, so `check-live.mjs` checks that instead; this has not been run live.
 
 | Checklist item | Result | Observed |
 |---|---|---|

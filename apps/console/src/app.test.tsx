@@ -141,6 +141,9 @@ describe("choosing the mock or the live client", () => {
 		expect(readRuntime("?cell=notifications-demo", {})).toMatchObject({ mock: false, scenario: "notifications", cell: "notifications-demo" });
 		expect(readRuntime("?cell=shelter-intake-take-2", {})).toMatchObject({ scenario: "shelter-intake", cell: "shelter-intake-take-2" });
 		expect(readRuntime("?cell=sales-ops-1", {})).toMatchObject({ scenario: "sales-ops", cell: "sales-ops-1" });
+		// Our own build, live. In the mock the same scenario is the replay and takes no cell.
+		expect(readRuntime("?cell=delta-convergence-build-live", {})).toMatchObject({ mock: false, scenario: "delta-convergence-build", cell: "delta-convergence-build-live" });
+		expect(readRuntime("?scenario=delta-convergence-build", {}).scenario).toBe("notifications");
 		// The name decides the scenario, whatever ?scenario= says.
 		expect(readRuntime("?cell=notifications-demo&scenario=sales-ops", {})).toMatchObject({ scenario: "notifications", cell: "notifications-demo" });
 		expect(readRuntime("?cell=notifications-" + "a".repeat(26), {}).cell).toHaveLength(40);
@@ -160,7 +163,8 @@ describe("choosing the mock or the live client", () => {
 			"notifications-demo?x=1",
 			" notifications-demo",
 			"notifications-" + "a".repeat(27), // 41 characters
-			"delta-convergence-build-1", // the build replay is mock only
+			"delta-convergence-build", // no suffix: that is the replay's name, not a named cell
+			"delta-convergence-build-", // nothing after the prefix
 			"-notifications-demo",
 			"",
 		];

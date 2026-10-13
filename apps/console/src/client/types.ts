@@ -12,11 +12,13 @@ export function isScenarioName(value: string | null | undefined): value is Scena
 	return value === "notifications" || value === "sales-ops" || value === "shelter-intake" || value === "delta-convergence-build";
 }
 
-/** The scenarios the Worker can hold a cell for (the build replay is mock only), each as the prefix of a cell name. */
+/** The scenarios the Worker can hold a cell for, each as the prefix of a cell name. */
 const CELL_PREFIXES = [
 	["notifications-", "notifications"],
 	["shelter-intake-", "shelter-intake"],
 	["sales-ops-", "sales-ops"],
+	// Our own build, live: the mock replays it as `delta-convergence-build`; the Worker holds it as a named cell.
+	["delta-convergence-build-", "delta-convergence-build"],
 ] as const;
 
 /** What the Worker accepts as a cell name: 1-40 lowercase letters, digits or dashes (`SCENARIO_NAME` in apps/worker/src/cell/api.ts). */

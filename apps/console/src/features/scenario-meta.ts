@@ -26,6 +26,10 @@ export const SYNTHETIC_NOTE = "Synthetic scenario. Not operational guidance.";
 export const BUILD_NOTE_LEAD = "Retrofitted from this repo's git history.";
 export const BUILD_NOTE = `${BUILD_NOTE_LEAD} Decisions made before Delta Convergence was recording them; dependencies declared by us; humans resolve.`;
 
+/** The note on the live workspace of our own build, which starts where the replay ends. */
+export const LIVE_BUILD_NOTE_LEAD = "Live:";
+export const LIVE_BUILD_NOTE = `${LIVE_BUILD_NOTE_LEAD} this repo's own build decisions since Oct 13. Earlier history is the replay.`;
+
 /** Where the shas in the build replay live. */
 export const REPO_URL = "https://github.com/andrewm621/delta-convergence";
 
@@ -49,3 +53,16 @@ export const SCENARIO_META: Record<ScenarioName, ScenarioMeta> = {
 	},
 	"sales-ops": { label: "Northwind Sales Ops", kind: "knowledge work", icon: BriefcaseBusiness, hidden: true },
 };
+
+/**
+ * What the console shows for a scenario. The build scenario is a replay in the mock and a live workspace on the Worker
+ * (`?cell=delta-convergence-build-<name>`); the live one keeps the read-only actions but not the GitHub sha links, because
+ * its fork heads are Artifacts commits, not commits of this repo.
+ */
+export function scenarioMeta(scenario: ScenarioName, live: boolean): ScenarioMeta {
+	const meta = SCENARIO_META[scenario];
+	if (live && scenario === "delta-convergence-build") {
+		return { ...meta, label: "Our own build (live)", kind: "live", note: LIVE_BUILD_NOTE, noteLead: LIVE_BUILD_NOTE_LEAD, realHistory: false };
+	}
+	return meta;
+}

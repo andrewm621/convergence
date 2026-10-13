@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 import { useConsole } from "@/state/console-context";
 import { analysisOf, currentRecord, semanticDiff, type ClaimVerdict } from "@/state/derive";
 import { ReceiptFacetList } from "./receipt-facets";
-import { SCENARIO_META } from "./scenario-meta";
+import { scenarioMeta } from "./scenario-meta";
 
 // ---------- Receipt ----------
 
@@ -253,7 +253,7 @@ export function ChangesTab({ wi }: { wi: WorkItemState }) {
 	}, [client, key, wi.item.id, available]);
 
 	// A replay of recorded history has no file contents to diff; what it has is the commit the work lives in.
-	if (SCENARIO_META[client.scenario].realHistory) {
+	if (scenarioMeta(client.scenario, client.kind === "live").realHistory) {
 		return (
 			<div className="space-y-2 p-4 text-[13px]" data-testid="changes-recorded">
 				<p className="text-muted-foreground">File diffs are not rebuilt for this replay. The work is in this commit:</p>

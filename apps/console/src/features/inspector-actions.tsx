@@ -14,7 +14,7 @@ import { useConsole } from "@/state/console-context";
 import { analysisOf, currentRecord, exceptionStatus } from "@/state/derive";
 import { useGate } from "@/state/use-gate";
 import { PromoteButton } from "./promote-button";
-import { SCENARIO_META } from "./scenario-meta";
+import { scenarioMeta } from "./scenario-meta";
 
 export function ActionsTab({ wi }: { wi: WorkItemState }) {
 	const id = wi.item.id;
@@ -126,7 +126,7 @@ function Resolutions({ wi }: { wi: WorkItemState }) {
 	const promoted = wi.item.status === "promoted";
 	const noPush = wi.headSha === null;
 	const defaultRecord = candidates[0] ?? null;
-	const readOnly = SCENARIO_META[client.scenario].readOnlyReason;
+	const readOnly = scenarioMeta(client.scenario, client.kind === "live").readOnlyReason;
 	const reason = readOnly ?? (promoted ? "Already promoted." : noPush ? "Waiting for the agent's first push: a resolution binds to a specific head." : null);
 
 	async function submit(input: Omit<ResolveInput, "binding" | "workItemId">, recordId: string | null, label: string): Promise<boolean> {

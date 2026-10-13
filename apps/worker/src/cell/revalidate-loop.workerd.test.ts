@@ -426,6 +426,8 @@ describe("revalidate loop (M4)", () => {
 		expect(merged["src/work/wi-1.ts"]).toContain("STATUS_VALUES");
 		expect(merged["src/work/wi-2.ts"]).toContain("NOTIFICATIONS_DEFAULT");
 		expect(merged["src/index.ts"]).toBe("export {};\n");
+		// A fork's .delta/ bookkeeping never reaches the baseline, so the next fork cannot inherit another item's claims.
+		expect(Object.keys(merged).filter((path) => path.startsWith(".delta/"))).toEqual([]);
 		expect((await ledger(s)).filter((e) => e.type === "PromotionMerged")).toHaveLength(2);
 		expect([(await workItem(s, "WI-1")).item.status, (await workItem(s, "WI-2")).item.status]).toEqual(["promoted", "promoted"]);
 	}, 30_000);

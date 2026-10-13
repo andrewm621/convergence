@@ -11,7 +11,7 @@ import { ActionsTab } from "./inspector-actions";
 import { ChangesTab, ReceiptTab, SemanticTab } from "./inspector-tabs";
 import { WhyTab } from "./inspector-why";
 import { PromoteButton } from "./promote-button";
-import { SCENARIO_META } from "./scenario-meta";
+import { scenarioMeta } from "./scenario-meta";
 
 export function Inspector() {
 	const { view, selectedId } = useConsole();
@@ -67,7 +67,7 @@ function WorkItemInspector({ wi }: { wi: WorkItemState }) {
 				<h2 className="text-[15px] leading-snug font-semibold">{wi.item.title}</h2>
 				<div className="flex flex-wrap items-center gap-2">
 					<StatusChip status={wi.item.status} />
-					<ActorChip actor={wi.item.actor} label={SCENARIO_META[client.scenario].agentLabel ?? agentModelOf(view.ledger, wi.item.id) ?? undefined} />
+					<ActorChip actor={wi.item.actor} label={scenarioMeta(client.scenario, client.kind === "live").agentLabel ?? agentModelOf(view.ledger, wi.item.id) ?? undefined} />
 					<PromoteButton workItemId={wi.item.id} className="ml-auto" />
 				</div>
 			</div>

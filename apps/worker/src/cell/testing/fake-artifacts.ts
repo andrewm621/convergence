@@ -1,11 +1,13 @@
 import { compareStrings } from "contracts";
 import type { FlatTree } from "../../artifacts/tree-diff";
+import { FORK_METADATA_DIR, isForkMetadata, mergeLines } from "../../artifacts/merge-rules";
 import { PortError, type ArtifactsPort, type CommitFilesRequest, type MergeRequest, type RepoCommit, type WriteNoteRequest } from "../ports";
 
 // An in-memory Artifacts: repos of full-tree commits with real git object ids (sha-1 of the git
-// blob and of a commit-shaped string), forks that share history with their base, a path-level
-// three-way merge, and fault injection. It implements the same `ArtifactsPort` the real binding
-// adapter does, so the whole control loop runs against it with no network.
+// blob and of a commit-shaped string), forks that share history with their base, a three-way
+// merge (line by line for source files, with the .delta/ rules of artifacts/merge-rules.ts),
+// and fault injection. It implements the same `ArtifactsPort` the real binding adapter does,
+// so the whole control loop runs against it with no network.
 //
 // What it does not prove: the real binding's behaviour, isomorphic-git pushes and merges, and
 // timing. Those are checked live (see docs/control-loop.md).
@@ -227,7 +229,9 @@ export class FakeWorld {
 
 		for (const [sha, commit] of fork.commits) baseline.commits.set(sha, commit);
 		for (const [oid, text] of fork.blobs) baseline.blobs.set(oid, text);
-		if (base.sha === ours.sha) {
+		// The same rules as artifacts/git-merge.ts: the baseline never carries .delta/, so a fork that has it is not fast-forwarded.
+		const theirsHasMetadata = [...theirs.files.keys()].some((path) => path === FORK_METADATA_DIR || path.startsWith(`${FORK_METADATA_DIR}/`));
+		if (base.sha === ours.sha && !theirsHasMetadata) {
 			baseline.head = theirs.sha; // fast-forward
 			return theirs.sha;
 		}
@@ -238,9 +242,14 @@ export class FakeWorld {
 			if (o === t) pick = o;
 			else if (o === b) pick = t;
 			else if (t === b) pick = o;
-			else if (path.startsWith(".delta/")) pick = t; // fork metadata: the fork being promoted wins, as in artifacts/git-merge.ts
-			else throw new PortError("MERGE_CONFLICT", `both sides changed ${path}`);
-			if (pick !== undefined) merged.set(path, pick);
+			else if (o === undefined || t === undefined) throw new PortError("MERGE_CONFLICT", `one side deleted ${path} and the other changed it`);
+			else if (isForkMetadata(path)) pick = t; // fork metadata: the fork being promoted wins
+			else {
+				const lines = mergeLines({ branches: ["base", "ours", "theirs"], contents: [b ?? "", o, t] });
+				if (!lines.cleanMerge) throw new PortError("MERGE_CONFLICT", `both sides changed ${path}`);
+				pick = lines.mergedText;
+			}
+			if (pick !== undefined && path !== FORK_METADATA_DIR && !path.startsWith(`${FORK_METADATA_DIR}/`)) merged.set(path, pick);
 		}
 		return this.#commit(baseline, merged, [ours.sha, theirs.sha], request.author.name, request.committer.name, request.message);
 	}

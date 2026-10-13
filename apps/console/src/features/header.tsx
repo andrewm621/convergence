@@ -6,13 +6,13 @@ import { promptForToken } from "@/client/auth";
 import { SCENARIOS, type ConnectionState, type PollerHealth, type ScenarioName } from "@/client/types";
 import { ACTING_AS, POLL_INTERVAL_MS } from "@/config";
 import { cn } from "@/lib/utils";
-import { SCENARIO_META, SYNTHETIC_NOTE } from "./scenario-meta";
+import { SCENARIO_META, SYNTHETIC_NOTE, scenarioMeta } from "./scenario-meta";
 
-export function ScenarioSwitcher({ value, onChange }: { value: ScenarioName; onChange(next: ScenarioName): void }) {
+export function ScenarioSwitcher({ value, onChange, live = false }: { value: ScenarioName; onChange(next: ScenarioName): void; live?: boolean }) {
 	return (
 		<div role="radiogroup" aria-label="Scenario" className="inline-flex items-center rounded-lg border bg-muted p-0.5">
 			{SCENARIOS.filter((name) => name === value || !SCENARIO_META[name].hidden).map((name) => {
-				const meta = SCENARIO_META[name];
+				const meta = name === value ? scenarioMeta(name, live) : SCENARIO_META[name];
 				const Icon = meta.icon;
 				const active = name === value;
 				return (
@@ -104,14 +104,17 @@ export function Header({
 	onScenario,
 	connection,
 	poller = null,
+	live = false,
 }: {
 	scenario: ScenarioName;
+	/** The live client, not the mock. */
+	live?: boolean;
 	onScenario(next: ScenarioName): void;
 	connection: ConnectionState;
 	poller?: PollerHealth | null;
 }) {
 	const [theme, toggleTheme] = useTheme();
-	const { note, noteLead = SYNTHETIC_NOTE } = SCENARIO_META[scenario];
+	const { note, noteLead = SYNTHETIC_NOTE } = scenarioMeta(scenario, live);
 	return (
 		<>
 			<header className="flex h-14 shrink-0 items-center gap-4 border-b bg-card px-4">
@@ -125,7 +128,7 @@ export function Header({
 					</div>
 				</div>
 				<div className="mx-2 h-6 w-px bg-border" aria-hidden />
-				<ScenarioSwitcher value={scenario} onChange={onScenario} />
+				<ScenarioSwitcher value={scenario} onChange={onScenario} live={live} />
 				<div className="ml-auto flex items-center gap-3">
 					<PollerBadge poller={poller} />
 					<ConnectionBadge state={connection} />

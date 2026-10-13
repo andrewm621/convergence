@@ -13,9 +13,11 @@
   "dependencies": {
     "@cloudflare/sandbox": "1.0.0",
     "contracts": "workspace:*",
+    "diff3": "0.0.3",
     "delta-core": "workspace:*",
     "hono": "^4.13.13",
     "isomorphic-git": "1.43.2",
+    "scenario-delta-convergence-build": "workspace:*",
     "scenario-notifications": "workspace:*",
     "scenario-shelter-intake": "workspace:*",
     "zod": "^4.6.7"

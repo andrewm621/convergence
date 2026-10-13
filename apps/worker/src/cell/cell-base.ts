@@ -31,6 +31,7 @@ import { ContextReader, snapshotHashOf } from "./context-tree";
 import { RevalidationDispatcher, type DispatchHost } from "./dispatch-jobs";
 import { CellMeta, type TrackedRow } from "./meta";
 import { WORKER_COMMITTER, observeBaselineCommit, observeForkCommit, type ObserveDeps } from "./observe";
+import { HUMAN_RESOLVED_TEXT, NOT_PROMOTABLE_MESSAGE, isPointerScenario } from "./pointer-scenario";
 import { PortError, type ArtifactsPort, type RepoCommit } from "./ports";
 import { durableObjectSql } from "./sql";
 import { SqliteCellStore, type LedgerVerdict } from "./sqlite-store";
@@ -120,7 +121,9 @@ export abstract class CellBase extends DurableObject<Env> {
 			workItemId: effect.workItemId,
 			runId: "delta",
 			kind: "status",
-			text: `Revalidation requested${changed ? `: ${changed}` : ""}.${dispatcher ? " Re-dispatching the agent with the new context." : " No agent runtime is configured here; nothing was dispatched."}`,
+			text: isPointerScenario(this.#meta.scenario())
+				? `${HUMAN_RESOLVED_TEXT}${changed ? ` Changed: ${changed}.` : ""}`
+				: `Revalidation requested${changed ? `: ${changed}` : ""}.${dispatcher ? " Re-dispatching the agent with the new context." : " No agent runtime is configured here; nothing was dispatched."}`,
 			ts: this.now(),
 		});
 	}
@@ -138,6 +141,8 @@ export abstract class CellBase extends DurableObject<Env> {
 
 	/** The re-dispatcher, or null when this cell has no agent runtime. */
 	get #dispatch(): RevalidationDispatcher | null {
+		// A cell whose work items are pointers to real work never gets a runtime, whatever the Worker is configured with.
+		if (isPointerScenario(this.#meta.scenario())) return null;
 		if (this.#dispatcher === null) {
 			const runtime = this.createAgentRuntime();
 			if (runtime) this.#dispatcher = new RevalidationDispatcher(this.#dispatchHost(runtime));
@@ -557,7 +562,19 @@ export abstract class CellBase extends DurableObject<Env> {
 			this.#meta.setRecordPaths(recordPaths);
 			return result;
 		}
-		return this.#submit(await observeForkCommit(deps, t, this.#baselineRepo(), commit, options));
+		const push = await observeForkCommit(deps, t, this.#baselineRepo(), commit, options);
+		// A pointer work item has no agent to re-run. When its real work is done and its pointer pushed after a human's
+		// revalidate, the Worker takes the place of the dispatcher: it issues the receipt at the current versions first (the
+		// reconciler takes one only while the revalidation is open, and the push closes it), then the push is judged by its claims.
+		if (t.workItemId && isPointerScenario(this.#meta.scenario()) && state.workItems[t.workItemId]?.revalidating) await this.#issuePointerReceipt(state, t.workItemId);
+		return this.#submit(push);
+	}
+
+	async #issuePointerReceipt(state: CellState, workItemId: string): Promise<void> {
+		const recordIds = [...new Set(state.dependencies.filter((d) => d.workItemId === workItemId && d.status === "accepted").map((d) => d.recordId))];
+		const receipt = await buildReceipt(state, { baselineCommit: state.baselineCommit, recordIds });
+		await this.#submit({ type: "ReceiptIssued", ts: this.now(), workItemId, receipt });
+		await this.publishActivity({ type: "agent-activity", workItemId, runId: "delta", kind: "status", text: "Receipt issued at the current versions for the pointer's new push. Human-resolved outside the console.", ts: this.now() });
 	}
 
 	/**
@@ -959,6 +976,8 @@ export abstract class CellBase extends DurableObject<Env> {
 			if (!parsed.success) return invalidInput(parsed.error, "promote request");
 			const req = parsed.data;
 			if (req.workItemId !== undefined && req.workItemId !== workItemId) return failure(400, "WORK_ITEM_MISMATCH", "workItemId in the body does not match the path");
+			// Before anything is asked of the reconciler or the baseline: nothing here can be merged.
+			if (isPointerScenario(this.#meta.scenario())) return { status: 409, body: { error: { code: "NOT_PROMOTABLE", message: NOT_PROMOTABLE_MESSAGE }, promoted: false } };
 			const baselineRepo = this.#baselineRepo();
 			const before = await this.#requireState();
 			const forkRepo = before.workItems[workItemId]?.item.forkRepo;

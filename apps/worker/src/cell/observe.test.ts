@@ -114,6 +114,22 @@ describe("fork commits can never accept context", () => {
 		expect("records" in event).toBe(false);
 	});
 
+	it("reads a claims file inherited unchanged from the fork's base as missing, so an agent cannot start with another item's claims", async () => {
+		const { world, deps, head } = await setup();
+		await world.push("base", { ".delta/claims.json": '[{"subject":"status.values","value":"x","basedOn":"status-model@1"}]' }, { author: AUTHORITY, committer: WORKER_COMMITTER });
+		const baseSha = (await head()).sha;
+		world.fork("base", "fork-1");
+		await world.push("fork-1", { "src/work.ts": "export {};\n" }, { author: "workitem-wi-1" });
+		const tracked = { repo: "fork-1", kind: "fork" as const, workItemId: "WI-1", baseCommit: baseSha };
+		const inherited = await observeForkCommit(deps, tracked, "base", (await world.port().log("fork-1", { limit: 1 }))[0]!);
+		expect(inherited.type === "ForkPushed" && inherited.claims).toBeNull();
+
+		// Its own claims, even identical in meaning, are a different file: they count.
+		await world.push("fork-1", { ".delta/claims.json": '[{"subject":"status.values","value":"y","basedOn":"status-model@1"}]' }, { author: "workitem-wi-1" });
+		const own = await observeForkCommit(deps, tracked, "base", (await world.port().log("fork-1", { limit: 1 }))[0]!);
+		expect(own.type === "ForkPushed" && own.claims).toEqual([{ subject: "status.values", value: "y", basedOn: "status-model@1" }]);
+	});
+
 	it("fails closed when the fork cannot be compared with its base", async () => {
 		const { world, deps } = await setup();
 		world.fork("base", "fork-1");

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SMOKE_LABEL_RE, SmokeDeleteRequest, deleteSmokeRepos, purgeSmokeRepos } from "./smoke";
+import { SMOKE_LABEL_RE, SmokeDeleteRequest, deleteSmokeRepos, purgeSmokeRepos, seedLabelAllowed } from "./smoke";
 
 // A recorded demo's repos live beside every test run's `smoke-` repos. A run must delete its own by name and nothing else.
 
@@ -63,5 +63,13 @@ describe("seed label", () => {
 	it("is a short lowercase name", () => {
 		expect(SMOKE_LABEL_RE.test("notifications-demo")).toBe(true);
 		for (const bad of ["", "-x", "x-", "Notifications", "a_b", "a/b", "a".repeat(41)]) expect(SMOKE_LABEL_RE.test(bad), bad).toBe(false);
+	});
+
+	it("only the build seed may take a label the pointer routes can reach", () => {
+		expect(seedLabelAllowed("notifications", "delta-convergence-build-x")).toBe(false);
+		expect(seedLabelAllowed(undefined, "delta-convergence-build")).toBe(false);
+		expect(seedLabelAllowed("delta-convergence-build", "delta-convergence-build-live")).toBe(true);
+		expect(seedLabelAllowed("notifications", "notifications-demo")).toBe(true);
+		expect(seedLabelAllowed("notifications", undefined)).toBe(true);
 	});
 });

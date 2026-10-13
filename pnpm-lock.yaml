@@ -117,12 +117,18 @@ importers:
       delta-core:
         specifier: workspace:*
         version: link:../../packages/delta-core
+      diff3:
+        specifier: 0.0.3
+        version: 0.0.3
       hono:
         specifier: ^4.13.13
         version: 4.13.13
       isomorphic-git:
         specifier: 1.43.2
         version: 1.43.2
+      scenario-delta-convergence-build:
+        specifier: workspace:*
+        version: link:../../scenarios/delta-convergence-build
       scenario-notifications:
         specifier: workspace:*
         version: link:../../scenarios/notifications
