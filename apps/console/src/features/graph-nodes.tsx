@@ -49,7 +49,7 @@ export function RecordNode({ data }: NodeProps & { data: RecordData }) {
 				<span className="text-muted-foreground">{data.dependents} relying on it</span>
 				{data.stale > 0 && (
 					<Badge tone="danger" className="text-[13px]" data-testid={`stale-count-${data.recordId}`}>
-						{data.stale} stale
+						{data.stale} blocked
 					</Badge>
 				)}
 				{data.proposedVersion !== null && (
@@ -72,7 +72,8 @@ export function WorkItemNode({ data }: NodeProps & { data: ItemData }) {
 	const quiet = degraded ? null : found;
 	// Ready only because an accepted exception lifts a block: amber, not the green of cleanly ready work. Not while degraded (shown as unconfirmed).
 	const excepted = useMemo(() => !degraded && readyByException(view, wi), [degraded, view, wi]);
-	const receipt = wi.receipt.accepted.map((entry) => `${entry.recordId}@${entry.version}`).join(" · ");
+	const builtOn = wi.receipt.accepted.map((entry) => `${entry.recordId}@${entry.version}`).join(" · ");
+	const statusLabel = statusMeta(wi.item.status, degraded, quiet !== null, excepted).label;
 	// Blocked on a changed decision: the card says which version it was built on and which is current, in words.
 	const blockedBy = useMemo(() => {
 		if (wi.item.status !== "stale" && wi.item.status !== "conflict") return null;
@@ -87,7 +88,7 @@ export function WorkItemNode({ data }: NodeProps & { data: ItemData }) {
 			data-status={wi.item.status}
 			role="button"
 			tabIndex={0}
-			aria-label={`${wi.item.id} ${wi.item.title}, ${wi.item.status}${excepted ? " with an accepted exception" : ""}`}
+			aria-label={`${wi.item.id} ${wi.item.title}, ${statusLabel}`}
 			aria-pressed={selected}
 			onKeyDown={(event) => {
 				if (event.key === "Enter" || event.key === " ") {
@@ -120,8 +121,8 @@ export function WorkItemNode({ data }: NodeProps & { data: ItemData }) {
 					{blockedBy.stamp}
 				</p>
 			) : (
-				<p className="truncate font-mono text-[12.5px] text-muted-foreground" title={`receipt: ${receipt || "none"}`}>
-					receipt: {receipt || "none"}
+				<p className="truncate font-mono text-[12.5px] text-muted-foreground" title={`Built on ${builtOn || "nothing yet"}`}>
+					built on: {builtOn || "nothing yet"}
 				</p>
 			)}
 		</div>
@@ -159,7 +160,7 @@ export function ClusterNode({ data }: NodeProps & { data: ClusterData }) {
 							type="button"
 							data-work-item={wi.item.id}
 							data-status={wi.item.status}
-							aria-label={`${wi.item.id}, seeded, ${wi.item.status}`}
+							aria-label={`${wi.item.id}, seeded, ${meta.label}`}
 							aria-pressed={data.selectedId === wi.item.id}
 							title={`${wi.item.id} (seeded) · ${meta.description}`}
 							onClick={() => select(wi.item.id)}

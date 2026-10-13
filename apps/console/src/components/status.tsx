@@ -19,9 +19,10 @@ import {
 	User,
 	Swords,
 } from "lucide-react";
-import { createContext, useContext } from "react";
+import { createContext, useContext, useId } from "react";
 import { Badge } from "@/components/ui/badge";
 import { CLAIMS_CHECK_HINT } from "@/lib/evidence";
+import { reasonText } from "@/lib/reasons";
 import { cn } from "@/lib/utils";
 
 type Tone = "neutral" | "outline" | "primary" | "success" | "warning" | "danger" | "info" | "merged";
@@ -34,11 +35,11 @@ type StatusMeta = { label: string; tone: Tone; icon: typeof Play; description: s
  */
 export const STATUS_META: Record<WorkItemStatus, StatusMeta> = {
 	running: { label: "Agent working", tone: "info", icon: Play, description: "The agent is working." },
-	fresh: { label: "Up to date", tone: "success", icon: ShieldCheck, description: "Nothing it relies on has changed since it was built." },
+	fresh: { label: "Up to date", tone: "success", icon: ShieldCheck, description: "Nothing it depends on has changed since it was built." },
 	stale: { label: "Blocked", tone: "danger", icon: TriangleAlert, description: "Stale: built on a decision that has since changed. A changed decision is not a verdict on the work." },
 	conflict: { label: "Blocked", tone: "danger", icon: Swords, description: "Conflict: its claims or checks contradict an accepted decision." },
 	revalidating: { label: "revalidating", tone: "info", icon: RefreshCw, description: "Re-running on the current decisions." },
-	ready: { label: "Ready to merge", tone: "primary", icon: CheckCheck, description: "Cleared by the gate. A human decides whether to merge." },
+	ready: { label: "Ready to merge", tone: "primary", icon: CheckCheck, description: "Cleared by the merge check. A human decides whether to merge." },
 	promoted: { label: "Merged", tone: "merged", icon: GitMerge, description: "Merged into the baseline." },
 	uncertain: { label: "uncertain", tone: "warning", icon: HelpCircle, description: "Delta Convergence cannot tell: claims are missing or rely on something undeclared." },
 	rejected: { label: "rejected", tone: "neutral", icon: CircleSlash, description: "A human rejected this work." },
@@ -55,7 +56,7 @@ export function useDegraded(): boolean {
  * What to show for a status. `excepted`: ready only because an accepted exception lifts what would block it (rule R5), so it is
  * amber and reads differently from cleanly ready work. While the poller is degraded a work item that reads `fresh` or `ready` cannot be
  * trusted (a baseline change may be sitting unread; unknown is not unaffected), so it is shown as `unconfirmed`,
- * never Fresh and never "Cleared by the gate".
+ * never Fresh and never "Cleared by the merge check".
  */
 export function statusMeta(status: WorkItemStatus, degraded: boolean, leftAlone = false, excepted = false): StatusMeta {
 	if (degraded && (status === "fresh" || status === "ready")) {
@@ -67,7 +68,7 @@ export function statusMeta(status: WorkItemStatus, degraded: boolean, leftAlone 
 		return { label: "Left alone", tone: "success", icon: ShieldCheck, description: "No recorded dependency on what the last decision change touched. Its agent is still working." };
 	}
 	if (status === "ready" && excepted) {
-		return { label: "Ready · exception", tone: "warning", icon: Gavel, description: "Cleared by the gate only because of an accepted exception. Something would block it without that exception. A human still decides whether to merge." };
+		return { label: "Ready · exception", tone: "warning", icon: Gavel, description: "Cleared by the merge check only because of an accepted exception. Something would block it without that exception. A human still decides whether to merge." };
 	}
 	return STATUS_META[status];
 }
@@ -97,6 +98,9 @@ export function StatusChip({ status, leftAlone = false, excepted = false, classN
 
 const ACTOR_ICON = { human: User, agent: Bot, system: Cpu } as const;
 
+/** An agent named only by a letter ("Agent B") means nothing on screen: nothing defines it, and the work's title already says what it is. */
+const LETTERED_AGENT = /^Agent [A-Z]$/;
+
 /** `label` replaces the display name, e.g. with the model that runs an agent. The actor kind stays in the screen-reader text. */
 export function ActorChip({ actor, label, className }: { actor: Pick<Actor, "kind" | "displayName">; label?: string; className?: string }) {
 	const Icon = ACTOR_ICON[actor.kind];
@@ -104,7 +108,7 @@ export function ActorChip({ actor, label, className }: { actor: Pick<Actor, "kin
 		<Badge tone={actor.kind === "human" ? "primary" : "outline"} data-actor={actor.kind} className={className}>
 			<Icon aria-hidden />
 			<span className="sr-only">{actor.kind}: </span>
-			{label ?? actor.displayName}
+			{label ?? (LETTERED_AGENT.test(actor.displayName) ? "Agent" : actor.displayName)}
 		</Badge>
 	);
 }
@@ -127,7 +131,7 @@ export type EpistemicKind = "recorded" | "asserted" | "verified" | "claims-check
  * anything nobody has decided reads `Awaiting human` and never wears a success badge.
  */
 export const EPISTEMIC_META: Record<EpistemicKind, { text: string; tone: Tone; icon: typeof Lock; dashed: boolean; hint: string }> = {
-	recorded: { text: "recorded", tone: "primary", icon: Lock, dashed: false, hint: "An accepted decision or a human resolution, on the ledger." },
+	recorded: { text: "recorded", tone: "primary", icon: Lock, dashed: false, hint: "An accepted decision or a human sign-off, in the audit log." },
 	asserted: { text: "agent-asserted, unverified", tone: "warning", icon: Bot, dashed: true, hint: "The agent's own word. Delta Convergence has not checked it." },
 	verified: { text: "test-verified", tone: "info", icon: FlaskConical, dashed: false, hint: "A check Delta Convergence ran itself at this head." },
 	"claims-checked": { text: "claims-checked, not tested", tone: "info", icon: ShieldCheck, dashed: true, hint: CLAIMS_CHECK_HINT },
@@ -145,10 +149,16 @@ export function EpistemicChip({ kind, className }: { kind: EpistemicKind; classN
 	);
 }
 
+/** The code stays on screen (it is searchable); its tooltip says what it means, the rule behind it, and what to do next. */
 export function ReasonChip({ code, className }: { code: ReasonCode | string; className?: string }) {
+	const describedBy = useId();
+	const text = reasonText(code);
 	return (
-		<Badge tone="outline" className={cn("font-mono text-[11px] font-medium", className)} data-reason={code}>
+		<Badge tone="outline" className={cn("font-mono text-[11px] font-medium", className)} data-reason={code} title={text} aria-describedby={describedBy}>
 			{code}
+			<span id={describedBy} className="sr-only">
+				{text}
+			</span>
 		</Badge>
 	);
 }

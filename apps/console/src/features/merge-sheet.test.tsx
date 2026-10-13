@@ -134,7 +134,7 @@ describe("ready under an exception looks different from ready", () => {
 		expect(card).toHaveAttribute("data-status", "ready");
 		const cardChip = card.querySelector("[data-excepted]") as HTMLElement;
 		expect(cardChip).toHaveTextContent("Ready · exception");
-		expect(card).toHaveAttribute("aria-label", expect.stringContaining("ready with an accepted exception"));
+		expect(card).toHaveAttribute("aria-label", expect.stringContaining("Ready · exception"));
 	}, 20000);
 
 	it("keeps cleanly ready work green-ish: plain Ready to merge, no exception marker", async () => {

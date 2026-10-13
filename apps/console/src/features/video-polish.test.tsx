@@ -22,7 +22,7 @@ describe("the receipt: named facets, changes marked, readable", () => {
 	it("lists record@version, then each facet it was handed with a short hash, and marks the changed ones", async () => {
 		const user = userEvent.setup();
 		await renderWithMock(<Inspector />, { beats: 5, select: "WI-2" });
-		await user.click(await screen.findByRole("tab", { name: "Receipt" }));
+		await user.click(await screen.findByRole("tab", { name: "What it was given" }));
 
 		const tab = await screen.findByTestId("receipt-tab");
 		expect(within(tab).getByTestId("receipt-ref-notifications")).toHaveTextContent("notifications@1");
@@ -52,7 +52,7 @@ describe("the receipt: named facets, changes marked, readable", () => {
 	it("uses nothing smaller than 14px on the receipt", async () => {
 		const user = userEvent.setup();
 		await renderWithMock(<Inspector />, { beats: 5, select: "WI-2" });
-		await user.click(await screen.findByRole("tab", { name: "Receipt" }));
+		await user.click(await screen.findByRole("tab", { name: "What it was given" }));
 		const tab = await screen.findByTestId("receipt-tab");
 		await waitFor(() => expect(within(tab).getByTestId("facet-hash-notifications.default").textContent).toMatch(/^#[0-9a-f]{8}$/));
 		expect(smallTextIn(tab).filter((entry) => !entry.includes("lucide"))).toEqual([]);
@@ -61,7 +61,7 @@ describe("the receipt: named facets, changes marked, readable", () => {
 	it("an item the change left alone shows its facets as unchanged, not behind", async () => {
 		const user = userEvent.setup();
 		await renderWithMock(<Inspector />, { beats: 5, select: "WI-1" });
-		await user.click(await screen.findByRole("tab", { name: "Receipt" }));
+		await user.click(await screen.findByRole("tab", { name: "What it was given" }));
 		const tab = await screen.findByTestId("receipt-tab");
 		expect(within(tab).queryByText(/behind:/)).toBeNull();
 		expect(tab.querySelectorAll("[data-facet-status=changed]")).toHaveLength(0);
@@ -143,32 +143,34 @@ describe("the evaluation strip's timing", () => {
 
 	it("keeps the engine time when it is not told otherwise (mock mode)", () => {
 		render(<ResultsStrip evaluation={evaluation} />);
-		expect(screen.getByTestId("results-time")).toHaveTextContent("<0.01 ms");
+		expect(screen.getByTestId("results-strip").getAttribute("title")).toContain("Reconciler time for this check: <0.01 ms.");
 	});
 
 	it("shows a browser-measured time, labelled as such", () => {
 		render(<ResultsStrip evaluation={evaluation} ms={3210} measuredHere />);
-		const time = screen.getByTestId("results-time");
-		expect(time).toHaveTextContent("3.21 s");
-		expect(time.getAttribute("title")).toContain("Measured in this browser");
+		const hint = screen.getByTestId("results-strip").getAttribute("title");
+		expect(hint).toContain("3.21 s");
+		expect(hint).toContain("Measured in this browser");
 	});
 
 	it("reads as before when nothing was already stale", () => {
 		render(<ResultsStrip evaluation={evaluation} />);
 		const strip = screen.getByTestId("results-strip");
-		expect(strip).toHaveTextContent("2 items evaluated·1 stale·1 with no recorded dependency");
+		expect(strip).toHaveTextContent("1 blocked·1 left alone");
+		expect(strip.getAttribute("title")).toContain("2 items checked");
 		expect(strip).not.toHaveTextContent("already");
 	});
 
 	it("counts work that was already stale apart, so the numbers add up to the red cards", () => {
 		render(<ResultsStrip evaluation={{ ...evaluation, evaluated: 7, stale: 3, alreadyStale: 2, untouched: 2 }} />);
-		expect(screen.getByTestId("results-strip")).toHaveTextContent("7 items evaluated·3 newly stale·2 already stale·2 with no recorded dependency");
+		expect(screen.getByTestId("results-strip")).toHaveTextContent("3 newly blocked·2 already blocked·2 left alone");
+		expect(screen.getByTestId("results-strip").getAttribute("title")).toContain("7 items checked");
 	});
 
 	it("shows no time at all when there is no honest number", () => {
 		render(<ResultsStrip evaluation={evaluation} ms={null} measuredHere />);
-		expect(screen.queryByTestId("results-time")).toBeNull();
-		expect(screen.getByText("1 stale")).toBeInTheDocument();
+		expect(screen.getByTestId("results-strip").getAttribute("title")).not.toMatch(/Measured|Reconciler time/);
+		expect(screen.getByText("1 blocked")).toBeInTheDocument();
 	});
 });
 
@@ -209,8 +211,8 @@ describe("live mode: the strip shows only a time this browser measured", () => {
 		});
 		await waitFor(() => expect(client.controls.getState().busy).toBe(false));
 		await screen.findByTestId("results-strip");
-		expect(screen.getByTestId("results-strip")).toHaveTextContent("evaluated");
-		expect(screen.queryByTestId("results-time")).toBeNull();
+		expect(screen.getByTestId("results-strip").getAttribute("title")).toContain("checked against this change");
+		expect(screen.getByTestId("results-strip").getAttribute("title")).not.toMatch(/Measured|Reconciler time/);
 	});
 
 	it("shows the time from sending the change to the verdict arriving, once this browser sent one", async () => {
@@ -223,8 +225,7 @@ describe("live mode: the strip shows only a time this browser measured", () => {
 		await act(async () => {
 			await client.controls.jump(4);
 		});
-		const time = await screen.findByTestId("results-time");
-		expect(time.textContent).toMatch(/ms|s$/);
-		expect(time.getAttribute("title")).toContain("Measured in this browser");
+		const strip = await screen.findByTestId("results-strip");
+		await waitFor(() => expect(strip.getAttribute("title")).toMatch(/Measured in this browser.*: [\d.<]+ (ms|s)\./));
 	});
 });

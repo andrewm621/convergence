@@ -14,12 +14,14 @@ import { WhyTab } from "./inspector-why";
 import { PromoteButton } from "./promote-button";
 import { scenarioMeta } from "./scenario-meta";
 
+const TAB_CLASS = "h-auto min-h-9 min-w-0 shrink flex-1 px-1.5 py-1 text-center text-[12.5px] leading-tight whitespace-normal";
+
 export function Inspector() {
 	const { view, selectedId } = useConsole();
 	const wi = selectedId ? view.workItems[selectedId] : undefined;
 	return (
-		<section aria-label="Inspector" className="flex min-h-0 flex-1 flex-col">
-			<PaneHeader title="Inspector" subtitle={wi ? wi.item.id : "Select a work item"} />
+		<section aria-label="Selected work" className="flex min-h-0 min-w-0 flex-1 flex-col">
+			<PaneHeader title={wi ? wi.item.title : "Work item"} subtitle={wi ? wi.item.id : "Select one on the graph"} truncateTitle />
 			{wi ? <WorkItemInspector wi={wi} /> : <NothingSelected />}
 		</section>
 	);
@@ -57,7 +59,7 @@ function WorkItemInspector({ wi }: { wi: WorkItemState }) {
 	const { gate } = useGate(wi.item.id);
 	const degraded = useDegraded();
 	const running = useMemo(() => runningAgents(view.ledger).has(wi.item.id), [view.ledger, wi.item.id]);
-	// "Why is this blocked?" only when the rules found something wrong; an item that has simply not pushed yet is not blocked.
+	// "Why blocked?" only when the rules found something wrong; an item that has simply not pushed yet is not blocked.
 	const analysis = useMemo(() => analysisOf(view, wi.item.id), [view, wi.item.id]);
 	const blocked = wi.item.status !== "promoted" && gate !== null && !gate.pass && analysis !== null && hasProblem(analysis);
 	const found = useMemo(() => quietOf(view, wi), [view, wi]);
@@ -90,12 +92,23 @@ function WorkItemInspector({ wi }: { wi: WorkItemState }) {
 			</div>
 
 			<Tabs value={tab} onValueChange={(value) => setTab(value as InspectorTab)} className="min-h-0 flex-1">
-				<TabsList className="px-2">
-					<TabsTrigger value="why">{blocked ? "Why is this blocked?" : "Why"}</TabsTrigger>
-					<TabsTrigger value="receipt">Receipt</TabsTrigger>
-					<TabsTrigger value="semantic">Semantic diff</TabsTrigger>
-					<TabsTrigger value="changes">Changes</TabsTrigger>
-					<TabsTrigger value="actions">Actions</TabsTrigger>
+				{/* Five tabs share the width and wrap onto a second line, so none is clipped at the narrowest inspector (400 px). */}
+				<TabsList className="items-stretch gap-0 overflow-x-hidden px-1">
+					<TabsTrigger value="why" className={TAB_CLASS}>
+						{blocked ? "Why blocked?" : "Why"}
+					</TabsTrigger>
+					<TabsTrigger value="receipt" className={TAB_CLASS}>
+						What it was given
+					</TabsTrigger>
+					<TabsTrigger value="semantic" className={TAB_CLASS}>
+						Claims vs decision
+					</TabsTrigger>
+					<TabsTrigger value="changes" className={TAB_CLASS}>
+						Changes
+					</TabsTrigger>
+					<TabsTrigger value="actions" className={TAB_CLASS}>
+						Actions
+					</TabsTrigger>
 				</TabsList>
 				<div className="min-h-0 flex-1 overflow-y-auto">
 					<TabsContent value="why">

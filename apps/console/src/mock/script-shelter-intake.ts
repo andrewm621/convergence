@@ -26,11 +26,11 @@ export function shelterIntakeScript(bundle: ShelterIntakeScenario): MockScript {
 				await session.seedIfEmpty();
 				await session.startAgents(["wi1", "wi2", "wi3", "wi4", "wi5"]);
 				drip([
-					["WI-1", "status", "Started. Receipt: shelter-intake-policy@1"],
-					["WI-2", "status", "Started. Receipt: shelter-intake-policy@1"],
-					["WI-3", "status", "Started. Receipt: shelter-intake-policy@1"],
-					["WI-4", "status", "Started. Receipt: shelter-intake-policy@1"],
-					["WI-5", "status", "Started. Receipt: shelter-intake-policy@1, volunteer-roles@1"],
+					["WI-1", "status", "Started. Built on: shelter-intake-policy@1"],
+					["WI-2", "status", "Started. Built on: shelter-intake-policy@1"],
+					["WI-3", "status", "Started. Built on: shelter-intake-policy@1"],
+					["WI-4", "status", "Started. Built on: shelter-intake-policy@1"],
+					["WI-5", "status", "Started. Built on: shelter-intake-policy@1, volunteer-roles@1"],
 					["WI-1", "tool", "Read .delta/context/policies/shelter-intake-policy.md"],
 					["WI-1", "text", "Drafting the welcome, ID and pets lines for the front desk"],
 					["WI-4", "tool", "Write supplies/cots-and-blankets.md"],

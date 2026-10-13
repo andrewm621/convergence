@@ -23,9 +23,9 @@ export function salesOpsScript(bundle: SalesOpsScenario): MockScript {
 				await session.seedIfEmpty();
 				await session.startAgents(["wi3", "wi4", "wi5"]);
 				drip([
-					["WI-3", "status", "Started. Receipt: qualified-lead@1"],
-					["WI-4", "status", "Started. Receipt: qualified-lead@1, sales-activity@1"],
-					["WI-5", "status", "Started. Receipt: sales-activity@1"],
+					["WI-3", "status", "Started. Built on: qualified-lead@1"],
+					["WI-4", "status", "Started. Built on: qualified-lead@1, sales-activity@1"],
+					["WI-5", "status", "Started. Built on: sales-activity@1"],
 					["WI-3", "tool", "Read .delta/context/definitions/qualified-lead.md"],
 					["WI-4", "tool", "Read .delta/context/definitions/sales-activity.md"],
 					["WI-3", "text", "Counting leads that filled the form and have 50 or more employees"],
@@ -100,7 +100,7 @@ export function salesOpsScript(bundle: SalesOpsScenario): MockScript {
 		},
 		{
 			id: "exception",
-			title: "Accept exception for the forecast",
+			title: "Allow with exception for the forecast",
 			caption: "Grandfathered on v1 for the board deck. Scope and rationale are on the record.",
 			async run({ session }) {
 				const wi = (await session.cell.state()).workItems["WI-3"];

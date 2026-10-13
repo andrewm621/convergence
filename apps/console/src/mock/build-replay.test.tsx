@@ -147,12 +147,12 @@ describe("the build replay: labelling", () => {
 		const user = userEvent.setup();
 		render(<App runtime={runtime} />);
 		for (let i = 0; i < 6; i++) {
-			await waitFor(() => expect(screen.getByRole("button", { name: "Next beat" })).toBeEnabled(), { timeout: 8000 });
-			await user.click(screen.getByRole("button", { name: "Next beat" }));
+			await waitFor(() => expect(screen.getByRole("button", { name: "Next step" })).toBeEnabled(), { timeout: 8000 });
+			await user.click(screen.getByRole("button", { name: "Next step" }));
 			// After the last beat the button stays disabled; every earlier one re-enables when the beat has played.
-			if (i < 5) await waitFor(() => expect(screen.getByRole("button", { name: "Next beat" })).toBeEnabled(), { timeout: 8000 });
+			if (i < 5) await waitFor(() => expect(screen.getByRole("button", { name: "Next step" })).toBeEnabled(), { timeout: 8000 });
 		}
-		await waitFor(() => expect(screen.getByRole("button", { name: "Next beat" })).toBeDisabled(), { timeout: 8000 });
+		await waitFor(() => expect(screen.getByRole("button", { name: "Next step" })).toBeDisabled(), { timeout: 8000 });
 		await waitFor(() => expect(document.body.textContent).toMatch(/PROSE_ONLY/), { timeout: 8000 });
 		expect(document.body.textContent ?? "").not.toMatch(/\bDelta\b(?! Convergence)/);
 	});
@@ -174,7 +174,7 @@ describe("the build replay: shas and actions", () => {
 	it("links real shas to GitHub on the Receipt tab, in short form", async () => {
 		const user = userEvent.setup();
 		await renderWithMock(<Inspector />, { scenario: SCENARIO, beats: 3, select: "WI-1" });
-		await user.click(await screen.findByRole("tab", { name: "Receipt" }));
+		await user.click(await screen.findByRole("tab", { name: "What it was given" }));
 		const tab = await screen.findByTestId("receipt-tab");
 		const links = within(tab).getAllByTestId("commit-link");
 		const hrefs = links.map((link) => link.getAttribute("href"));
@@ -189,7 +189,7 @@ describe("the build replay: shas and actions", () => {
 		expect(bundle.forkHeads["WI-5"]).toBe(ZERO_SHA);
 		const user = userEvent.setup();
 		await renderWithMock(<Inspector />, { scenario: SCENARIO, beats: 1, select: "WI-5" });
-		await user.click(await screen.findByRole("tab", { name: "Receipt" }));
+		await user.click(await screen.findByRole("tab", { name: "What it was given" }));
 		const receipt = await screen.findByTestId("receipt-tab");
 		expect(within(receipt).getByTestId("not-in-git")).toHaveTextContent("not in git");
 		expect(receipt.textContent).not.toContain("0000000");
@@ -209,12 +209,12 @@ describe("the build replay: shas and actions", () => {
 		expect(within(changes).getByTestId("commit-link")).toHaveAttribute("href", `https://github.com/andrewm621/delta-convergence/commit/${bundle.commits.wi4Head}`);
 	});
 
-	it("disables Revalidate, Accept exception, Reject and Promote, and says why", async () => {
+	it("disables Revalidate, Allow with exception, Reject and Promote, and says why", async () => {
 		const user = userEvent.setup();
 		await renderWithMock(<Inspector />, { scenario: SCENARIO, beats: 4, select: "WI-1" });
 		await user.click(await screen.findByRole("tab", { name: "Actions" }));
 		const tab = await screen.findByTestId("actions-tab");
-		for (const name of [/Revalidate/, /Accept exception/, /Reject/]) expect(within(tab).getByRole("button", { name })).toBeDisabled();
+		for (const name of [/Revalidate/, /Allow with exception/, /Reject/]) expect(within(tab).getByRole("button", { name })).toBeDisabled();
 		expect(within(tab).getByTestId("promote-button")).toBeDisabled();
 		// The reason is on the page for anyone who cannot hover, and in the tooltip for anyone who can.
 		expect(tab).toHaveTextContent("Resolved by a human outside the console in the real build.");
@@ -222,9 +222,9 @@ describe("the build replay: shas and actions", () => {
 		expect((await screen.findAllByText("Resolved by a human outside the console in the real build.")).length).toBeGreaterThan(0);
 	});
 
-	it("leaves Propose change disabled on the decision cards", async () => {
+	it("leaves Change this decision disabled on the decision cards", async () => {
 		await renderWithMock(<ContextTimeline />, { scenario: SCENARIO, beats: 1 });
-		const buttons = await screen.findAllByRole("button", { name: /Propose change/ });
+		const buttons = await screen.findAllByRole("button", { name: /Change this decision/ });
 		expect(buttons.length).toBeGreaterThan(0);
 		for (const button of buttons) expect(button).toBeDisabled();
 	});

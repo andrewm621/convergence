@@ -54,7 +54,7 @@ describe("the work graph: exactly one edge turns red", () => {
 		expect(red).toHaveLength(1);
 		expect(red[0]?.source).toBe("item:WI-2");
 		expect(red[0]?.target).toBe("record:notifications");
-		expect((red[0]?.data as DependencyEdgeData).label).toMatch(/^stale/);
+		expect((red[0]?.data as DependencyEdgeData).label).toMatch(/^was v1 · now v2$/);
 		mock.stop();
 	});
 
@@ -84,7 +84,7 @@ describe("the work graph: exactly one edge turns red", () => {
 		expect(graph.nodes.filter((n) => n.type === "item")).toHaveLength(0);
 		const red = graph.edges.filter((e) => e.type === "dependency" && (e.data as DependencyEdgeData).kind === "stale");
 		expect(red).toHaveLength(1);
-		expect((red[0]?.data as DependencyEdgeData).label).toBe("8 of 12 stale");
+		expect((red[0]?.data as DependencyEdgeData).label).toBe("8 of 12 blocked");
 		mock.stop();
 	});
 });
@@ -136,5 +136,19 @@ describe("proposed dependencies", () => {
 		const edge = graph.edges.find((e) => e.id === "WI-1->notifications");
 		expect((edge?.data as DependencyEdgeData).kind).toBe("proposed");
 		expect((edge?.data as DependencyEdgeData).label).toBe("proposed");
+	});
+});
+
+describe("a decision's blocked badge", () => {
+	it("counts blocked work, and leaves out work a person rejected", async () => {
+		const mock = await startMock();
+		await mock.jump(4); // v2 lands: WI-2 is blocked on notifications
+		const badge = (view: typeof mock.view) => (buildGraph(view, null).nodes.find((n) => n.id === "record:notifications")?.data as { stale: number }).stale;
+		expect(badge(mock.view)).toBe(1);
+		const wi = mock.view.workItems["WI-2"];
+		if (!wi) throw new Error("no WI-2");
+		const rejected = { ...mock.view, workItems: { ...mock.view.workItems, "WI-2": { ...wi, item: { ...wi.item, status: "rejected" as const } } } };
+		expect(badge(rejected)).toBe(0);
+		mock.stop();
 	});
 });

@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 import type { ConsoleMessage } from "@/client/types";
 import { MockCell } from "@/mock/cell";
 import { MockSession } from "@/mock/session";
-import { initialViewState, viewReducer, type ViewState } from "./store";
+import type { ReconciliationEvent, WorkItemState } from "contracts";
+import { evaluationOf, initialViewState, viewReducer, type ViewState } from "./store";
 
 async function world() {
 	const bundle = await buildNotificationsScenario();
@@ -106,5 +107,20 @@ describe("view reducer", () => {
 		const after = apply(state, [mergeLine]);
 		expect(after.ledgerHead.seq).toBe(state.ledgerHead.seq + 1);
 		expect(after.evaluation).toEqual(state.evaluation);
+	});
+});
+
+describe("the strip's already-blocked count", () => {
+	const quiet = (workItemId: string) => ({ type: "NO_ACTION", workItemId, reasonCodes: ["NO_DEPENDENCY_ON_CHANGED_FACETS"] });
+	const entry = {
+		seq: 5,
+		ts: "2026-10-13T12:00:00Z",
+		payload: { event: { type: "BaselinePushed", records: [{ recordId: "r", version: 2 }] }, effects: [quiet("WI-1"), quiet("WI-2"), quiet("WI-3"), quiet("WI-4")] },
+	} as unknown as ReconciliationEvent;
+	const item = (status: string) => ({ item: { status } }) as unknown as WorkItemState;
+
+	it("counts left-alone work as already blocked whatever blocks it (stale, conflict, unknown), and rejected or running work as left alone", () => {
+		const evaluation = evaluationOf(entry, null, { "WI-1": item("conflict"), "WI-2": item("uncertain"), "WI-3": item("running"), "WI-4": item("rejected") });
+		expect(evaluation).toMatchObject({ evaluated: 4, alreadyStale: 2, untouched: 2 });
 	});
 });

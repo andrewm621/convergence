@@ -23,7 +23,7 @@ describe("work that is ready to merge under an accepted exception", () => {
 		expect(screen.getByTestId("inspector").querySelector("[data-status]")).toHaveAttribute("data-status", "ready");
 		expect(within(card).queryByRole("heading", { name: "Why is this blocked?" })).toBeNull();
 		expect(within(card).getByRole("heading", { name: "Merge status" })).toBeInTheDocument();
-		expect(screen.queryByRole("tab", { name: "Why is this blocked?" })).toBeNull();
+		expect(screen.queryByRole("tab", { name: "Why blocked?" })).toBeNull();
 		expect(line).toHaveTextContent("Passes with an accepted exception from Decision owner (demo identity)");
 		expect(line).toHaveTextContent(scope);
 		expect(within(card).queryByTestId("not-a-verdict")).toBeNull();
@@ -35,7 +35,7 @@ describe("work that is ready to merge under an accepted exception", () => {
 		const actions = await screen.findByTestId("resolve-actions");
 		expect(within(actions).getByRole("button", { name: "Reject" })).toBeInTheDocument();
 		expect(within(actions).queryByRole("button", { name: "Revalidate" })).toBeNull();
-		expect(within(actions).queryByRole("button", { name: /Accept exception/ })).toBeNull();
+		expect(within(actions).queryByRole("button", { name: /Allow with exception/ })).toBeNull();
 	});
 
 	it("still reads Blocked, with the card and the actions, before the exception is granted", async () => {
@@ -57,7 +57,7 @@ describe("the exception form says what stays blocked", () => {
 		expect(terms).toHaveTextContent("so an exception on it lifts nothing");
 		expect(screen.queryByTestId("exception-waived-check")).toBeNull();
 		expect(screen.getByTestId("exception-other-blocks")).toHaveTextContent("Other blocks stay:");
-		expect(screen.getByTestId("exception-dry-run")).toHaveTextContent("would still be closed");
+		expect(screen.getByTestId("exception-dry-run")).toHaveTextContent("would still be blocked");
 	});
 
 	it.each([
@@ -81,7 +81,7 @@ describe("the exception form says what stays blocked", () => {
 			/>,
 		);
 		expect(screen.getByTestId("exception-other-blocks")).toHaveTextContent("This fork changes accepted context");
-		expect(screen.getByTestId("exception-dry-run")).toHaveTextContent("With this exception the gate would still be closed.");
+		expect(screen.getByTestId("exception-dry-run")).toHaveTextContent("With this exception the merge would still be blocked.");
 	});
 });
 

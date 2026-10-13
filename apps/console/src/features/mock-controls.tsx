@@ -6,7 +6,7 @@ import type { MockClient } from "@/mock/client";
 import { cn } from "@/lib/utils";
 import { useConsole } from "@/state/console-context";
 
-/** Applies a beat's screen hints (select an item, switch the tab, open the editor). */
+/** Applies a step's screen hints (select an item, switch the tab, open the editor). */
 function useBeatHints(mock: MockClient) {
 	const { select, setTab, requestEditor } = useConsole();
 	useEffect(
@@ -27,7 +27,7 @@ function isTyping(target: EventTarget | null): boolean {
 }
 
 /**
- * Step-through controls for the presenter. Right arrow plays the next beat, left arrow goes
+ * Step-through controls for the presenter. Right arrow plays the next step, left arrow goes
  * back (by replaying from the start), `h` hides the bar for a clean recording.
  */
 export function MockControls({ mock, initiallyVisible }: { mock: MockClient; initiallyVisible: boolean }) {
@@ -78,7 +78,7 @@ export function MockControls({ mock, initiallyVisible }: { mock: MockClient; ini
 					</NativeSelect>
 				)}
 				<span className="ml-auto text-xs text-muted-foreground tabular-nums">
-					beat {state.position} of {total}
+					Step {state.position} of {total}
 				</span>
 				<Button variant="ghost" size="icon-sm" aria-label="Hide controls (h)" title="Hide (press h to bring back)" onClick={() => setVisible(false)}>
 					<EyeOff />
@@ -96,16 +96,16 @@ export function MockControls({ mock, initiallyVisible }: { mock: MockClient; ini
 					)}
 					<p className="truncate text-xs text-muted-foreground">{done ? (last?.caption ?? "") : (next?.caption ?? "")}</p>
 				</div>
-				<Button variant="outline" size="sm" disabled={state.busy || state.position === 0} onClick={() => void mock.controls.prev()} aria-label="Previous beat">
+				<Button variant="outline" size="sm" disabled={state.busy || state.position === 0} onClick={() => void mock.controls.prev()} aria-label="Previous step">
 					<ChevronLeft aria-hidden /> Back
 				</Button>
-				<Button size="sm" disabled={state.busy || done || !state.ready} onClick={() => void mock.controls.next()} aria-label="Next beat">
+				<Button size="sm" disabled={state.busy || done || !state.ready} onClick={() => void mock.controls.next()} aria-label="Next step">
 					Next <ChevronRight aria-hidden />
 				</Button>
 			</div>
 
 			<div className="mt-2.5 flex items-center gap-1.5">
-				<ol className="flex flex-1 flex-wrap items-center gap-1" aria-label="Beats">
+				<ol className="flex flex-1 flex-wrap items-center gap-1" aria-label="Steps">
 					{state.beats.map((beat, index) => {
 						const played = index < state.position;
 						const isNext = index === state.position;
@@ -115,7 +115,7 @@ export function MockControls({ mock, initiallyVisible }: { mock: MockClient; ini
 									type="button"
 									disabled={state.busy}
 									title={beat.title}
-									aria-label={`Go to beat ${index + 1}: ${beat.title}`}
+									aria-label={`Go to step ${index + 1}: ${beat.title}`}
 									aria-current={isNext ? "step" : undefined}
 									onClick={() => void mock.controls.jump(index + 1)}
 									className={cn(

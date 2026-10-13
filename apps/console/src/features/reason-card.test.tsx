@@ -13,10 +13,10 @@ const runtime: Runtime = { mock: true, scenario: "notifications", start: "seeded
 
 async function next(user: ReturnType<typeof userEvent.setup>, times: number) {
 	for (let i = 0; i < times; i++) {
-		const button = await screen.findByRole("button", { name: "Next beat" });
+		const button = await screen.findByRole("button", { name: "Next step" });
 		await waitFor(() => expect(button).toBeEnabled());
 		await user.click(button);
-		await waitFor(() => expect(screen.getByRole("button", { name: "Next beat" })).toBeEnabled());
+		await waitFor(() => expect(screen.getByRole("button", { name: "Next step" })).toBeEnabled());
 	}
 }
 
@@ -38,14 +38,14 @@ describe("the one-reason card on the Why tab", () => {
 		await renderWithMock(<Inspector />, { beats: 5, select: "WI-2" });
 		const card = await screen.findByTestId("reason-card");
 		const actions = within(card).getByTestId("resolve-actions");
-		for (const name of ["Revalidate", "Accept exception", "Reject"]) expect(within(actions).getByRole("button", { name })).toBeInTheDocument();
+		for (const name of ["Revalidate", "Allow with exception", "Reject"]) expect(within(actions).getByRole("button", { name })).toBeInTheDocument();
 		expect(actions).toHaveTextContent("Sends the agent back to redo this on the current decisions. Uses 1 of 2 re-runs.");
 		expect(actions).toHaveTextContent("Lifts the block from this decision, for a scope you name. Other blocks stay.");
 		expect(actions).toHaveTextContent("Ends this work. The reason goes in the audit log.");
 		// The card comes before the epistemic chain, and the chain is intact below it.
 		const chain = screen.getByRole("list", { name: "Why chain" });
 		expect(card.compareDocumentPosition(chain) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-		for (const title of ["Decision", "Receipt", "Claim", "Test", "Condition"]) expect(within(chain).getByRole("heading", { name: title })).toBeInTheDocument();
+		for (const title of ["Decision", "What it was given", "Claim", "Test", "Condition"]) expect(within(chain).getByRole("heading", { name: title })).toBeInTheDocument();
 	});
 
 	it("keeps the reason codes behind a collapsed Technical details", async () => {
@@ -73,14 +73,14 @@ describe("the one-reason card on the Why tab", () => {
 		const actions = await screen.findByTestId("resolve-actions");
 		expect(within(actions).getByRole("button", { name: "Reject" })).toBeEnabled();
 		expect(within(actions).queryByRole("button", { name: "Revalidate" })).toBeNull();
-		expect(within(actions).queryByRole("button", { name: /Accept exception/ })).toBeNull();
+		expect(within(actions).queryByRole("button", { name: /Allow with exception/ })).toBeNull();
 	});
 
 	it("is not headed 'Why is this blocked?' for an agent that simply has not pushed yet, and its chip stays green when the change left it alone", async () => {
 		await renderWithMock(<Inspector />, { beats: 4, select: "WI-1" });
 		const card = await screen.findByTestId("reason-card");
 		expect(within(card).getByRole("heading", { name: "Merge status" })).toBeInTheDocument();
-		expect(screen.queryByRole("tab", { name: "Why is this blocked?" })).toBeNull();
+		expect(screen.queryByRole("tab", { name: "Why blocked?" })).toBeNull();
 		const inspector = screen.getByTestId("inspector");
 		const chip = inspector.querySelector("[data-status]") as HTMLElement;
 		expect(chip).toHaveAttribute("data-status", "running");
@@ -123,14 +123,14 @@ describe("accept exception states the whole of R5", () => {
 	it("names the failing check, when it ends, where it is recorded and who can grant it", async () => {
 		const user = userEvent.setup();
 		await renderWithMock(<Inspector />, { beats: 5, select: "WI-2" });
-		await user.click(await screen.findByRole("button", { name: /Accept exception/ }));
+		await user.click(await screen.findByRole("button", { name: /Allow with exception/ }));
 		const terms = await screen.findByTestId("exception-terms");
 		expect(terms).toHaveTextContent("Lifts the block from notifications only.");
 		expect(terms).not.toHaveTextContent("Lets this work merge even though");
-		expect(terms).toHaveTextContent("staleness");
-		expect(terms).toHaveTextContent("claim conflicts");
+		expect(terms).toHaveTextContent("built on the old version");
+		expect(terms).toHaveTextContent("claims that conflict");
 		expect(screen.getByTestId("exception-waived-check")).toHaveTextContent("this decision's own check: notifications.test.ts, currently failing");
-		expect(screen.getByTestId("exception-dry-run")).toHaveTextContent("With this exception the gate would pass.");
+		expect(screen.getByTestId("exception-dry-run")).toHaveTextContent("With this exception the merge check would pass.");
 		expect(screen.queryByTestId("exception-other-blocks")).toBeNull();
 		expect(terms).toHaveTextContent("It never waives unknowns");
 		expect(terms).toHaveTextContent("Ends when notifications gets a new version or the agent pushes again.");
@@ -141,7 +141,7 @@ describe("accept exception states the whole of R5", () => {
 	it("still says it without the check named when the form is given no waiver facts", () => {
 		render(<ExceptionForm candidates={["qualified-lead"]} busy={false} onCancel={() => {}} onSubmit={() => {}} />);
 		const terms = screen.getByTestId("exception-terms");
-		expect(terms).toHaveTextContent("staleness");
+		expect(terms).toHaveTextContent("built on the old version");
 		expect(terms).toHaveTextContent("Lifts the block from qualified-lead only.");
 		expect(terms).toHaveTextContent("Ends when qualified-lead gets a new version");
 		expect(terms).toHaveTextContent("Recorded in the audit log");
@@ -149,18 +149,18 @@ describe("accept exception states the whole of R5", () => {
 });
 
 describe("the results strip after a merge", () => {
-	it("stops saying 1 stale once the stale item is merged, and counts it resolved", async () => {
+	it("stops saying 1 blocked once the blocked item is merged, and counts it resolved", async () => {
 		const user = userEvent.setup();
 		render(<App runtime={runtime} />);
 		await next(user, 4);
 		const strip = await screen.findByTestId("results-strip");
-		expect(strip).toHaveTextContent("1 stale");
+		expect(strip).toHaveTextContent("1 blocked");
 		expect(screen.queryByTestId("results-resolved")).toBeNull();
 
-		await user.click(screen.getByRole("button", { name: /Go to beat 9/ })); // conflict, WI-1 merges, revalidate, re-run lands, WI-2 merges
-		await waitFor(() => expect(screen.getByTestId("results-strip")).toHaveTextContent("0 stale"), { timeout: 5000 });
+		await user.click(screen.getByRole("button", { name: /Go to step 9/ })); // conflict, WI-1 merges, revalidate, re-run lands, WI-2 merges
+		await waitFor(() => expect(screen.getByTestId("results-strip")).toHaveTextContent("0 blocked"), { timeout: 5000 });
 		expect(screen.getByTestId("results-resolved")).toHaveTextContent("1 resolved");
-		expect(screen.getByTestId("results-strip")).toHaveTextContent("2 items evaluated");
+		expect(screen.getByTestId("results-strip").getAttribute("title")).toContain("2 items checked");
 	});
 });
 
@@ -184,16 +184,16 @@ describe("the first screen", () => {
 });
 
 describe("the decision editor and the ledger badge", () => {
-	it("keeps the effect line and Commit in a sticky footer", async () => {
+	it("keeps the effect line and the save button in a sticky footer", async () => {
 		const user = userEvent.setup();
 		await renderWithMock(<ContextTimeline />, { beats: 1 });
 		const card = (await screen.findByRole("heading", { name: "notifications" })).closest("article") as HTMLElement;
-		await user.click(within(card).getByRole("button", { name: /Propose change/ }));
+		await user.click(within(card).getByRole("button", { name: /Change this decision/ }));
 		const footer = await screen.findByTestId("editor-footer");
 		expect(footer.className).toContain("sticky");
 		expect(footer.className).toContain("bottom-0");
 		expect(within(footer).getByTestId("editor-effect")).toBeInTheDocument();
-		expect(within(footer).getByRole("button", { name: /Save prose edit|Commit/ })).toBeInTheDocument();
+		expect(within(footer).getByRole("button", { name: /Save wording change|Make v\d the decision/ })).toBeInTheDocument();
 	});
 
 	it("says the chain was verified in this browser, for the lines in view", async () => {

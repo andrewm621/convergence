@@ -15,7 +15,7 @@ import { useConsole } from "@/state/console-context";
 import { analysisOf, currentRecord, exceptionStatus, exceptionWaiver, recordName, type ExceptionWaiver } from "@/state/derive";
 import { useGate } from "@/state/use-gate";
 import { PromoteButton } from "./promote-button";
-import { scenarioMeta } from "./scenario-meta";
+import { DEFAULT_SCOPE_EXAMPLE, scenarioMeta } from "./scenario-meta";
 
 export function ActionsTab({ wi }: { wi: WorkItemState }) {
 	const id = wi.item.id;
@@ -40,9 +40,9 @@ export function GatePreview({ workItemId }: { workItemId: string }) {
 	const promoted = wi?.item.status === "promoted";
 
 	return (
-		<section aria-label="Gate preview" aria-live="polite" data-testid="gate-preview" className="rounded-xl border bg-card p-3.5">
+		<section aria-label="Merge check" aria-live="polite" data-testid="gate-preview" className="rounded-xl border bg-card p-3.5">
 			<div className="flex items-center gap-2">
-				<h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Gate preview</h3>
+				<h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Merge check</h3>
 				<span className="ml-auto flex items-center gap-1.5 text-[11px] text-muted-foreground">
 					{loading && <Loader className="size-3 animate-spin" aria-hidden />}
 					dry run · baseline <CommitSha sha={view.baselineCommit} /> · head <CommitSha sha={wi?.headSha} />
@@ -53,14 +53,14 @@ export function GatePreview({ workItemId }: { workItemId: string }) {
 					<ShieldCheck className="size-4 text-merged" aria-hidden /> Already merged into the baseline.
 				</p>
 			) : error ? (
-				<p className="mt-2 text-sm text-danger">The gate could not be read: {error}</p>
+				<p className="mt-2 text-sm text-danger">The merge check could not be read: {error}</p>
 			) : !gate ? (
-				<p className="mt-2 text-sm text-muted-foreground">Checking the gate at the current heads.</p>
+				<p className="mt-2 text-sm text-muted-foreground">Running the merge check at the current heads.</p>
 			) : (
 				<div className="mt-2 space-y-2.5">
 					<p className={cn("flex items-center gap-2 text-sm font-semibold", gate.pass ? "text-foreground" : "text-danger")}>
 						{gate.pass ? <CircleCheck className="size-4" aria-hidden /> : <ShieldAlert className="size-4" aria-hidden />}
-						{gate.pass ? "Merge would pass the gate" : "Merge would be blocked"}
+						{gate.pass ? "Merge would pass the check" : "Merge would be blocked"}
 					</p>
 					{!gate.pass && (
 						<ul className="flex flex-wrap gap-1.5" aria-label="Reason codes">
@@ -109,6 +109,9 @@ function bindingFor(view: ReturnType<typeof useConsole>["view"], wi: WorkItemSta
 
 type Open = "exception" | "reject" | null;
 
+/** What a recorded sign-off is called on screen. The raw kind stays in `data-resolution`. */
+const RESOLUTION_LABEL: Record<string, string> = { revalidate: "Revalidate", "accept-exception": "Allow with exception", reject: "Reject" };
+
 /** The three human choices, each with what it does. Shown under the reason on the Why tab, and again on the Actions tab. */
 export function Resolutions({ wi }: { wi: WorkItemState }) {
 	const { view, client, notify } = useConsole();
@@ -138,12 +141,12 @@ export function Resolutions({ wi }: { wi: WorkItemState }) {
 	const noPush = wi.headSha === null;
 	const defaultRecord = candidates[0] ?? null;
 	const readOnly = scenarioMeta(client.scenario, client.kind === "live").readOnlyReason;
-	const reason = readOnly ?? (promoted ? "Already merged." : noPush ? "Waiting for the agent's first push: a resolution binds to a specific head." : null);
+	const reason = readOnly ?? (promoted ? "Already merged." : noPush ? "Waiting for the agent's first push: a sign-off is tied to a specific version of its work." : null);
 
 	async function submit(input: Omit<ResolveInput, "binding" | "workItemId">, recordId: string | null, label: string): Promise<boolean> {
 		const binding = recordId ? bindingFor(view, wi, recordId) : null;
 		if (!binding) {
-			notify("danger", "Nothing to bind this resolution to yet.");
+			notify("danger", "Nothing to attach this sign-off to yet.");
 			return false;
 		}
 		setBusy(label);
@@ -228,7 +231,7 @@ export function Resolutions({ wi }: { wi: WorkItemState }) {
 						button={
 							<UnavailableHint available={!readOnly} reason={readOnly ?? ""}>
 								<Button size="sm" variant="outline" className="w-full justify-start" disabled={Boolean(reason) || busy !== null} aria-expanded={open === "exception"} onClick={() => setOpen(open === "exception" ? null : "exception")}>
-									<Gavel aria-hidden /> Accept exception
+									<Gavel aria-hidden /> Allow with exception
 								</Button>
 							</UnavailableHint>
 						}
@@ -252,6 +255,7 @@ export function Resolutions({ wi }: { wi: WorkItemState }) {
 				<ExceptionForm
 					candidates={candidates}
 					waivers={waivers}
+					scopeExample={scenarioMeta(client.scenario, client.kind === "live").scopeExample}
 					busy={busy === "Exception"}
 					onCancel={() => setOpen(null)}
 					onSubmit={async (recordId, scope, rationale) => {
@@ -275,7 +279,7 @@ export function Resolutions({ wi }: { wi: WorkItemState }) {
 /** One choice: the button, and one line on what it does. */
 function ResolveRow({ button, note }: { button: ReactNode; note: string }) {
 	return (
-		<div className="grid grid-cols-[9.5rem_minmax(0,1fr)] items-start gap-x-3">
+		<div className="grid grid-cols-[11rem_minmax(0,1fr)] items-start gap-x-3">
 			{button}
 			<p className="pt-1 text-xs leading-snug text-muted-foreground">{note}</p>
 		</div>
@@ -286,6 +290,7 @@ function ResolveRow({ button, note }: { button: ReactNode; note: string }) {
 export function ExceptionForm({
 	candidates,
 	waivers = {},
+	scopeExample = DEFAULT_SCOPE_EXAMPLE,
 	busy,
 	onCancel,
 	onSubmit,
@@ -293,6 +298,8 @@ export function ExceptionForm({
 	candidates: string[];
 	/** What an exception on each candidate waives. Without it the form still says what R5 says, just without naming the check. */
 	waivers?: Record<string, ExceptionWaiver>;
+	/** Placeholder for "What it covers": an example from the open scenario. */
+	scopeExample?: string;
 	busy: boolean;
 	onCancel(): void;
 	onSubmit(recordId: string | null, scope: string, rationale: string): void | Promise<void>;
@@ -312,11 +319,11 @@ export function ExceptionForm({
 	}
 
 	return (
-		<form onSubmit={handle} noValidate aria-label="Accept exception" className="space-y-3 rounded-xl border border-dashed bg-card p-3.5">
+		<form onSubmit={handle} noValidate aria-label="Allow with exception" className="space-y-3 rounded-xl border border-dashed bg-card p-3.5">
 			<ExceptionTerms recordId={recordId || null} waiver={waivers[recordId]} />
 			{candidates.length > 1 && (
 				<div className="space-y-1">
-					<Label htmlFor="exception-record">Record</Label>
+					<Label htmlFor="exception-record">Decision</Label>
 					<NativeSelect id="exception-record" value={recordId} onChange={(e) => setRecordId(e.target.value)}>
 						{candidates.map((id) => (
 							<option key={id} value={id}>
@@ -327,18 +334,18 @@ export function ExceptionForm({
 				</div>
 			)}
 			<div className="space-y-1">
-				<Label htmlFor="exception-scope">Scope</Label>
+				<Label htmlFor="exception-scope">What it covers</Label>
 				<Input
 					id="exception-scope"
 					value={scope}
 					onChange={(e) => setScope(e.target.value)}
-					placeholder="e.g. reports/q4-forecast.md"
+					placeholder={scopeExample}
 					aria-invalid={attempted && scopeMissing ? true : undefined}
 					aria-describedby={attempted && scopeMissing ? "exception-scope-error" : undefined}
 				/>
 				{attempted && scopeMissing && (
 					<p id="exception-scope-error" role="alert" className="text-xs text-danger">
-						Scope is required: say what this exception covers.
+						Say what this exception covers.
 					</p>
 				)}
 			</div>
@@ -383,12 +390,12 @@ function ExceptionTerms({ recordId, waiver }: { recordId: string | null; waiver:
 		<div className="space-y-2 text-[13px]" data-testid="exception-terms">
 			<p>
 				Lifts the block from <span className="font-semibold">{name}</span> only.
-				{waiver && !waiver.lifts ? ` This work is not stale or in conflict against ${name}, so an exception on it lifts nothing.` : " It waives:"}
+				{waiver && !waiver.lifts ? ` Nothing this work depends on in ${name} has changed and its claims don't conflict with it, so an exception on it lifts nothing.` : " It waives:"}
 			</p>
 			{(!waiver || waiver.lifts) && (
 				<ul className="list-disc space-y-0.5 pl-5 text-muted-foreground">
-					<li>staleness: being built on the old version</li>
-					<li>claim conflicts with the new version</li>
+					<li>being built on the old version</li>
+					<li>claims that conflict with the new version</li>
 					{!waiver ? (
 						<li>this decision&apos;s own check, if it names one and that check is failing</li>
 					) : (
@@ -414,10 +421,10 @@ function ExceptionTerms({ recordId, waiver }: { recordId: string | null; waiver:
 			)}
 			{waiver && waiver.wouldPass !== null && (
 				<p data-testid="exception-dry-run" className={cn("font-medium", !waiver.wouldPass && "text-danger")}>
-					{waiver.wouldPass ? "With this exception the gate would pass. A human still decides whether to merge." : "With this exception the gate would still be closed."}
+					{waiver.wouldPass ? "With this exception the merge check would pass. A human still decides whether to merge." : "With this exception the merge would still be blocked."}
 				</p>
 			)}
-			<p className="text-muted-foreground">It never waives unknowns (missing or malformed claims, undeclared dependencies), other records&apos; checks, or edits to accepted context.</p>
+			<p className="text-muted-foreground">It never waives unknowns (missing or malformed claims, undeclared dependencies), other decisions&apos; checks, or edits to accepted decisions.</p>
 			<p>
 				<span className="font-semibold">Ends when</span> {name} gets a new version or the agent pushes again. <span className="font-semibold">Recorded in the audit log</span>
 				{waiver?.signer ? `, and only ${waiver.signer} can grant it` : ""}.
@@ -466,8 +473,8 @@ function ResolutionHistory({ wi }: { wi: WorkItemState }) {
 	const { view } = useConsole();
 	if (wi.resolutions.length === 0) return null;
 	return (
-		<section aria-label="Resolutions on record" className="space-y-2">
-			<h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">On record</h3>
+		<section aria-label="Sign-offs" className="space-y-2">
+			<h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Sign-offs</h3>
 			<ol className="space-y-2">
 				{wi.resolutions.map((r, index) => {
 					const exception = exceptionStatus(view, wi, r);
@@ -480,7 +487,7 @@ function ResolutionHistory({ wi }: { wi: WorkItemState }) {
 						>
 							<div className="flex items-center gap-2">
 								<Badge tone="primary" className="text-sm">
-									{r.kind}
+									{RESOLUTION_LABEL[r.kind] ?? r.kind}
 								</Badge>
 								{exception?.lapsed && (
 									<Badge tone="danger" className="text-sm font-semibold">
@@ -491,7 +498,7 @@ function ResolutionHistory({ wi }: { wi: WorkItemState }) {
 								<span className="ml-auto text-xs text-muted-foreground">{formatDateTime(r.ts)}</span>
 							</div>
 							<p className="mt-1.5">{r.rationale}</p>
-							{r.scope && <p className="mt-1 text-sm text-muted-foreground">Scope: {r.scope}</p>}
+							{r.scope && <p className="mt-1 text-sm text-muted-foreground">Covers: {r.scope}</p>}
 							{exception && (
 								<div className="mt-2 space-y-1.5 rounded-md border border-dashed bg-background/60 p-2.5" data-testid="exception-rule">
 									{exception.lapsed ? (
@@ -501,7 +508,7 @@ function ResolutionHistory({ wi }: { wi: WorkItemState }) {
 												<ReasonChip code={exception.reasonCode} className="text-xs" />
 											</p>
 											<p>
-												It was valid while {r.binding.recordId} was at v{exception.version}. {exception.reason} The gate no longer treats this exception as covering the work.
+												It was valid while {r.binding.recordId} was at v{exception.version}. {exception.reason} The merge check no longer treats this exception as covering the work.
 											</p>
 										</>
 									) : (
