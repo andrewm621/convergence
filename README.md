@@ -136,7 +136,7 @@ All of these run through the same engine, with different fixtures.
 
 Seeded work items (`source: seeded`) have no model behind them and are always labelled as seeded. A fourth fixture, Northwind sales ops, is still in the repo and in the engine tests, and is hidden from the console tabs (`?scenario=sales-ops` opens it in replay).
 
-The shelter act also runs live on the deployed Worker, with two real model agents running at once in Sandbox containers on separate Artifacts forks: one writes the front-desk script (SH-1, relies on `pets` and `id_required`), one the supply list (SH-2, relies on `capacity_note`), and the decision owner changes the intake policy while they work (v2: crated pets admitted, ID not required). In the verified run on Oct 13, SH-1 went stale and was blocked within about 64 ms of v2 being accepted, in a different file from the record that changed. SH-2 stayed green and promoted. SH-1 was revalidated by a rerun and then promoted, and the ledger hash chain verified. The agents in that run were GLM, through OpenRouter. Replay remains as the fallback.
+The shelter act also runs live on the deployed Worker, with two real model agents running at once in Sandbox containers on separate Artifacts forks: one writes the front-desk script (SH-1, relies on `pets` and `id_required`), one the supply list (SH-2, relies on `capacity_note`), and the decision owner changes the intake policy while they work (v2: crated pets admitted, ID not required). In the verified run on Oct 13, SH-1 went stale and was blocked within about 64 ms of v2 being accepted, in a different file from the record that changed. SH-2 stayed green and promoted. SH-1 was revalidated by a rerun and then promoted, and the server's `ledger/verify` check on the stored hash chain passed. The agents in that run were GLM, through OpenRouter. Replay remains as the fallback.
 
 ```bash
 WORKER_URL=https://<your-worker>.workers.dev DEV_TOKEN=... node scripts/check-live-shelter.mjs
@@ -272,10 +272,10 @@ Result on `main` plus this README, run 2026-10-13: typecheck clean, and all test
 | `packages/contracts` | 4 | 59 |
 | `packages/delta-core` | 15 | 280 |
 | `apps/worker` | 32 | 730 |
-| `apps/console` | 17 | 148 |
-| **Total** | **68** | **1,217** |
+| `apps/console` | 24 | 256 |
+| **Total** | **75** | **1,325** |
 
-The console tests run in jsdom and some use short timeouts, so they can time out on a heavily loaded machine. If one does, rerun that package alone (`pnpm --filter console test`) once the machine is quiet before treating it as a failure. For the counts above the machine was heavily loaded, and the console suite passed in full (148 of 148) only with longer test and async-wait timeouts set from outside the repo; the other three packages passed with the stock settings.
+The console tests run in jsdom with a 10-second async-wait timeout (set in `apps/console/src/test/setup.ts`). On a heavily loaded machine one can still time out; if it does, rerun that package alone (`pnpm --filter console test`) before treating it as a failure. The counts above come from a fresh clone with the stock settings.
 
 The `scenarios/*` packages have no test files of their own; their fixtures are exercised by the `delta-core` tests.
 
@@ -317,7 +317,7 @@ As of 2026-10-13, checked against `main`. "Built" means code on `main` with test
 | Zod contracts, record parser (fails closed) | Built | `packages/contracts` tests |
 | `reconcile`, rules R1 to R9 and R3b, dry-run gate | Built | `packages/delta-core` tests, five named invariants |
 | Purity: no I/O, clock, randomness, network or model SDK in `delta-core` | Built | `purity.test.ts` |
-| Hash-chained ledger (WebCrypto) and verification | Built | `ledger.test.ts`; chain verified on every scenario in live runs |
+| Hash-chained ledger (WebCrypto) and verification | Built | `ledger.test.ts` and the invariants (edit, delete, reorder, truncate all break the chain). Server: `GET /api/scenarios/:s/ledger/verify` re-derives the whole stored chain and compares the head row; `ok: true` on every scenario in the recorded live runs (run by the check scripts). Console: the audit-log badge re-derives hashes in the browser for the lines in view only |
 | `WorkspaceCell` store: state, ledger, dedupe in Durable Object SQLite | Built, observed live | Same conformance suites run on Node SQLite and real Durable Object SQLite in workerd |
 | Poller, dedupe and event pipeline | Built, observed live | Polling only |
 | WebSocket live updates (hibernation API) | Built, observed live | Browser socket with the `delta.v1` and bearer subprotocol connected on the deployed Worker |
@@ -332,7 +332,7 @@ As of 2026-10-13, checked against `main`. "Built" means code on `main` with test
 | Impact preview in the decision editor | Built | Worked out from the console's view, so it runs in live mode and replay. `impact.test.ts` commits through the replay engine and checks the preview matched, for each story's decision change and for one-setting edits at every step of all three stories |
 | Replay mode (`?mock=1`) | Built | Deployed URL above returns 200. Replay is labelled as replay in the header |
 | Fan-out over seeded items | Built | Engine test with 50 items, plus a 300-item timing test. The console script shows 40 seeded items, labelled as seeded |
-| Larkhaven County shelter scenario | Replay and engine tests; observed live with two real agents on the deployed Worker (`scripts/check-live-shelter.mjs`) | Synthetic, not operational guidance. The live act has two drafts, not the replay's five. Verified Oct 13: two agents ran at once on separate forks, the policy changed mid-run, SH-1 went stale and blocked within about 64 ms, SH-2 stayed green and promoted, SH-1 was revalidated and promoted, and the ledger chain verified. Replay is the fallback |
+| Larkhaven County shelter scenario | Replay and engine tests; observed live with two real agents on the deployed Worker (`scripts/check-live-shelter.mjs`) | Synthetic, not operational guidance. The live act has two drafts, not the replay's five. Verified Oct 13: two agents ran at once on separate forks, the policy changed mid-run, SH-1 went stale and blocked within about 64 ms, SH-2 stayed green and promoted, SH-1 was revalidated and promoted, and the server's `ledger/verify` check on the stored chain passed. Replay is the fallback |
 | Gate fails closed (R5, R7) | Built, tested | An unreadable decision blob leaves the commit unobserved rather than reading it as valid. A promote with a moved `expectedBaselineCommit` gets `409 BASELINE_MOVED`. Two promotes fired together against one baseline merge exactly once. Worker tests, not a live run |
 | Our own build, live cell | Built (code and tests) | Pointer work items and humans resolving outside the console, per `docs/dogfooding.md`. Its cell needs the bearer token, so the public link shows the replay only |
 | Queues push events | Not built | Polling is used instead |
