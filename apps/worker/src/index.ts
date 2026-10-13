@@ -6,6 +6,7 @@ import { DispatchRequest, IdempotencyKey, REPO_NAME_RE, RefName, WORK_ITEM_ID_RE
 import { NOTIFICATIONS_SCENARIO_FILES, purgeSmokeRepos, runSmoke, seedForks } from "./smoke";
 import { bearerGuard } from "./cell/auth";
 import { cellApi } from "./cell/routes";
+import { jsonNotFound } from "./not-found";
 
 export { WorkspaceCell } from "./workspace-cell";
 export { AgentSandbox } from "./agents/sandbox";
@@ -125,6 +126,8 @@ app.get("/api/cell/:name", async (c) => {
 });
 
 app.route("/api", cellApi); // WorkspaceCell API: scenarios, work items, resolutions, promote, WebSocket (docs/control-loop.md)
+
+app.notFound(jsonNotFound);
 
 app.onError((err, c) => {
 	const code = errorCode(err);
