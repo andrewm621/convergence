@@ -121,8 +121,12 @@ function LedgerTail() {
 		<section aria-label="Ledger tail" className="flex min-h-0 flex-col">
 			<StripHeader icon={ShieldCheck} title="Ledger">
 				{verdict.state === "ok" && view.ledger.length > 0 && (
-					<Badge tone="success" title="Every line's hash and its link to the previous line were re-derived in this browser." data-testid="chain-verified">
-						<ShieldCheck aria-hidden /> chain verified · {verdict.length} lines
+					<Badge
+						tone="success"
+						title="Every line's hash and its link to the previous line were re-derived in this browser, for the lines this console holds. It is not a check of the whole server-side ledger."
+						data-testid="chain-verified"
+					>
+						<ShieldCheck aria-hidden /> verified in this browser · {verdict.length} lines in view
 					</Badge>
 				)}
 				{verdict.state === "broken" && (

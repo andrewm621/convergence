@@ -10,7 +10,7 @@ import { SCENARIO_META, SYNTHETIC_NOTE, scenarioMeta } from "./scenario-meta";
 
 export function ScenarioSwitcher({ value, onChange, live = false }: { value: ScenarioName; onChange(next: ScenarioName): void; live?: boolean }) {
 	return (
-		<div role="radiogroup" aria-label="Scenario" className="inline-flex items-center rounded-lg border bg-muted p-0.5">
+		<div role="radiogroup" aria-label="Scenario" className="inline-flex shrink-0 items-center rounded-lg border bg-muted p-0.5">
 			{SCENARIOS.filter((name) => name === value || !SCENARIO_META[name].hidden).map((name) => {
 				const meta = name === value ? scenarioMeta(name, live) : SCENARIO_META[name];
 				const Icon = meta.icon;
@@ -23,13 +23,13 @@ export function ScenarioSwitcher({ value, onChange, live = false }: { value: Sce
 						aria-checked={active}
 						onClick={() => onChange(name)}
 						className={cn(
-							"inline-flex h-8 items-center gap-2 rounded-md px-3 text-[13px] font-medium transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
+							"inline-flex h-8 items-center gap-2 rounded-md px-3 text-[13px] font-medium whitespace-nowrap transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
 							active ? "bg-card text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground",
 						)}
 					>
 						<Icon className="size-3.5" aria-hidden />
 						{meta.label}{" "}
-						<span className="hidden text-xs font-normal text-muted-foreground xl:inline">· {meta.kind}</span>
+						<span className="hidden text-xs font-normal text-muted-foreground 2xl:inline">· {meta.kind}</span>
 					</button>
 				);
 			})}
@@ -118,18 +118,25 @@ export function Header({
 	return (
 		<>
 			<header className="flex h-14 shrink-0 items-center gap-4 border-b bg-card px-4">
-				<div className="flex items-center gap-2.5">
+				<div className="flex shrink-0 items-center gap-2.5">
 					<div className="grid size-7 place-items-center rounded-md bg-primary text-primary-foreground" aria-hidden>
 						<span className="text-[15px] leading-none font-bold">Δ</span>
 					</div>
-					<div className="leading-tight">
-						<div className="text-sm font-semibold tracking-tight">Delta Convergence</div>
-						<div className="text-xs text-muted-foreground">Console</div>
+					<div className="leading-tight whitespace-nowrap">
+						<div className="flex items-baseline gap-2">
+							<span className="text-sm font-semibold tracking-tight">Delta Convergence</span>
+							<span className="text-[11px] text-muted-foreground" data-testid="no-model-line">
+								No model makes these calls.
+							</span>
+						</div>
+						<div className="text-xs text-muted-foreground" data-testid="tagline">
+							Blocks work built on a decision that changed.
+						</div>
 					</div>
 				</div>
-				<div className="mx-2 h-6 w-px bg-border" aria-hidden />
+				<div className="h-6 w-px shrink-0 bg-border" aria-hidden />
 				<ScenarioSwitcher value={scenario} onChange={onScenario} live={live} />
-				<div className="ml-auto flex items-center gap-3">
+				<div className="ml-auto flex shrink-0 items-center gap-3">
 					<PollerBadge poller={poller} />
 					<ConnectionBadge state={connection} />
 					{connection === "unauthorized" && (

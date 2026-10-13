@@ -1,10 +1,11 @@
 import { BaseEdge, EdgeLabelRenderer, getBezierPath, Handle, Position, type EdgeProps, type NodeProps } from "@xyflow/react";
 import { FileText, GitBranch, Loader } from "lucide-react";
+import { useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { ActorChip, SeededBadge, statusMeta, StatusChip, useDegraded } from "@/components/status";
 import { shortHash } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { agentModelOf, leftAlone } from "@/state/derive";
+import { agentModelOf, analysisOf, builtOnStamps, leftAlone, reasonSentences } from "@/state/derive";
 import { useConsole } from "@/state/console-context";
 import { scenarioMeta } from "./scenario-meta";
 import { FIT, NODE_SIZE, TILE, type BaselineData, type ClusterData, type DependencyEdgeData, type ItemData, type RecordData } from "./graph-layout";
@@ -68,6 +69,13 @@ export function WorkItemNode({ data }: NodeProps & { data: ItemData }) {
 	const touched = ["promoted", "stale", "conflict", "revalidating"].includes(wi.item.status);
 	const quiet = touched ? null : leftAlone(view, wi.item.id, { sticky: true });
 	const receipt = wi.receipt.accepted.map((entry) => `${entry.recordId}@${entry.version}`).join(" · ");
+	// Blocked on a changed decision: the card says which version it was built on and which is current, in words.
+	const blockedBy = useMemo(() => {
+		if (wi.item.status !== "stale" && wi.item.status !== "conflict") return null;
+		const analysis = analysisOf(view, wi.item.id);
+		const stamp = analysis ? builtOnStamps(analysis)[0] : undefined;
+		return analysis && stamp ? { stamp, reasons: reasonSentences(view, analysis).join(" ") } : null;
+	}, [view, wi.item.id, wi.item.status]);
 	return (
 		<div
 			data-slot="work-item-node"
@@ -94,14 +102,18 @@ export function WorkItemNode({ data }: NodeProps & { data: ItemData }) {
 				<span className="font-mono text-[13px] font-semibold">{wi.item.id}</span>
 				{running && <Loader className="size-3.5 shrink-0 text-info motion-safe:animate-spin" aria-hidden />}
 				<ActorChip actor={wi.item.actor} label={scenarioMeta(client.scenario, client.kind === "live").agentLabel ?? agentModelOf(view.ledger, wi.item.id) ?? undefined} className="min-w-0 text-[13px]" />
-				<StatusChip status={wi.item.status} className="ml-auto text-[13px]" />
+				<StatusChip status={wi.item.status} leftAlone={quiet !== null} className="ml-auto text-[13px]" />
 			</div>
 			<p className="truncate leading-tight font-semibold" style={{ fontSize: FIT.itemTitlePx }} title={wi.item.title}>
 				{wi.item.title}
 			</p>
 			{quiet ? (
-				<p data-testid={`left-alone-${wi.item.id}`} className="truncate font-mono text-[12.5px] text-success" title={`Left alone: ${quiet.message}`}>
-					{quiet.reasonCodes.join(", ")}
+				<p data-testid={`left-alone-${wi.item.id}`} className="truncate text-[13px] font-medium text-success" title={`${quiet.message} (${quiet.reasonCodes.join(", ")})`}>
+					Left alone: doesn&apos;t use what changed
+				</p>
+			) : blockedBy ? (
+				<p data-testid={`built-on-${wi.item.id}`} className="truncate text-[13px] font-medium text-danger" title={blockedBy.reasons}>
+					{blockedBy.stamp}
 				</p>
 			) : (
 				<p className="truncate font-mono text-[12.5px] text-muted-foreground" title={`receipt: ${receipt || "none"}`}>
@@ -117,7 +129,7 @@ export function ClusterNode({ data }: NodeProps & { data: ClusterData }) {
 	const { select } = useConsole();
 	const degraded = useDegraded();
 	const counts = data.items.reduce<Record<string, number>>((acc, wi) => {
-		const label = statusMeta(wi.item.status, degraded).label;
+		const label = statusMeta(wi.item.status, degraded).label.toLowerCase();
 		return { ...acc, [label]: (acc[label] ?? 0) + 1 };
 	}, {});
 	return (

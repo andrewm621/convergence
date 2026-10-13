@@ -32,6 +32,9 @@ export type Evaluation = {
 	alreadyStale: number;
 	/** Left alone by this change and not stale. */
 	untouched: number;
+	/** Which work items those counts are about, so the strip can be recomputed as they are merged, revalidated or ruled on. */
+	staleIds: string[];
+	alreadyStaleIds: string[];
 	/** Reconciler time for the whole evaluation. Null when the server did not report it. */
 	ms: number | null;
 };
@@ -233,7 +236,8 @@ export function evaluationOf(entry: ReconciliationEvent, ms: number | null, work
 		if (effect.type === "RECORD_CONDITION" && effect.condition.type === "Stale") staleIds.add(effect.workItemId);
 		if (effect.type === "NO_ACTION" && effect.reasonCodes.includes("NO_DEPENDENCY_ON_CHANGED_FACETS")) leftAlone.add(effect.workItemId);
 	}
-	const alreadyStale = [...leftAlone].filter((id) => !staleIds.has(id) && workItems[id]?.conditions.some((c) => c.type === "Stale")).length;
+	const alreadyStaleIds = [...leftAlone].filter((id) => !staleIds.has(id) && workItems[id]?.conditions.some((c) => c.type === "Stale"));
+	const alreadyStale = alreadyStaleIds.length;
 	return {
 		seq: entry.seq,
 		ts: entry.ts,
@@ -243,6 +247,8 @@ export function evaluationOf(entry: ReconciliationEvent, ms: number | null, work
 		stale: summary.stale,
 		alreadyStale,
 		untouched: summary.untouched - alreadyStale,
+		staleIds: [...staleIds].sort(),
+		alreadyStaleIds: alreadyStaleIds.sort(),
 		ms,
 	};
 }

@@ -1,6 +1,6 @@
 import type { Condition, ConditionType, Evidence, WorkItemState } from "contracts";
 import { diffFacets } from "delta-core";
-import { ArrowRight, BookMarked, Check, ChevronDown, ChevronRight, CircleAlert, FlaskConical, GitCommitHorizontal, Hourglass, Receipt, ShieldAlert, ShieldQuestion, Sparkles, X } from "lucide-react";
+import { ArrowRight, BookMarked, Check, ChevronDown, ChevronRight, CircleAlert, FlaskConical, Gavel, GitCommitHorizontal, Hourglass, Receipt, ShieldAlert, ShieldCheck, ShieldQuestion, Sparkles, X } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
 import { EpistemicChip, ReasonChip, useDegraded } from "@/components/status";
 import { Badge, badgeVariants } from "@/components/ui/badge";
@@ -9,8 +9,9 @@ import { describeCheck } from "@/lib/evidence";
 import { formatDateTime, formatFacet, plural } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useConsole } from "@/state/console-context";
-import { actorLabel, analysisOf, currentRecord, leftAlone, reliedFacets, semanticDiff } from "@/state/derive";
+import { actorLabel, analysisOf, builtOnStamps, currentRecord, leftAlone, reasonSentences, reliedFacets, semanticDiff, signerFor, signerRecordId } from "@/state/derive";
 import { useGate } from "@/state/use-gate";
+import { Resolutions } from "./inspector-actions";
 import { ReceiptFacetList } from "./receipt-facets";
 
 const CONDITION_TONE: Record<ConditionType, "danger" | "warning" | "success" | "primary" | "merged"> = {
@@ -50,6 +51,12 @@ export function WhyTab({ wi }: { wi: WorkItemState }) {
 	const staleIds = new Set(analysis.stale.map((f) => f.recordId));
 	const problem = analysis.stale.length > 0 || analysis.conflicts.length > 0 || analysis.failedChecks.length > 0 || analysis.uncertain.length > 0;
 	const alone = leftAlone(view, wi.item.id);
+	// The one reason, in plain words, with who signs off. The reason codes and the engine's own sentence sit behind "Technical details".
+	const showReason = problem && !promoted && !rerunning;
+	const sentences = reasonSentences(view, analysis);
+	const stamps = builtOnStamps(analysis);
+	const signerRecord = signerRecordId(view, wi.item.id, analysis);
+	const signer = signerRecord ? signerFor(view, signerRecord) : null;
 	// The Worker's claims check has its own row: the engine does not count it as a test, so the Test row does not list it.
 	const claimsChecks = analysis.headEvidence.filter((e) => !analysis.testEvidence.includes(e));
 	const summary = promoted
@@ -68,27 +75,78 @@ export function WhyTab({ wi }: { wi: WorkItemState }) {
 
 	return (
 		<div className="space-y-4 p-4" data-testid="why-tab">
-			<div className={cn("rounded-xl border p-3.5", blocked && problem ? "border-danger/35 bg-danger-soft" : blocked ? "border-warning/35 bg-warning-soft" : promoted ? "border-merged/30 bg-merged-soft" : "bg-card")}>
+			<div
+				className={cn("rounded-xl border p-3.5", showReason ? "border-danger/35 bg-danger-soft" : blocked ? "border-warning/35 bg-warning-soft" : promoted ? "border-merged/30 bg-merged-soft" : "bg-card")}
+				data-testid="reason-card"
+			>
 				<h3 className="flex items-center gap-2 text-sm font-semibold">
-					{blocked ? <ShieldAlert className={cn("size-4", problem ? "text-danger" : "text-warning")} aria-hidden /> : <Sparkles className="size-4 text-muted-foreground" aria-hidden />}
-					{blocked ? "Why is this blocked?" : promoted ? "Why is this promoted?" : "Why is this not blocked?"}
+					{showReason ? <ShieldAlert className="size-4 text-danger" aria-hidden /> : <Sparkles className="size-4 text-muted-foreground" aria-hidden />}
+					{showReason ? "Why is this blocked?" : "Merge status"}
 				</h3>
-				<p className="mt-1.5 text-[13px] leading-relaxed">{summary}</p>
-				{blocked && gate && gate.reasonCodes.length > 0 && (
-					<ul className="mt-2.5 flex flex-wrap gap-1.5" aria-label="Reason codes">
-						{gate.reasonCodes.map((code) => (
-							<li key={code}>
-								<ReasonChip code={code} className="bg-card" />
-							</li>
-						))}
-					</ul>
+				{showReason ? (
+					<>
+						{stamps.length > 0 && (
+							<ul className="mt-2 flex flex-wrap gap-1.5" aria-label="Built on" data-testid="built-on-stamps">
+								{stamps.map((stamp) => (
+									<li key={stamp}>
+										<Badge tone="danger" className="bg-card text-[13px] font-semibold">
+											{stamp}
+										</Badge>
+									</li>
+								))}
+							</ul>
+						)}
+						<ul className="mt-2.5 space-y-1.5" aria-label="Reasons" data-testid="reason-sentences">
+							{sentences.map((sentence) => (
+								<li key={sentence} className="text-[13px] leading-relaxed">
+									{sentence}
+								</li>
+							))}
+						</ul>
+						{analysis.stale.length > 0 && (
+							<p className="mt-2.5 text-[13px] font-medium" data-testid="not-a-verdict">
+								A changed decision is not a verdict on the work.
+							</p>
+						)}
+						<p className="mt-1.5 flex items-center gap-1.5 text-[13px]" data-testid="signoff">
+							<Gavel className="size-3.5 text-muted-foreground" aria-hidden />
+							<span>
+								Sign-off: <span className="font-semibold">{signer ?? "no authority is named for this decision"}</span>
+							</span>
+						</p>
+						<div className="mt-3 border-t border-danger/25 pt-3">
+							<Resolutions wi={wi} />
+						</div>
+					</>
+				) : (
+					<p className="mt-1.5 text-[13px] leading-relaxed">{summary}</p>
+				)}
+				{(showReason || (blocked && gate && gate.reasonCodes.length > 0)) && (
+					<details className="group mt-3 text-xs" data-testid="technical-details">
+						<summary className="flex cursor-pointer list-none items-center gap-1 font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50">
+							<ChevronRight className="size-3.5 transition-transform group-open:rotate-90" aria-hidden />
+							Technical details
+						</summary>
+						<div className="mt-2 space-y-2">
+							{showReason && <p className="text-[13px] leading-relaxed text-muted-foreground">{summary}</p>}
+							{gate && gate.reasonCodes.length > 0 && (
+								<ul className="flex flex-wrap gap-1.5" aria-label="Reason codes">
+									{gate.reasonCodes.map((code) => (
+										<li key={code}>
+											<ReasonChip code={code} className="bg-card" />
+										</li>
+									))}
+								</ul>
+							)}
+						</div>
+					</details>
 				)}
 			</div>
 
 			{alone && !analysis.stale.length && (
-				<div className="rounded-xl border border-dashed bg-card p-3.5" data-testid="left-alone">
-					<p className="flex items-center gap-2 text-[13px] font-semibold">
-						<Sparkles className="size-4 text-muted-foreground" aria-hidden />
+				<div className="rounded-xl border border-success/30 bg-success-soft p-3.5" data-testid="left-alone">
+					<p className="flex items-center gap-2 text-[13px] font-semibold text-success">
+						<ShieldCheck className="size-4" aria-hidden />
 						Left alone{alone.recordRef ? ` by ${alone.recordRef}` : ""}
 					</p>
 					<p className="mt-1 text-xs text-muted-foreground">{alone.message}</p>

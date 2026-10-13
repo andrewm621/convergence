@@ -139,7 +139,7 @@ describe("the exception card states its lapse rule", () => {
 });
 
 describe("the evaluation strip's timing", () => {
-	const evaluation: Evaluation = { seq: 7, ts: "2026-10-12T16:00:00Z", recordRef: "notifications@2", proseOnly: false, evaluated: 2, stale: 1, alreadyStale: 0, untouched: 1, ms: 0.004 };
+	const evaluation: Evaluation = { seq: 7, ts: "2026-10-12T16:00:00Z", recordRef: "notifications@2", proseOnly: false, evaluated: 2, stale: 1, alreadyStale: 0, untouched: 1, staleIds: ["WI-2"], alreadyStaleIds: [], ms: 0.004 };
 
 	it("keeps the engine time when it is not told otherwise (mock mode)", () => {
 		render(<ResultsStrip evaluation={evaluation} />);
