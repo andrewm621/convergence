@@ -64,7 +64,7 @@ describe("the build replay: beats follow the fixture's timeline and the delta-co
 		await mock.next();
 		expect(staleIds(mock.view)).toEqual(["WI-3", "WI-4", "WI-5"]);
 		for (const id of ["WI-3", "WI-4", "WI-5"]) expect(staleFacets(mock.view, id), id).toEqual(bundle.expected.afterNamingV2.stale[id as "WI-3"]);
-		expect(mock.view.evaluation).toMatchObject({ evaluated: 7, stale: 3, untouched: 4, proseOnly: false });
+		expect(mock.view.evaluation).toMatchObject({ evaluated: 7, stale: 3, alreadyStale: 0, untouched: 4, proseOnly: false });
 
 		// 3. More work lands: WI-7, WI-1, WI-2 are pushed, and are clean.
 		await mock.next();
@@ -79,7 +79,9 @@ describe("the build replay: beats follow the fixture's timeline and the delta-co
 		for (const id of ["WI-1", "WI-2", "WI-3"]) expect(staleFacets(mock.view, id), id).toEqual(bundle.expected.afterEvidenceV2.stale[id as "WI-1"]);
 		expect(staleIds(mock.view)).toEqual(["WI-1", "WI-2", "WI-3", "WI-4", "WI-5"]);
 		for (const id of bundle.expected.afterEvidenceV2.untouched) expect(staleFacets(mock.view, id) ?? "untouched", id).toEqual(["WI-4", "WI-5"].includes(id) ? bundle.expected.afterNamingV2.stale[id as "WI-4"] : "untouched");
-		expect(mock.view.evaluation).toMatchObject({ evaluated: 7, stale: 3, untouched: 4 });
+		// WI-4 and WI-5 are untouched by this change but already red from the rename: they are counted apart, so the strip adds up to the cards.
+		expect(mock.view.evaluation).toMatchObject({ evaluated: 7, stale: 3, alreadyStale: 2, untouched: 2 });
+		expect((mock.view.evaluation?.stale ?? 0) + (mock.view.evaluation?.alreadyStale ?? 0)).toBe(staleIds(mock.view).length);
 
 		// 5. Evidence v3: WI-1 gains required-facets, and nothing else does.
 		await mock.next();

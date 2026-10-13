@@ -3,7 +3,8 @@
 // syntax that needs a transform (enums, parameter properties).
 //
 // It follows the agent protocol (PRD section 5): read the context records, make a deterministic code
-// change, and report claims that cite `recordId@version`.
+// change, and report claims that cite `recordId@version`. It writes only `src/work/<id>.ts` and
+// `.delta/claims.json`, so concurrent work items never edit the same lines of a shared file.
 
 export type FacetScalar = string | number | boolean;
 /** A facet value: a scalar, or a flow list of scalars (`[draft, active]`). */
@@ -26,8 +27,6 @@ export interface StubInput {
 	prompt: string;
 	/** Context files by repo-relative path, e.g. `.delta/context/notifications.md`. */
 	contextFiles: Record<string, string>;
-	/** Current content of `src/index.ts`, or null when the fork has none. */
-	indexTs: string | null;
 	/**
 	 * The record ids the control plane delivered for this run (a revalidation's receipt). When set, the stub writes a
 	 * constant and a claim for every facet of exactly those records, not what the task title suggests: the receipt
@@ -149,14 +148,11 @@ export function runStubAgent(input: StubInput): StubOutput {
 		"",
 	].join("\n");
 
-	const exportLine = `export * from "./work/${input.workItemId}";`;
-	const base = input.indexTs ?? "";
-	const indexSource = base.includes(exportLine) ? base : `${base}${base === "" || base.endsWith("\n") ? "" : "\n"}${exportLine}\n`;
-
+	// Only files this work item owns. No shared barrel (`src/index.ts`): two agents appending to the same spot of a
+	// shared file make a textual add/add conflict when the second one is promoted.
 	return {
 		files: {
 			[modulePath]: moduleSource,
-			"src/index.ts": indexSource,
 			".delta/claims.json": `${JSON.stringify(claims, null, 2)}\n`,
 		},
 		claims,

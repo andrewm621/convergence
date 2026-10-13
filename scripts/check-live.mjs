@@ -2,10 +2,19 @@
 // Live verification of the control loop (M2) against a deployed Worker and real Cloudflare Artifacts, with the
 // stub agent. Runs Scenario A end to end and prints each check as PASS/FAIL with timings.
 //
-//   WORKER_URL=https://<worker>.workers.dev DEV_TOKEN=... node scripts/check-live.mjs [--keep]
+//   WORKER_URL=https://<worker>.workers.dev DEV_TOKEN=... node scripts/check-live.mjs [--keep] [--cell <name>] [--stop-before-revalidate]
 //
-// The Worker needs ENABLE_SMOKE=1 (it seeds the repos) and AGENT_MODE=stub. Seeded repos are named `smoke-*`;
-// DELETE /api/smoke removes them (done at the end unless --keep). Exits non-zero if any check fails.
+// The Worker needs ENABLE_SMOKE=1 (it seeds the repos) and AGENT_MODE=stub. Seeded repos are named `smoke-*`; at the
+// end DELETE /api/smoke removes exactly the repos this run created, by name (unless --keep). Other `smoke-` repos, such
+// as a recorded demo's, are never touched. Exits non-zero if any check fails.
+//
+//   --cell <name>              run in a cell with this name instead of a throwaway one, to leave a demo behind. The name
+//                              must be notifications-<something> (lowercase letters, digits, dashes, at most 40), so the
+//                              console can open it with ?cell=<name>. The cell must not exist yet. Implies --keep and
+//                              skips the second (fast-forward) scenario.
+//   --stop-before-revalidate   stop once notifications v2 has made WI-2 stale and blocked (WI-1 still ready, nothing
+//                              promoted), so the human revalidate, the re-dispatch and both promotions can be done on
+//                              camera in the console. Implies --keep.
 
 const base = (process.env.WORKER_URL ?? "").replace(/\/$/, "");
 const token = process.env.DEV_TOKEN ?? "";
@@ -13,9 +22,21 @@ if (!base || !token) {
 	console.error("set WORKER_URL and DEV_TOKEN");
 	process.exit(2);
 }
-const keep = process.argv.includes("--keep");
+const argv = process.argv.slice(2);
+const cellAt = argv.indexOf("--cell");
+const cellArg = cellAt >= 0 ? argv[cellAt + 1] : undefined;
+const CELL_PREFIX = "notifications-";
+if (cellAt >= 0 && !(typeof cellArg === "string" && /^[a-z0-9][a-z0-9-]{0,39}$/.test(cellArg) && cellArg.startsWith(CELL_PREFIX) && cellArg.length > CELL_PREFIX.length)) {
+	console.error(`--cell needs a name of lowercase letters, digits and dashes, at most 40 characters, starting with ${CELL_PREFIX} (for example ${CELL_PREFIX}demo)`);
+	process.exit(2);
+}
+const stopBeforeRevalidate = argv.includes("--stop-before-revalidate");
+// A demo cell points at its repos, so deleting them at the end would break it.
+const keep = argv.includes("--keep") || cellArg !== undefined || stopBeforeRevalidate;
 const runId = Date.now().toString(36);
-const scenario = `live-${runId}`;
+const scenario = cellArg ?? `live-${runId}`;
+/** Every repo this run seeds: the only ones the cleanup deletes. */
+const created = [];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function call(method, path, body, headers = {}) {
@@ -85,7 +106,15 @@ const results = { timings: {} };
 // ---------------------------------------------------------------------------------------------------------
 console.log(`scenario ${scenario}`);
 let t = performance.now();
-const seeded = await call("POST", "/api/smoke/seed?forks=2&scenario=notifications");
+if (cellArg !== undefined) {
+	// There is no cell reset, so a name that is already initialised cannot be reused. Look before creating any repo.
+	const existing = await get("/state");
+	if (existing.status !== 409) {
+		console.error(existing.status === 200 ? `cell ${cellArg} already exists; pick another name (there is no cell reset)` : `cannot tell whether cell ${cellArg} exists: HTTP ${existing.status} ${j(existing.json).slice(0, 200)}`);
+		process.exit(1);
+	}
+}
+const seeded = await call("POST", `/api/smoke/seed?forks=2&scenario=notifications${cellArg !== undefined ? `&label=${cellArg}` : ""}`);
 check("seed baseline + 2 forks on real Artifacts", seeded.status === 200 && seeded.json.forks?.length === 2 && seeded.json.creationTokensRevoked, `${seeded.ms} ms`);
 if (seeded.status !== 200) {
 	console.error(j(seeded.json));
@@ -93,6 +122,7 @@ if (seeded.status !== 200) {
 }
 const baselineRepo = seeded.json.baseline.name;
 const [fork1, fork2] = seeded.json.forks.map((f) => f.name);
+created.push(baselineRepo, fork1, fork2);
 const prefix = baselineRepo.replace(/-baseline$/, "");
 const agentIds = { "WI-1": `${prefix}-wi-1`.length > 0 ? "wi-1" : "wi-1", "WI-2": "wi-2" };
 
@@ -230,6 +260,13 @@ check("gate dry-run for the stale WI-2 fails with reason codes", gate2.status ==
 const gate1 = await get("/work-items/WI-1/gate");
 check("gate dry-run for WI-1 passes", gate1.status === 200 && gate1.json?.pass === true, `${gate1.ms} ms ${j(gate1.json?.reasonCodes)} ${gate1.json?.pass === true ? "" : j(gate1.json)}`);
 
+if (stopBeforeRevalidate) {
+	note("stopping before the revalidate, as asked: notifications v2 is accepted, WI-2 is stale and blocked, WI-1 is ready, nothing is promoted");
+	note(`console: <worker url>/?cell=${scenario}   (token in the address bar hash, as usual)`);
+	note(`repos kept: ${created.join(", ")}`);
+	await finish();
+}
+
 // ---------------------------------------------------------------------------------------------------------
 // 5. Promote WI-1 for real (baseline has moved: this is the real-merge path, not a fast-forward)
 // ---------------------------------------------------------------------------------------------------------
@@ -350,11 +387,12 @@ check("WI-1 is promoted", ["promoted", "merged"].includes(await statusOf("WI-1")
 // ---------------------------------------------------------------------------------------------------------
 // 8. The fast-forward promotion path: a fresh scenario where the baseline has not moved since the fork
 // ---------------------------------------------------------------------------------------------------------
-{
+if (cellArg === undefined) {
 	const ffScenario = `${scenario}-ff`;
 	const seed2 = await call("POST", "/api/smoke/seed?forks=1&scenario=notifications");
 	const b2 = seed2.json.baseline.name;
 	const f2 = seed2.json.forks[0].name;
+	created.push(b2, f2);
 	const fpost = (p, body, label) => call("POST", `/api/scenarios/${ffScenario}${p}`, body, idem(label));
 	const fget = (p) => call("GET", `/api/scenarios/${ffScenario}${p}`);
 	const i2 = await fpost("/init", { baselineRepo: b2, policy }, "ffinit");
@@ -377,13 +415,19 @@ check("WI-1 is promoted", ["promoted", "merged"].includes(await statusOf("WI-1")
 	check("fast-forward scenario: WI-1 promoted, poller healthy", (await fget("/state")).json.workItems[0]?.item.status === "promoted" && pol?.health?.healthy === true, j(pol?.health));
 }
 
-console.log("\n" + "-".repeat(60));
-const failed = checks.filter((c) => !c.ok);
-console.log(`${checks.length - failed.length}/${checks.length} checks passed`);
-console.log(j(results.timings));
-ws?.close();
-if (!keep) {
-	const purge = await call("DELETE", "/api/smoke");
-	note(`cleanup: ${j(purge.json).slice(0, 200)}`);
+await finish();
+
+/** Print the summary, delete this run's repos unless they are kept, and exit non-zero if any check failed. */
+async function finish() {
+	console.log("\n" + "-".repeat(60));
+	const failed = checks.filter((c) => !c.ok);
+	console.log(`${checks.length - failed.length}/${checks.length} checks passed`);
+	console.log(j(results.timings));
+	ws?.close();
+	if (!keep) {
+		// Only the repos this run seeded, by name. A bare DELETE is refused, and ?all=1 would take a demo's repos too.
+		const purge = await call("DELETE", "/api/smoke", { repos: created });
+		note(`cleanup: ${j(purge.json).slice(0, 300)}`);
+	}
+	process.exit(failed.length ? 1 : 0);
 }
-process.exit(failed.length ? 1 : 0);

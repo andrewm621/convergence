@@ -15,13 +15,18 @@ import { ConsoleProvider, useConsole } from "@/state/console-context";
 
 export function App({ runtime }: { runtime: Runtime }) {
 	const [scenario, setScenario] = useState<ScenarioName>(runtime.scenario);
+	// A named cell (`?cell=notifications-demo`) belongs to its scenario: choosing another one leaves it.
+	const [cell, setCell] = useState(runtime.cell);
 	// Switching the scenario swaps the client; the mock and the live client are chosen in `createClient`.
-	const client = useMemo(() => createClient({ ...runtime, scenario }), [runtime, scenario]);
+	const client = useMemo(() => createClient({ ...runtime, scenario, cell }), [runtime, scenario, cell]);
 
 	function chooseScenario(next: ScenarioName) {
+		if (next === scenario) return;
 		setScenario(next);
+		setCell(undefined);
 		const url = new URL(window.location.href);
 		url.searchParams.set("scenario", next);
+		url.searchParams.delete("cell");
 		url.searchParams.delete("script");
 		window.history.replaceState(null, "", url);
 	}

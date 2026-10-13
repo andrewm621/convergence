@@ -1,4 +1,3 @@
-import type { ScenarioName } from "./types";
 
 /**
  * Every URL the live client uses, in one place. They match the Worker's control loop
@@ -6,19 +5,21 @@ import type { ScenarioName } from "./types";
  * scoped to its scenario, because a work item id means nothing without its cell.
  */
 const API = "/api";
-const scoped = (scenario: ScenarioName) => `${API}/scenarios/${scenario}`;
-const item = (scenario: ScenarioName, workItemId: string) => `${scoped(scenario)}/work-items/${encodeURIComponent(workItemId)}`;
+/** A cell is named after its scenario (`notifications`) or, for a demo, `<scenario>-<suffix>` (`notifications-demo`). */
+type Cell = string;
+const scoped = (scenario: Cell) => `${API}/scenarios/${scenario}`;
+const item = (scenario: Cell, workItemId: string) => `${scoped(scenario)}/work-items/${encodeURIComponent(workItemId)}`;
 
 export const endpoints = {
 	/** WebSocket: `snapshot` first, then `event` and `agent-activity`. Resume with `?since=<seq>`. */
-	socket: (scenario: ScenarioName) => `${scoped(scenario)}/ws`,
+	socket: (scenario: Cell) => `${scoped(scenario)}/ws`,
 	/** REST state read (a `CellSnapshot`, with `X-Delta-Poller` for health). The polling fallback and the gap-recovery read. */
-	state: (scenario: ScenarioName) => `${scoped(scenario)}/state`,
-	gate: (scenario: ScenarioName, workItemId: string) => `${item(scenario, workItemId)}/gate`,
-	resolutions: (scenario: ScenarioName, workItemId: string) => `${item(scenario, workItemId)}/resolutions`,
-	promote: (scenario: ScenarioName, workItemId: string) => `${item(scenario, workItemId)}/promote`,
-	context: (scenario: ScenarioName, recordId: string) => `${scoped(scenario)}/context/${encodeURIComponent(recordId)}`,
-	contextChanges: (scenario: ScenarioName) => `${scoped(scenario)}/context-changes`,
+	state: (scenario: Cell) => `${scoped(scenario)}/state`,
+	gate: (scenario: Cell, workItemId: string) => `${item(scenario, workItemId)}/gate`,
+	resolutions: (scenario: Cell, workItemId: string) => `${item(scenario, workItemId)}/resolutions`,
+	promote: (scenario: Cell, workItemId: string) => `${item(scenario, workItemId)}/promote`,
+	context: (scenario: Cell, recordId: string) => `${scoped(scenario)}/context/${encodeURIComponent(recordId)}`,
+	contextChanges: (scenario: Cell) => `${scoped(scenario)}/context-changes`,
 } as const;
 
 /**

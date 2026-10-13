@@ -1,5 +1,7 @@
 import git from "isomorphic-git";
 import { describe, expect, it } from "vitest";
+import { NOTIFICATIONS_V1, STATUS_MODEL_V1 } from "scenario-notifications";
+import { runStubAgent } from "../../container/stub-agent-lib";
 import { PortError } from "../cell/ports";
 import { mergeInto } from "./git-merge";
 import { MemoryFS } from "./memory-fs";
@@ -94,5 +96,60 @@ describe("mergeInto", () => {
 		await expect(mergeInto(fs, DIR, { ours: "main", theirs: "refs/remotes/fork/main", message: "promote", author: HUMAN })).rejects.toMatchObject({ code: "MERGE_CONFLICT" });
 		await expect(mergeInto(fs, DIR, { ours: "main", theirs: "refs/remotes/fork/main", message: "promote", author: HUMAN })).rejects.toBeInstanceOf(PortError);
 		expect(await git.resolveRef({ fs, dir: DIR, ref: "main" })).toBe(baselineHead);
+	});
+});
+
+describe("mergeInto: two work items promoted one after the other", () => {
+	// Each fork is cut from the same baseline, as the stub agents' forks are.
+	const contextFiles = { "context/notifications.md": NOTIFICATIONS_V1, "context/status-model.md": STATUS_MODEL_V1 };
+	const stub = (workItemId: string, prompt: string) => runStubAgent({ workItemId, prompt, contextFiles }).files;
+
+	async function twoForks(files1: Record<string, string>, files2: Record<string, string>) {
+		const fs = new MemoryFS();
+		await git.init({ fs, dir: DIR, defaultBranch: "main" });
+		const base = await commit(fs, { "AGENTS.md": "# agents\n", "src/index.ts": "export {};\n" }, "base");
+		const cut = async (name: string, files: Record<string, string>) => {
+			await git.branch({ fs, dir: DIR, ref: name, object: base, checkout: true });
+			const sha = await commit(fs, files, name);
+			await git.checkout({ fs, dir: DIR, ref: "main" });
+			return sha;
+		};
+		const wi1 = await cut("wi-1", files1);
+		const wi2 = await cut("wi-2", files2);
+		const promote = async (sha: string) => {
+			await git.writeRef({ fs, dir: DIR, ref: "refs/remotes/fork/main", value: sha, force: true });
+			return mergeInto(fs, DIR, { ours: "main", theirs: "refs/remotes/fork/main", message: "promote", author: HUMAN, committer: WORKER });
+		};
+		return { fs, wi1, wi2, promote };
+	}
+
+	it("merges the second stub agent's fork cleanly after the first (live run: 409 MERGE_CONFLICT)", async () => {
+		const out1 = stub("wi-1", "Add status badges and the status-change API");
+		const out2 = stub("wi-2", "Implement notification preferences and delivery");
+		const { fs, wi1, wi2, promote } = await twoForks(out1, out2);
+		expect(await promote(wi1)).toEqual({ oid: wi1, fastForward: true });
+		const merged = await promote(wi2);
+		expect(merged.fastForward).toBe(false);
+		const files = await git.listFiles({ fs, dir: DIR, ref: merged.oid });
+		expect(files).toEqual(expect.arrayContaining(["src/work/wi-1.ts", "src/work/wi-2.ts", "src/index.ts"]));
+		// Their claims files collide, and the fork being promoted wins.
+		const claims = await git.readBlob({ fs, dir: DIR, oid: merged.oid, filepath: ".delta/claims.json" });
+		expect(Buffer.from(claims.blob).toString("utf8")).toBe(out2[".delta/claims.json"]);
+	});
+
+	it("still reports a MERGE_CONFLICT when both forks append to the same barrel, even beside colliding claims", async () => {
+		// What the stub did before: each fork appended its own export at the end of the shared src/index.ts.
+		const barrel = (id: string) => ({ ...stub(id, "x"), "src/index.ts": `export {};\nexport * from "./work/${id}";\n` });
+		const { fs, wi1, wi2, promote } = await twoForks(barrel("wi-1"), barrel("wi-2"));
+		await promote(wi1);
+		const head = await git.resolveRef({ fs, dir: DIR, ref: "main" });
+		await expect(promote(wi2)).rejects.toMatchObject({ code: "MERGE_CONFLICT" });
+		expect(await git.resolveRef({ fs, dir: DIR, ref: "main" })).toBe(head);
+	});
+
+	it("keeps a conflict on a source file a conflict, whatever else collides under .delta/", async () => {
+		const { wi1, wi2, promote } = await twoForks({ "src/a.ts": "one\n", ".delta/receipt.json": "{1}\n" }, { "src/a.ts": "two\n", ".delta/receipt.json": "{2}\n" });
+		await promote(wi1);
+		await expect(promote(wi2)).rejects.toMatchObject({ code: "MERGE_CONFLICT" });
 	});
 });

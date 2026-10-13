@@ -3,7 +3,7 @@ import { assertSafePath, errorCode, getRepo } from "./artifacts/git-write";
 import { redactDeep, redactText } from "./artifacts/tokens";
 import { DispatchError, dispatchAgent, presentRun } from "./agents/dispatch";
 import { DispatchRequest, IdempotencyKey, REPO_NAME_RE, RefName, WORK_ITEM_ID_RE } from "./agents/protocol";
-import { NOTIFICATIONS_SCENARIO_FILES, purgeSmokeRepos, runSmoke, seedForks } from "./smoke";
+import { NOTIFICATIONS_SCENARIO_FILES, SMOKE_LABEL_RE, SmokeDeleteRequest, deleteSmokeRepos, purgeSmokeRepos, runSmoke, seedForks } from "./smoke";
 import { bearerGuard } from "./cell/auth";
 import { cellApi } from "./cell/routes";
 import { jsonNotFound } from "./not-found";
@@ -36,17 +36,41 @@ app.post("/api/smoke", async (c) => {
 	return c.json(report, report.ok ? 200 : 502);
 });
 
+// Deletes the repos named in the body ({"repos": ["smoke-..."]}) and nothing else. Wiping every `smoke-` repo, which
+// would take a recorded demo's repos with it, needs an explicit ?all=1.
 app.delete("/api/smoke", async (c) => {
-	const result = await purgeSmokeRepos(c.env);
+	if (c.req.query("all") === "1") {
+		const result = await purgeSmokeRepos(c.env);
+		return c.json(result, result.failed.length ? 502 : 200);
+	}
+	const parsed = SmokeDeleteRequest.safeParse(await c.req.json().catch(() => null));
+	if (!parsed.success) {
+		return c.json(
+			{
+				error: {
+					code: "INVALID_INPUT",
+					message: 'send {"repos": ["smoke-..."]} to delete those repos, or ?all=1 to delete every smoke- repo',
+					issues: parsed.error.issues.map((i) => ({ path: i.path.join("."), message: i.message })),
+				},
+			},
+			400,
+		);
+	}
+	const result = await deleteSmokeRepos(c.env, parsed.data.repos);
 	return c.json(result, result.failed.length ? 502 : 200);
 });
 
-// A baseline plus N ready forks, for trying the agent runtime. Delete them with DELETE /api/smoke.
+// A baseline plus N ready forks, for trying the agent runtime. Delete them with DELETE /api/smoke and their names.
 // ?scenario=notifications seeds the baseline with Scenario A's accepted records, for the control loop.
+// ?label=<name> puts the name in the repo names (smoke-<name>-<time>-baseline), to tell a demo's repos apart.
 app.post("/api/smoke/seed", async (c) => {
 	const count = Math.min(Math.max(Number(c.req.query("forks") ?? 2) || 2, 1), 6);
 	const files = c.req.query("scenario") === "notifications" ? NOTIFICATIONS_SCENARIO_FILES : undefined;
-	return c.json(redactDeep(await seedForks(c.env, count, files)));
+	const label = c.req.query("label");
+	if (label !== undefined && !SMOKE_LABEL_RE.test(label)) {
+		return c.json({ error: { code: "INVALID_INPUT", message: "label must be 1-40 lowercase letters, digits or hyphens" } }, 400);
+	}
+	return c.json(redactDeep(await seedForks(c.env, count, files, label)));
 });
 
 app.post("/api/agents/dispatch", async (c) => {

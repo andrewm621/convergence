@@ -12,6 +12,27 @@ export function isScenarioName(value: string | null | undefined): value is Scena
 	return value === "notifications" || value === "sales-ops" || value === "shelter-intake" || value === "delta-convergence-build";
 }
 
+/** The scenarios the Worker can hold a cell for (the build replay is mock only), each as the prefix of a cell name. */
+const CELL_PREFIXES = [
+	["notifications-", "notifications"],
+	["shelter-intake-", "shelter-intake"],
+	["sales-ops-", "sales-ops"],
+] as const;
+
+/** What the Worker accepts as a cell name: 1-40 lowercase letters, digits or dashes (`SCENARIO_NAME` in apps/worker/src/cell/api.ts). */
+const CELL_NAME = /^[a-z0-9][a-z0-9-]{0,39}$/;
+
+/**
+ * The scenario a named cell shows, read from its name (`notifications-demo` is a notifications cell), or null when the
+ * name is not a valid cell name of a known scenario. `?cell=` is only a choice of which cell to display: the bearer
+ * token still decides what any request may do, so this keeps the address bar from sending odd paths, nothing more.
+ */
+export function scenarioOfCell(value: string | null | undefined): ScenarioName | null {
+	if (typeof value !== "string" || !CELL_NAME.test(value)) return null;
+	for (const [prefix, scenario] of CELL_PREFIXES) if (value.startsWith(prefix) && value.length > prefix.length) return scenario;
+	return null;
+}
+
 export type ConnectionState = "connecting" | "live" | "reconnecting" | "polling" | "offline" | "unauthorized" | "mock";
 
 /** Whether the poller that watches the Artifacts repos is keeping up. While it is not, nothing can be called Fresh. */

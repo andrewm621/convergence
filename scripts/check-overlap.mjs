@@ -178,7 +178,8 @@ Users opt in to project status notifications, delivered as a weekly digest.
 }
 
 if (flag("cleanup")) {
-	const purged = await api("DELETE", "/api/smoke");
+	// Only the repos this run seeded, by name: other smoke- repos (a recorded demo's) stay.
+	const purged = await api("DELETE", "/api/smoke", { repos: [seeded.baseline.name, ...seeded.forks.map((f) => f.name)] });
 	console.log(`cleanup: deleted ${purged.deleted.length} smoke repos`);
 }
 

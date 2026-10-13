@@ -15,6 +15,48 @@ const BRANCH = "main";
 const FORK_REF = "refs/remotes/fork/main";
 
 type Identity = { name: string; email: string };
+type MergeDriver = NonNullable<Parameters<typeof git.merge>[0]["mergeDriver"]>;
+
+/** Files the control plane keeps in a fork (claims, receipt, delivered context), not part of the work being promoted. */
+const FORK_METADATA_DIR = ".delta/";
+const isForkMetadata = (path: string): boolean => path.startsWith(FORK_METADATA_DIR);
+
+/** The paths of a MergeConflictError, or none for any other error. */
+function conflictPaths(error: unknown): string[] {
+	if (!error || typeof error !== "object" || (error as { code?: unknown }).code !== "MergeConflictError") return [];
+	const filepaths = (error as { data?: { filepaths?: unknown } }).data?.filepaths;
+	return Array.isArray(filepaths) ? filepaths.filter((p): p is string => typeof p === "string") : [];
+}
+
+/** A file's text at a commit, or "" when the commit has no such file (the base of an add/add). */
+async function textAt(fs: MemoryFS, dir: string, oid: string, filepath: string): Promise<string> {
+	try {
+		return Buffer.from((await git.readBlob({ fs, dir, oid, filepath })).blob).toString("utf8");
+	} catch {
+		return "";
+	}
+}
+
+/**
+ * A merge driver that takes the fork's (theirs) text for exactly the metadata conflicts `paths` named. The driver is
+ * handed a file's base name, not its path, so a file is recognised by its three texts (base, ours, theirs): the default
+ * merge conflicted on that triple, so no other path can carry it and merge cleanly. Anything else a driver is asked
+ * about is a file both sides changed that the default merge would have combined line by line; it stays a conflict
+ * here rather than being guessed at.
+ */
+async function forkMetadataDriver(fs: MemoryFS, dir: string, ours: string, theirs: string, paths: string[]): Promise<MergeDriver> {
+	const [oursOid, theirsOid] = await Promise.all([git.resolveRef({ fs, dir, ref: ours }), git.resolveRef({ fs, dir, ref: theirs })]);
+	const [baseOid] = await git.findMergeBase({ fs, dir, oids: [oursOid, theirsOid] });
+	const known = new Set<string>();
+	for (const path of paths) {
+		const texts = await Promise.all([baseOid ? textAt(fs, dir, baseOid, path) : "", textAt(fs, dir, oursOid, path), textAt(fs, dir, theirsOid, path)]);
+		known.add(JSON.stringify(texts));
+	}
+	return ({ contents }) =>
+		known.has(JSON.stringify([contents[0], contents[1], contents[2]]))
+			? { cleanMerge: true, mergedText: contents[2] ?? "" }
+			: { cleanMerge: false, mergedText: contents[1] ?? "" };
+}
 
 /**
  * Merge `theirs` into `ours` (a branch) in an already-cloned repo. Fast-forwards when it can;
@@ -34,8 +76,8 @@ export async function mergeInto(
 		if (ours !== options.expect.ours) throw new PortError("STALE_HEAD", "the baseline moved between the approval and the clone");
 		if (theirs !== options.expect.theirs) throw new PortError("STALE_HEAD", "the fork moved between the approval and the fetch");
 	}
-	try {
-		const result = await git.merge({
+	const merge = (mergeDriver?: MergeDriver) =>
+		git.merge({
 			fs,
 			dir,
 			ours: options.ours,
@@ -45,7 +87,20 @@ export async function mergeInto(
 			committer: options.committer ?? options.author,
 			fastForward: true,
 			abortOnConflict: true,
+			mergeDriver,
 		});
+	try {
+		let result;
+		try {
+			result = await merge();
+		} catch (error) {
+			// Every fork carries its own `.delta/claims.json` (and, once revalidated, `.delta/receipt.json`), so the second
+			// work item promoted into a baseline that already holds the first one's is an add/add conflict on a file that
+			// is control-plane metadata, not work. When those are the only conflicts, the fork being promoted wins them.
+			const paths = conflictPaths(error);
+			if (paths.length === 0 || !paths.every(isForkMetadata)) throw error;
+			result = await merge(await forkMetadataDriver(fs, dir, options.ours, options.theirs, paths));
+		}
 		if (!result.oid) throw new Error("merge produced no commit");
 		return { oid: result.oid, fastForward: !result.mergeCommit };
 	} catch (error) {
