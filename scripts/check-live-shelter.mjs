@@ -39,7 +39,7 @@ const valueOf = (flag) => {
 };
 const cellArg = valueOf("--cell");
 const CELL_PREFIX = "shelter-intake-";
-if (argv.includes("--cell") && !(typeof cellArg === "string" && /^[a-z0-9][a-z0-9-]{0,39}$/.test(cellArg) && cellArg.startsWith(CELL_PREFIX) && cellArg.length > CELL_PREFIX.length)) {
+if (argv.includes("--cell") && !(typeof cellArg === "string" && /^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/.test(cellArg) && cellArg.startsWith(CELL_PREFIX) && cellArg.length > CELL_PREFIX.length)) {
 	console.error(`--cell needs a name of lowercase letters, digits and dashes, at most 40 characters, starting with ${CELL_PREFIX} (for example ${CELL_PREFIX}demo)`);
 	process.exit(2);
 }
@@ -112,7 +112,17 @@ async function until(fn, ms, what, stepMs = 500) {
 	}
 }
 
-const wiOf = async (id) => (await get("/state")).json.workItems.find((w) => w.item.id === id);
+/** The cell state, asked again a few times when a request is dropped (status 0) or fails; null when it never answers. */
+async function stateOf() {
+	for (let i = 0; i < 5; i++) {
+		const res = await get("/state");
+		if (res.status === 200 && res.json?.workItems) return res.json;
+		await sleep(1000);
+	}
+	return null;
+}
+// A dropped /state reads as "not yet", so a polling loop goes round again instead of throwing.
+const wiOf = async (id) => (await stateOf())?.workItems.find((w) => w.item.id === id);
 const statusOf = async (id) => (await wiOf(id))?.item.status;
 const conditionsOf = (wi) => (wi?.conditions ?? []).map((c) => c.type);
 /** The runtime's id for a cell work item (agents/work-item-ids.ts): lowercase. */
@@ -286,7 +296,7 @@ if (stopBeforeRevalidate) {
 // 6. Promote SH-2 (the baseline moved since the fork: a real merge, not a fast-forward)
 // ---------------------------------------------------------------------------------------------------------
 {
-	const st = (await get("/state")).json;
+	const st = await stateOf();
 	t = performance.now();
 	const prom = await post("/work-items/SH-2/promote", { expectedBaselineCommit: st.baselineCommit, forkHeadSha: (await wiOf("SH-2")).headSha }, "prom-wi2");
 	const ms = Math.round(performance.now() - t);
@@ -302,7 +312,7 @@ if (stopBeforeRevalidate) {
 // ---------------------------------------------------------------------------------------------------------
 let revalidated = false;
 for (let attempt = 1; attempt <= 2 && !revalidated; attempt++) {
-	const st = (await get("/state")).json;
+	const st = await stateOf();
 	const wi = await wiOf("SH-1");
 	const hist = st.records[POLICY_ID];
 	const rec = hist.versions[String(hist.current)];
@@ -346,7 +356,7 @@ for (let attempt = 1; attempt <= 2 && !revalidated; attempt++) {
 }
 
 if (revalidated) {
-	const st = (await get("/state")).json;
+	const st = await stateOf();
 	t = performance.now();
 	const prom = await post("/work-items/SH-1/promote", { expectedBaselineCommit: st.baselineCommit, forkHeadSha: (await wiOf("SH-1")).headSha }, "prom-wi1");
 	const ms = Math.round(performance.now() - t);
