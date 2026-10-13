@@ -1,7 +1,8 @@
 import { commitFiles, errorCode, getRepo } from "../artifacts/git-write";
 import { mergeForkIntoBaseline } from "../artifacts/git-merge";
+import { writeReceiptNote } from "../artifacts/git-note";
 import { walkTree, type FlatTree } from "../artifacts/tree-diff";
-import { PortError, type ArtifactsPort, type CommitFilesRequest, type MergeRequest, type RepoCommit } from "./ports";
+import { PortError, type ArtifactsPort, type CommitFilesRequest, type MergeRequest, type RepoCommit, type WriteNoteRequest } from "./ports";
 
 const BRANCH = "main";
 
@@ -51,6 +52,15 @@ export class BindingArtifactsPort implements ArtifactsPort {
 
 	async mergeFork(request: MergeRequest): Promise<{ mergeCommitSha: string }> {
 		return mergeForkIntoBaseline(this.#env, request);
+	}
+
+	async writeNote(request: WriteNoteRequest): Promise<void> {
+		try {
+			await writeReceiptNote(this.#env, request);
+		} catch (error) {
+			if (errorCode(error) === "NOT_FOUND") throw new PortError("NOT_FOUND", `${request.repo} was not found`);
+			throw error;
+		}
 	}
 
 	async #read<T>(repo: string, fn: (handle: ArtifactsRepo) => Promise<T>): Promise<T> {

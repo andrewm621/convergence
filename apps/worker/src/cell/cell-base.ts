@@ -25,8 +25,10 @@ import {
 } from "delta-core";
 import { PromoteRequest, RegisterRequest, ResolveRequest, InitRequest, failure, invalidInput, refusalOf, type CellResult, type PollerMeta, type WsFrame, type WsMeta } from "./api";
 import { WS_PROTOCOL } from "./auth";
+import type { AgentRuntimePort } from "./agent-port";
 import { ContextChangeRequest, planContextChange } from "./context-change";
 import { ContextReader, snapshotHashOf } from "./context-tree";
+import { RevalidationDispatcher, type DispatchHost } from "./dispatch-jobs";
 import { CellMeta, type TrackedRow } from "./meta";
 import { WORKER_COMMITTER, observeBaselineCommit, observeForkCommit, type ObserveDeps } from "./observe";
 import { PortError, type ArtifactsPort, type RepoCommit } from "./ports";
@@ -66,11 +68,17 @@ class NotInitialized extends Error {}
 export abstract class CellBase extends DurableObject<Env> {
 	protected abstract createPort(): ArtifactsPort;
 
+	/** The agent runtime a revalidation re-dispatches into, or null when there is none (DISPATCH_WORK is then only announced). */
+	protected createAgentRuntime(): AgentRuntimePort | null {
+		return null;
+	}
+
 	readonly #store: SqliteCellStore;
 	readonly #meta: CellMeta;
 	readonly #trees = new Map<string, FlatTree>();
 	#port: ArtifactsPort | null = null;
 	#reader: ContextReader | null = null;
+	#dispatcher: RevalidationDispatcher | null = null;
 	#policy: Policy | null = null;
 	#tail: Promise<unknown> = Promise.resolve();
 
@@ -94,17 +102,25 @@ export abstract class CellBase extends DurableObject<Env> {
 	}
 
 	/**
-	 * DISPATCH_WORK: the reconciler asked for the agent to be re-run on fresh context. Dispatching
-	 * is the agent runtime's job (M4); here it is announced to the console as agent activity.
+	 * DISPATCH_WORK: the reconciler asked for the agent to be re-run on the new context. This announces
+	 * it to the console and, when an agent runtime is configured, queues the dispatch: a persisted job
+	 * the alarm advances (receipt, note, dispatch, evidence), so the resolution request never waits for
+	 * an agent. The effect only reaches here from an accepted revalidate Resolution.
 	 */
-	protected async onDispatchWork(effect: Extract<Effect, { type: "DISPATCH_WORK" }>): Promise<void> {
+	protected async onDispatchWork(effect: Extract<Effect, { type: "DISPATCH_WORK" }>, entry: ReconciliationEvent): Promise<void> {
 		const changed = effect.diff.map((d) => `${d.recordId} v${d.fromVersion} to v${d.toVersion}`).join(", ");
+		const event = entry.payload.event;
+		const dispatcher = this.#dispatch;
+		if (dispatcher && event.type === "ResolutionRecorded") {
+			dispatcher.enqueue(effect, event.requestId);
+			await this.#kick();
+		}
 		await this.publishActivity({
 			type: "agent-activity",
 			workItemId: effect.workItemId,
 			runId: "delta",
 			kind: "status",
-			text: `Revalidation requested${changed ? `: ${changed}` : ""}.`,
+			text: `Revalidation requested${changed ? `: ${changed}` : ""}.${dispatcher ? " Re-dispatching the agent with the new context." : " No agent runtime is configured here; nothing was dispatched."}`,
 			ts: this.now(),
 		});
 	}
@@ -118,6 +134,41 @@ export abstract class CellBase extends DurableObject<Env> {
 
 	get #artifacts(): ArtifactsPort {
 		return (this.#port ??= this.createPort());
+	}
+
+	/** The re-dispatcher, or null when this cell has no agent runtime. */
+	get #dispatch(): RevalidationDispatcher | null {
+		if (this.#dispatcher === null) {
+			const runtime = this.createAgentRuntime();
+			if (runtime) this.#dispatcher = new RevalidationDispatcher(this.#dispatchHost(runtime));
+		}
+		return this.#dispatcher;
+	}
+
+	#dispatchHost(runtime: AgentRuntimePort): DispatchHost {
+		return {
+			port: this.#artifacts,
+			runtime,
+			meta: this.#meta,
+			scenario: () => this.#meta.scenario() ?? "unknown",
+			baselineRepo: () => this.#baselineRepo(),
+			policy: () => this.#requirePolicy(),
+			now: () => this.now(),
+			loadState: () => this.#requireState(),
+			// Serialized with the poller and every request, like any other state change.
+			submit: (event) => this.#serial(() => this.#submit(event)),
+			catchUp: async (repo) => {
+				await this.#serial(() => this.#pollAll({ repos: [repo] }));
+			},
+			activity: (workItemId, kind, text) => this.publishActivity({ type: "agent-activity", workItemId, runId: "delta", kind, text, ts: this.now() }),
+			retryIntervalMs: () => this.pollIntervalMs(),
+			logError: (what, error) => this.#logError(what, error),
+		};
+	}
+
+	/** Wake the alarm soon: something is waiting for it. */
+	async #kick(): Promise<void> {
+		await this.ctx.storage.setAlarm(Date.now() + 25);
 	}
 
 	get #contextReader(): ContextReader {
@@ -213,7 +264,7 @@ export abstract class CellBase extends DurableObject<Env> {
 		for (const effect of effects) {
 			if (effect.type !== "DISPATCH_WORK") continue;
 			try {
-				await this.onDispatchWork(effect);
+				await this.onDispatchWork(effect, entry);
 			} catch (error) {
 				this.#logError("dispatch effect failed", error);
 			}
@@ -346,9 +397,11 @@ export abstract class CellBase extends DurableObject<Env> {
 
 	override async alarm(): Promise<void> {
 		try {
-			await this.#serial(() => this.#pollAll({ backoff: true }));
-		} catch (error) {
-			this.#logError("poll failed", error);
+			// The re-dispatch jobs advance beside the poll, not behind it: neither waits for the other.
+			await Promise.all([
+				this.#serial(() => this.#pollAll({ backoff: true })).catch((error) => this.#logError("poll failed", error)),
+				this.stepDispatches(),
+			]);
 		} finally {
 			// Always schedule the next tick: a failed one must not stop the loop.
 			if (this.#meta.baselineRepo()) await this.ctx.storage.setAlarm(Date.now() + this.pollIntervalMs());
@@ -542,6 +595,42 @@ export abstract class CellBase extends DurableObject<Env> {
 			}
 		}
 		return applied;
+	}
+
+	/** Advance the re-dispatch jobs one step each. The alarm does this every tick; also a test and operations hook. */
+	async stepDispatches(): Promise<void> {
+		try {
+			await this.#dispatch?.step();
+		} catch (error) {
+			this.#logError("re-dispatch step failed", error);
+		}
+	}
+
+	/** Re-dispatches owed to the agent runtime and how far each got (GET .../dispatches). */
+	dispatches(): Promise<CellResult> {
+		return this.#answer(async () => {
+			await this.#requireState();
+			return {
+				status: 200,
+				body: {
+					runtime: this.#dispatch !== null,
+					jobs: this.#meta.dispatches().map((job) => {
+						const payload = (job.payload ?? {}) as { runtimeId?: string; baseHead?: string; noteError?: string; receipt?: { contextPacketHash?: string; noteRef?: string; accepted?: Array<{ recordId: string; version: number }> } };
+						return {
+							requestId: job.requestId,
+							workItemId: job.workItemId,
+							phase: job.phase,
+							runtimeId: payload.runtimeId ?? null,
+							runId: job.runId,
+							attempts: job.attempts,
+							error: job.error,
+							receipt: payload.receipt ? { contextPacketHash: payload.receipt.contextPacketHash ?? null, noteRef: payload.receipt.noteRef ?? null, accepted: payload.receipt.accepted ?? [] } : null,
+							noteError: payload.noteError ?? null,
+						};
+					}),
+				},
+			};
+		});
 	}
 
 	/** Test and operations hook: poll now instead of waiting for the alarm (ignores any backoff). */

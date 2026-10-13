@@ -355,7 +355,7 @@ export class AgentSandbox extends DurableObject<Env> {
 				? `${buildRevalidationPrompt(input.revalidate.changes)}\n\nOriginal task:\n${input.prompt}`
 				: input.prompt;
 			const subjectText = input.revalidate
-				? `revalidate ${input.revalidate.changes.map((c) => `${c.recordId} v${c.fromVersion}->v${c.toVersion}`).join(", ")}`
+				? `revalidate ${input.revalidate.changes.map((c) => `${c.recordId} v${c.fromVersion}->v${c.toVersion}`).join(", ") || "claims"}`
 				: input.prompt;
 
 			const env: Record<string, string> = {

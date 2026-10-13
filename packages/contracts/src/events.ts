@@ -121,6 +121,8 @@ export const AgentRunStarted = z.strictObject({
 	...base,
 	workItemId: WorkItemId,
 	runId: z.string().min(1),
+	/** Additive and optional: what runs the work, for the console ("openai/gpt-6-luna", or "stub agent"). Display only; nothing decides on it. */
+	model: z.string().min(1).max(100).optional(),
 });
 
 export const AgentRunFinished = z.strictObject({
@@ -130,6 +132,16 @@ export const AgentRunFinished = z.strictObject({
 	runId: z.string().min(1),
 	outcome: z.enum(["success", "failure", "cancelled"]),
 });
+
+/**
+ * The run id the Worker uses to close a revalidation whose dispatch failed without (or after) any real run:
+ * an `AgentRunFinished` with outcome `failure` and this id for the revalidate resolution's request key. The
+ * reducer treats it as the end of that revalidation, so a job that dies before a run starts cannot leave the
+ * item stuck. (An existing event, so older readers need no new case.)
+ */
+export function dispatchFailedRunId(requestId: string): string {
+	return `dispatch-failed:${requestId}`;
+}
 
 export const DeltaEvent = z.discriminatedUnion("type", [
 	BaselinePushed,

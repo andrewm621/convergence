@@ -141,4 +141,15 @@ describe("runStubAgent", () => {
 		const fresh = runStubAgent({ ...input, indexTs: null });
 		expect(fresh.files["src/index.ts"]).toBe('export * from "./work/wi-2";\n');
 	});
+
+	it("with a receipt (deliveredIds) it covers every facet of exactly the delivered records, whatever the title says", () => {
+		const titleOnly = runStubAgent({ ...input, prompt: "Notification delivery" });
+		expect(titleOnly.claims.every((c) => c.basedOn.startsWith("notifications@"))).toBe(true);
+		const delivered = runStubAgent({ ...input, prompt: "Notification delivery", deliveredIds: ["notifications", "status-model"] });
+		expect(new Set(delivered.claims.map((c) => c.basedOn.split("@")[0]))).toEqual(new Set(["notifications", "status-model"]));
+		expect(delivered.files["src/work/wi-2.ts"]).toContain("export const STATUS_VALUES =");
+		const only = runStubAgent({ ...input, prompt: "Notification delivery", deliveredIds: ["status-model"] });
+		expect(only.claims.every((c) => c.basedOn.startsWith("status-model@"))).toBe(true);
+		expect(runStubAgent({ ...input, deliveredIds: [] }).claims).toEqual([]);
+	});
 });

@@ -28,6 +28,12 @@ export interface StubInput {
 	contextFiles: Record<string, string>;
 	/** Current content of `src/index.ts`, or null when the fork has none. */
 	indexTs: string | null;
+	/**
+	 * The record ids the control plane delivered for this run (a revalidation's receipt). When set, the stub writes a
+	 * constant and a claim for every facet of exactly those records, not what the task title suggests: the receipt
+	 * is what the work item relies on.
+	 */
+	deliveredIds?: string[] | null;
 }
 
 export interface StubOutput {
@@ -119,9 +125,10 @@ export function runStubAgent(input: StubInput): StubOutput {
 		.map((path) => parseContextRecord(input.contextFiles[path] ?? ""))
 		.filter((r): r is ContextRecord => r !== null)
 		.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-	// A prompt that names none of them gets them all (nothing to narrow by).
+	// A run with a receipt covers the records it delivered. Otherwise a prompt that names none of them gets them all.
+	const delivered = input.deliveredIds ?? null;
 	const named = all.filter((r) => inScope(r, input.prompt));
-	const records = named.length > 0 ? named : all;
+	const records = delivered !== null ? all.filter((r) => delivered.includes(r.id)) : named.length > 0 ? named : all;
 
 	const claims: Claim[] = [];
 	const constants: string[] = [];

@@ -40,11 +40,24 @@ const merged = { ...readContext(join(repo, "context")), ...readContext(join(repo
 const contextFiles = Object.fromEntries(Object.entries(merged).map(([name, text]) => [`context/${name}`, text]));
 await sleep(stepMs);
 
+// A revalidation run carries the receipt of what the control plane delivered; the stub covers exactly those records.
+let deliveredIds = null;
+const receiptPath = join(repo, ".delta", "receipt.json");
+if (existsSync(receiptPath)) {
+	try {
+		const receipt = JSON.parse(readFileSync(receiptPath, "utf8"));
+		if (Array.isArray(receipt.delivered)) deliveredIds = receipt.delivered.map((d) => String(d.recordId));
+	} catch {
+		// an unreadable receipt leaves the title heuristic in place
+	}
+}
+
 const indexPath = join(repo, "src", "index.ts");
 const result = runStubAgent({
 	workItemId,
 	prompt: process.env.AGENT_PROMPT ?? "",
 	contextFiles,
+	deliveredIds,
 	indexTs: existsSync(indexPath) ? readFileSync(indexPath, "utf8") : null,
 });
 say("plan", result.summary);

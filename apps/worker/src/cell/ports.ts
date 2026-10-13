@@ -57,6 +57,17 @@ export interface MergeRequest {
 	committer: { name: string; email: string };
 }
 
+export interface WriteNoteRequest {
+	repo: string;
+	/** The commit the note annotates. */
+	commitSha: string;
+	/** The notes ref, e.g. refs/notes/delta. Created on the first note. */
+	ref: string;
+	text: string;
+	author: { name: string; email: string };
+	committer: { name: string; email: string };
+}
+
 export interface ArtifactsPort {
 	/** Newest first along the first-parent chain of the default branch. Empty when the repo has no commits. */
 	log(repo: string, options: { limit: number; offset?: number }): Promise<RepoCommit[]>;
@@ -70,4 +81,6 @@ export interface ArtifactsPort {
 	commitFiles(request: CommitFilesRequest): Promise<{ commitSha: string }>;
 	/** Merge a fork head into the baseline default branch and push. Throws MERGE_CONFLICT or STALE_HEAD. */
 	mergeFork(request: MergeRequest): Promise<{ mergeCommitSha: string }>;
+	/** Write (or replace) a note on a commit of a repo and push the notes ref. Never touches the default branch. */
+	writeNote(request: WriteNoteRequest): Promise<void>;
 }

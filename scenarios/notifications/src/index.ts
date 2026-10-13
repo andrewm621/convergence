@@ -17,6 +17,7 @@ import { actors } from "./actors";
 import * as records from "./records";
 
 export * from "./records";
+export * from "./checks";
 export * from "./fanout";
 export { actors } from "./actors";
 

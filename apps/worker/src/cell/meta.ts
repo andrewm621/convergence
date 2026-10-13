@@ -33,6 +33,22 @@ const SCHEMA = [
 		actor TEXT NOT NULL,
 		created_ms INTEGER NOT NULL
 	)`,
+	// Re-dispatches the cell owes the agent runtime: one row per accepted revalidate resolution, keyed by its Idempotency-Key.
+	`CREATE TABLE IF NOT EXISTS dispatch_jobs (
+		request_id TEXT PRIMARY KEY,
+		work_item_id TEXT NOT NULL,
+		phase TEXT NOT NULL CHECK (phase IN ('queued', 'prepared', 'receipted', 'running', 'done', 'failed')),
+		diff TEXT NOT NULL,
+		payload TEXT,
+		run_id TEXT,
+		attempts INTEGER NOT NULL DEFAULT 0,
+		misses INTEGER NOT NULL DEFAULT 0,
+		requeues INTEGER NOT NULL DEFAULT 0,
+		retry_at INTEGER,
+		error TEXT,
+		created_ms INTEGER NOT NULL,
+		updated_ms INTEGER NOT NULL
+	)`,
 	"CREATE TABLE IF NOT EXISTS idempotency (key TEXT PRIMARY KEY, fingerprint TEXT NOT NULL, status INTEGER NOT NULL, body TEXT NOT NULL, created_at TEXT NOT NULL)",
 ];
 
@@ -66,6 +82,45 @@ export type PendingPromotion = {
 	mergeSha: string | null;
 	actor: string;
 	createdMs: number;
+};
+
+export type DispatchPhase = "queued" | "prepared" | "receipted" | "running" | "done" | "failed";
+
+/** A re-dispatch the cell owes the agent runtime. `diff` and `payload` are JSON the dispatcher owns (dispatch-jobs.ts). */
+export type DispatchJobRow = {
+	requestId: string;
+	workItemId: string;
+	phase: DispatchPhase;
+	diff: unknown;
+	payload: unknown | null;
+	runId: string | null;
+	attempts: number;
+	/** Consecutive status reads that found no run record, while one should exist. */
+	misses: number;
+	/** Times the job was sent back to the start because the receipt it prepared was overtaken (the baseline moved). */
+	requeues: number;
+	retryAt: number | null;
+	error: string | null;
+	createdMs: number;
+	updatedMs: number;
+};
+
+export type DispatchJobPatch = Partial<Pick<DispatchJobRow, "phase" | "payload" | "runId" | "attempts" | "misses" | "requeues" | "retryAt" | "error">>;
+
+type RawDispatch = {
+	request_id: string;
+	work_item_id: string;
+	phase: DispatchPhase;
+	diff: string;
+	payload: string | null;
+	run_id: string | null;
+	attempts: number;
+	misses: number;
+	requeues: number;
+	retry_at: number | null;
+	error: string | null;
+	created_ms: number;
+	updated_ms: number;
 };
 
 export type StoredResponse = { status: number; body: unknown };
@@ -223,6 +278,42 @@ export class CellMeta {
 		this.#db.all("DELETE FROM pending_promotions WHERE work_item_id = ?", workItemId);
 	}
 
+	// ---------- re-dispatches owed to the agent runtime ----------
+
+	/** Queue a re-dispatch. A second call with the same key (the resolution replayed) is ignored. */
+	enqueueDispatch(job: { requestId: string; workItemId: string; diff: unknown; nowMs: number }): void {
+		this.#db.all(
+			"INSERT OR IGNORE INTO dispatch_jobs (request_id, work_item_id, phase, diff, created_ms, updated_ms) VALUES (?, ?, 'queued', ?, ?, ?)",
+			job.requestId,
+			job.workItemId,
+			JSON.stringify(job.diff),
+			job.nowMs,
+			job.nowMs,
+		);
+	}
+
+	/** Jobs still owed work, oldest first. */
+	activeDispatches(): DispatchJobRow[] {
+		return this.#db.all<RawDispatch>("SELECT * FROM dispatch_jobs WHERE phase NOT IN ('done', 'failed') ORDER BY created_ms, request_id").map(toDispatch);
+	}
+
+	/** Every job, newest first (a diagnostic: GET .../dispatches). */
+	dispatches(): DispatchJobRow[] {
+		return this.#db.all<RawDispatch>("SELECT * FROM dispatch_jobs ORDER BY created_ms DESC, request_id DESC").map(toDispatch);
+	}
+
+	updateDispatch(requestId: string, patch: DispatchJobPatch, nowMs: number): void {
+		const sets: string[] = ["updated_ms = ?"];
+		const values: unknown[] = [nowMs];
+		const column: Record<keyof DispatchJobPatch, string> = { phase: "phase", payload: "payload", runId: "run_id", attempts: "attempts", misses: "misses", requeues: "requeues", retryAt: "retry_at", error: "error" };
+		for (const key of Object.keys(patch) as Array<keyof DispatchJobPatch>) {
+			sets.push(`${column[key]} = ?`);
+			const value = patch[key];
+			values.push(key === "payload" ? (value === null || value === undefined ? null : JSON.stringify(value)) : (value ?? null));
+		}
+		this.#db.all(`UPDATE dispatch_jobs SET ${sets.join(", ")} WHERE request_id = ?`, ...values, requestId);
+	}
+
 	// ---------- record files ----------
 
 	recordPath(recordId: string): string | null {
@@ -276,6 +367,24 @@ export class CellMeta {
 	rememberResponse(key: string, fingerprint: string, response: StoredResponse, at: string): void {
 		this.#db.all("INSERT OR REPLACE INTO idempotency (key, fingerprint, status, body, created_at) VALUES (?, ?, ?, ?, ?)", key, fingerprint, response.status, JSON.stringify(response.body), at);
 	}
+}
+
+function toDispatch(row: RawDispatch): DispatchJobRow {
+	return {
+		requestId: row.request_id,
+		workItemId: row.work_item_id,
+		phase: row.phase,
+		diff: JSON.parse(row.diff),
+		payload: row.payload === null ? null : JSON.parse(row.payload),
+		runId: row.run_id,
+		attempts: row.attempts,
+		misses: row.misses,
+		requeues: row.requeues,
+		retryAt: row.retry_at,
+		error: row.error,
+		createdMs: row.created_ms,
+		updatedMs: row.updated_ms,
+	};
 }
 
 function toTracked(row: RawTracked): TrackedRow {

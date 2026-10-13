@@ -7,10 +7,12 @@ import { Hono } from "hono";
 import { LedgerConflictError } from "delta-core";
 import { bearerGuard } from "../auth";
 import { CellBase } from "../cell-base";
+import type { AgentRuntimePort } from "../agent-port";
 import type { ArtifactsPort } from "../ports";
 import { cellApi } from "../routes";
 import { durableObjectSql } from "../sql";
 import { LedgerCorruptionError, SqliteCellStore } from "../sqlite-store";
+import { FakeAgentRuntime, type FakeAgentBehavior } from "./fake-agent";
 import { FakeWorld, type PortMethod } from "./fake-artifacts";
 
 // Module scope holds only plain maps (no I/O). Keyed by scenario so each test gets its own world,
@@ -25,6 +27,16 @@ function worldFor(name: string): FakeWorld {
 	return world;
 }
 
+const agents = new Map<string, FakeAgentRuntime>();
+function agentFor(name: string): FakeAgentRuntime {
+	let agent = agents.get(name);
+	if (!agent) {
+		agent = new FakeAgentRuntime(worldFor(name));
+		agents.set(name, agent);
+	}
+	return agent;
+}
+
 export type WorldOp =
 	| { op: "create"; repo: string; files: Record<string, string>; author?: string }
 	| { op: "fork"; base: string; repo: string }
@@ -34,11 +46,21 @@ export type WorldOp =
 	| { op: "pushMany"; repo: string; count: number }
 	| { op: "fail"; method: PortMethod; times?: number; skip?: number }
 	| { op: "failAfter"; method: PortMethod }
-	| { op: "calls" };
+	| { op: "calls" }
+	| { op: "note"; repo: string; commit: string }
+	| { op: "agent"; behavior: Partial<FakeAgentBehavior> }
+	| { op: "agentRelease" }
+	| { op: "agentCalls" };
 
 export class TestCell extends CellBase {
 	protected createPort(): ArtifactsPort {
 		return worldFor(this.ctx.id.name ?? "default").port();
+	}
+
+	protected override createAgentRuntime(): AgentRuntimePort | null {
+		const name = this.ctx.id.name ?? "default";
+		// A scenario has an agent runtime only once a test asks for one, so the other tests see a cell with none.
+		return agents.has(name) ? agentFor(name) : null;
 	}
 
 	async testWorld(op: WorldOp): Promise<unknown> {
@@ -67,6 +89,16 @@ export class TestCell extends CellBase {
 				return null;
 			case "calls":
 				return world.calls;
+			case "note":
+				return world.noteAt(op.repo, op.commit);
+			case "agent":
+				agentFor(this.ctx.id.name ?? "default").setBehavior(op.behavior);
+				return null;
+			case "agentRelease":
+				agentFor(this.ctx.id.name ?? "default").release();
+				return null;
+			case "agentCalls":
+				return agentFor(this.ctx.id.name ?? "default").calls;
 		}
 	}
 
