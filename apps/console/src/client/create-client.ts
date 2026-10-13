@@ -20,9 +20,11 @@ export type Runtime = {
 export function readRuntime(search: string, env: { VITE_MOCK?: string } = import.meta.env): Runtime {
 	const params = new URLSearchParams(search);
 	const scenarioParam = params.get("scenario");
+	const mock = env.VITE_MOCK === "1" || params.get("mock") === "1";
 	return {
-		mock: env.VITE_MOCK === "1" || params.get("mock") === "1",
-		scenario: isScenarioName(scenarioParam) ? scenarioParam : "notifications",
+		mock,
+		// The build replay exists only in the mock: the Worker has no such scenario.
+		scenario: isScenarioName(scenarioParam) && (mock || scenarioParam !== "delta-convergence-build") ? scenarioParam : "notifications",
 		start: params.get("start") === "empty" ? "empty" : "seeded",
 		script: params.get("script") ?? undefined,
 		drip: params.get("drip") !== "0",

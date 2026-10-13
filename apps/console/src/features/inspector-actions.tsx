@@ -2,6 +2,8 @@ import type { ResolutionBinding, WorkItemState } from "contracts";
 import { CircleAlert, CircleCheck, Gavel, Loader, RefreshCw, ShieldAlert, ShieldCheck, ThumbsDown, TriangleAlert } from "lucide-react";
 import { useMemo, useState, type FormEvent } from "react";
 import { newIdempotencyKey, type ResolveInput } from "@/client/types";
+import { CommitSha } from "@/components/commit-sha";
+import { UnavailableHint } from "@/components/unavailable-hint";
 import { ActorChip, ReasonChip } from "@/components/status";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,6 +14,7 @@ import { useConsole } from "@/state/console-context";
 import { analysisOf, currentRecord, exceptionStatus } from "@/state/derive";
 import { useGate } from "@/state/use-gate";
 import { PromoteButton } from "./promote-button";
+import { SCENARIO_META } from "./scenario-meta";
 
 export function ActionsTab({ wi }: { wi: WorkItemState }) {
 	const id = wi.item.id;
@@ -41,7 +44,7 @@ export function GatePreview({ workItemId }: { workItemId: string }) {
 				<h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Gate preview</h3>
 				<span className="ml-auto flex items-center gap-1.5 text-[11px] text-muted-foreground">
 					{loading && <Loader className="size-3 animate-spin" aria-hidden />}
-					dry run · baseline {shortHash(view.baselineCommit)} · head {shortHash(wi?.headSha)}
+					dry run · baseline <CommitSha sha={view.baselineCommit} /> · head <CommitSha sha={wi?.headSha} />
 				</span>
 			</div>
 			{promoted ? (
@@ -123,7 +126,8 @@ function Resolutions({ wi }: { wi: WorkItemState }) {
 	const promoted = wi.item.status === "promoted";
 	const noPush = wi.headSha === null;
 	const defaultRecord = candidates[0] ?? null;
-	const reason = promoted ? "Already promoted." : noPush ? "Waiting for the agent's first push: a resolution binds to a specific head." : null;
+	const readOnly = SCENARIO_META[client.scenario].readOnlyReason;
+	const reason = readOnly ?? (promoted ? "Already promoted." : noPush ? "Waiting for the agent's first push: a resolution binds to a specific head." : null);
 
 	async function submit(input: Omit<ResolveInput, "binding" | "workItemId">, recordId: string | null, label: string): Promise<boolean> {
 		const binding = recordId ? bindingFor(view, wi, recordId) : null;
@@ -144,21 +148,28 @@ function Resolutions({ wi }: { wi: WorkItemState }) {
 		<section aria-label="Resolve" className="space-y-3">
 			<h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Resolve</h3>
 			<div className="flex flex-wrap gap-2">
-				<Button
-					size="sm"
-					variant="outline"
-					disabled={Boolean(reason) || wi.revalidating || busy !== null}
-					onClick={() => void submit({ kind: "revalidate", rationale: staleNote ? `Decision changed under this work: ${staleNote}.` : "Re-run on the current decisions." }, defaultRecord, "Revalidate")}
-				>
-					{busy === "Revalidate" ? <Loader className="animate-spin" aria-hidden /> : <RefreshCw aria-hidden />}
-					Revalidate
-				</Button>
-				<Button size="sm" variant="outline" disabled={Boolean(reason) || busy !== null} aria-expanded={open === "exception"} onClick={() => setOpen(open === "exception" ? null : "exception")}>
-					<Gavel aria-hidden /> Accept exception
-				</Button>
-				<Button size="sm" variant="outline" disabled={Boolean(reason) || busy !== null} aria-expanded={open === "reject"} onClick={() => setOpen(open === "reject" ? null : "reject")}>
-					<ThumbsDown aria-hidden /> Reject
-				</Button>
+				<UnavailableHint available={!readOnly} reason={readOnly ?? ""}>
+					<Button
+						size="sm"
+						variant="outline"
+						data-testid="revalidate-button"
+						disabled={Boolean(reason) || wi.revalidating || busy !== null}
+						onClick={() => void submit({ kind: "revalidate", rationale: staleNote ? `Decision changed under this work: ${staleNote}.` : "Re-run on the current decisions." }, defaultRecord, "Revalidate")}
+					>
+						{busy === "Revalidate" ? <Loader className="animate-spin" aria-hidden /> : <RefreshCw aria-hidden />}
+						Revalidate
+					</Button>
+				</UnavailableHint>
+				<UnavailableHint available={!readOnly} reason={readOnly ?? ""}>
+					<Button size="sm" variant="outline" disabled={Boolean(reason) || busy !== null} aria-expanded={open === "exception"} onClick={() => setOpen(open === "exception" ? null : "exception")}>
+						<Gavel aria-hidden /> Accept exception
+					</Button>
+				</UnavailableHint>
+				<UnavailableHint available={!readOnly} reason={readOnly ?? ""}>
+					<Button size="sm" variant="outline" disabled={Boolean(reason) || busy !== null} aria-expanded={open === "reject"} onClick={() => setOpen(open === "reject" ? null : "reject")}>
+						<ThumbsDown aria-hidden /> Reject
+					</Button>
+				</UnavailableHint>
 			</div>
 			{reason && <p className="text-xs text-muted-foreground">{reason}</p>}
 			{!reason && wi.revalidating && <p className="text-xs text-muted-foreground">Revalidation is running. The agent will push again on the current decisions.</p>}

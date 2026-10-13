@@ -111,7 +111,7 @@ export function Header({
 	poller?: PollerHealth | null;
 }) {
 	const [theme, toggleTheme] = useTheme();
-	const note = SCENARIO_META[scenario].note;
+	const { note, noteLead = SYNTHETIC_NOTE } = SCENARIO_META[scenario];
 	return (
 		<>
 			<header className="flex h-14 shrink-0 items-center gap-4 border-b bg-card px-4">
@@ -154,7 +154,7 @@ export function Header({
 				<div role="note" data-testid="scenario-note" className="flex shrink-0 items-center gap-2 border-b bg-info/10 px-4 py-1.5 text-[13px] text-foreground">
 					<Info aria-hidden className="size-3.5 shrink-0 text-info" />
 					<span>
-						<strong className="font-semibold">{SYNTHETIC_NOTE}</strong> {note.slice(SYNTHETIC_NOTE.length).trim()}
+						<strong className="font-semibold">{noteLead}</strong> {note.slice(noteLead.length).trim()}
 					</span>
 				</div>
 			)}

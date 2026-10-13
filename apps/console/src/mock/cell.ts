@@ -24,7 +24,7 @@ import type { ConsoleMessage } from "@/client/types";
 
 /** The parts of a scenario fixture the mock needs. Both fixtures satisfy it structurally. */
 export type MockScenario = {
-	name: "notifications" | "sales-ops" | "shelter-intake";
+	name: "notifications" | "sales-ops" | "shelter-intake" | "delta-convergence-build";
 	repo: string;
 	seed: { baselineCommit: string; snapshotHash: string; records: RecordSnapshot[] };
 	policy: Policy;
@@ -33,7 +33,9 @@ export type MockScenario = {
 	dependencies: Record<string, Dependency[]>;
 	docs: Record<string, ScenarioDoc>;
 	events: Record<string, DeltaEvent>;
-	evidence: Record<string, { workItemId?: string; check: string; pass: boolean; output: string }>;
+	evidence?: Record<string, { workItemId?: string; check: string; pass: boolean; output: string }>;
+	/** Keep each event's own timestamp (a replay of recorded history) instead of the virtual clock's. */
+	realTimestamps?: boolean;
 };
 
 export type Emit = (message: ConsoleMessage) => void;
@@ -110,7 +112,7 @@ export class MockCell {
 
 	/** Run one event through the real engine, stamp it with the virtual clock, and emit the ledger line. */
 	async send(input: DeltaEvent, options: { stepSeconds?: number } = {}): Promise<SentResult> {
-		const event = DeltaEvent.parse({ ...input, ts: this.clock.next(options.stepSeconds) });
+		const event = DeltaEvent.parse({ ...input, ts: this.scenario.realTimestamps ? input.ts : this.clock.next(options.stepSeconds) });
 		const before = await this.state();
 
 		// Time the pure evaluation on its own; the ledger append is not part of "how fast is the referee".

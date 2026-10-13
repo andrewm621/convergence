@@ -11,6 +11,7 @@ import { ActionsTab } from "./inspector-actions";
 import { ChangesTab, ReceiptTab, SemanticTab } from "./inspector-tabs";
 import { WhyTab } from "./inspector-why";
 import { PromoteButton } from "./promote-button";
+import { SCENARIO_META } from "./scenario-meta";
 
 export function Inspector() {
 	const { view, selectedId } = useConsole();
@@ -50,7 +51,7 @@ function NothingSelected() {
 }
 
 function WorkItemInspector({ wi }: { wi: WorkItemState }) {
-	const { view, tab, setTab } = useConsole();
+	const { view, tab, setTab, client } = useConsole();
 	const { gate } = useGate(wi.item.id);
 	const running = useMemo(() => runningAgents(view.ledger).has(wi.item.id), [view.ledger, wi.item.id]);
 	const blocked = wi.item.status !== "promoted" && gate !== null && !gate.pass;
@@ -66,7 +67,7 @@ function WorkItemInspector({ wi }: { wi: WorkItemState }) {
 				<h2 className="text-[15px] leading-snug font-semibold">{wi.item.title}</h2>
 				<div className="flex flex-wrap items-center gap-2">
 					<StatusChip status={wi.item.status} />
-					<ActorChip actor={wi.item.actor} label={agentModelOf(view.ledger, wi.item.id) ?? undefined} />
+					<ActorChip actor={wi.item.actor} label={SCENARIO_META[client.scenario].agentLabel ?? agentModelOf(view.ledger, wi.item.id) ?? undefined} />
 					<PromoteButton workItemId={wi.item.id} className="ml-auto" />
 				</div>
 			</div>
