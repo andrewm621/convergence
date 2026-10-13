@@ -3,7 +3,7 @@ import { assertSafePath, errorCode, getRepo } from "./artifacts/git-write";
 import { redactDeep, redactText } from "./artifacts/tokens";
 import { DispatchError, dispatchAgent, presentRun } from "./agents/dispatch";
 import { DispatchRequest, IdempotencyKey, REPO_NAME_RE, RefName, WORK_ITEM_ID_RE } from "./agents/protocol";
-import { purgeSmokeRepos, runSmoke, seedForks } from "./smoke";
+import { NOTIFICATIONS_SCENARIO_FILES, purgeSmokeRepos, runSmoke, seedForks } from "./smoke";
 import { bearerGuard } from "./cell/auth";
 import { cellApi } from "./cell/routes";
 
@@ -41,9 +41,11 @@ app.delete("/api/smoke", async (c) => {
 });
 
 // A baseline plus N ready forks, for trying the agent runtime. Delete them with DELETE /api/smoke.
+// ?scenario=notifications seeds the baseline with Scenario A's accepted records, for the control loop.
 app.post("/api/smoke/seed", async (c) => {
 	const count = Math.min(Math.max(Number(c.req.query("forks") ?? 2) || 2, 1), 6);
-	return c.json(redactDeep(await seedForks(c.env, count)));
+	const files = c.req.query("scenario") === "notifications" ? NOTIFICATIONS_SCENARIO_FILES : undefined;
+	return c.json(redactDeep(await seedForks(c.env, count, files)));
 });
 
 app.post("/api/agents/dispatch", async (c) => {

@@ -1,6 +1,7 @@
 import { commitFiles, errorCode, getRepo, sleep } from "./artifacts/git-write";
 import { diffCommits, type TreeDiff } from "./artifacts/tree-diff";
 import { redactDeep } from "./artifacts/tokens";
+import { NOTIFICATIONS_V1, STATUS_MODEL_V1 } from "scenario-notifications";
 import { NOTIFICATIONS_V2, SEED_FILES, recordVersion } from "./smoke-fixtures";
 
 const BRANCH = "main";
@@ -227,6 +228,14 @@ export async function runSmoke(env: Env, opts: SmokeOptions = {}): Promise<Smoke
 	return finish();
 }
 
+/** The baseline files of Scenario A: the two accepted records the notifications policy governs, plus the agent protocol and a source file. */
+export const NOTIFICATIONS_SCENARIO_FILES: Record<string, string> = {
+	"AGENTS.md": SEED_FILES["AGENTS.md"]!,
+	"context/notifications.md": NOTIFICATIONS_V1,
+	"context/status-model.md": STATUS_MODEL_V1,
+	"src/index.ts": SEED_FILES["src/index.ts"]!,
+};
+
 export interface SeededScenario {
 	baseline: { name: string; remote: string };
 	forks: { name: string; remote: string }[];
@@ -238,12 +247,12 @@ export interface SeededScenario {
  * A baseline with the seed commit plus `count` ready forks, for exercising the agent runtime.
  * Names start with `smoke-` so DELETE /api/smoke can purge them.
  */
-export async function seedForks(env: Env, count: number): Promise<SeededScenario> {
+export async function seedForks(env: Env, count: number, files: Record<string, string> = SEED_FILES): Promise<SeededScenario> {
 	const prefix = `smoke-m1-${Date.now()}`;
 	const baselineName = `${prefix}-baseline`;
 	const created = await env.ARTIFACTS.create(baselineName, { setDefaultBranch: BRANCH });
 	let allRevoked = await revokeToken(env, baselineName, created.token);
-	await commitFiles(env, baselineName, SEED_FILES, "seed: baseline context v1", { retryNotFound: true });
+	await commitFiles(env, baselineName, files, "seed: baseline context v1", { retryNotFound: true });
 
 	const forks = await Promise.all(
 		Array.from({ length: count }, async (_, i) => {

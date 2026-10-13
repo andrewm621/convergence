@@ -261,6 +261,11 @@ export class CellMeta {
 		return row ? { kind: row.kind, actor: row.actor } : null;
 	}
 
+	/** The most recent commits the Worker pushed to the baseline, newest first (a diagnostic: GET .../poller). */
+	recentWritten(limit: number): Array<{ sha: string; kind: "context" | "merge"; actor: string }> {
+		return this.#db.all<{ sha: string; kind: "context" | "merge"; actor: string }>("SELECT sha, kind, actor FROM written_commits ORDER BY rowid DESC LIMIT ?", limit);
+	}
+
 	// ---------- Idempotency-Key ----------
 
 	idempotent(key: string): { fingerprint: string; response: StoredResponse } | null {

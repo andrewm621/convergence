@@ -564,8 +564,8 @@ export abstract class CellBase extends DurableObject<Env> {
 		});
 	}
 
-	pollerStatus(): Promise<{ intervalMs: number; repos: TrackedRow[]; health: ReturnType<CellMeta["health"]> }> {
-		return Promise.resolve({ intervalMs: this.pollIntervalMs(), repos: this.#meta.tracked(), health: this.#meta.health() });
+	pollerStatus(): Promise<{ intervalMs: number; repos: TrackedRow[]; health: ReturnType<CellMeta["health"]>; written: ReturnType<CellMeta["recentWritten"]> }> {
+		return Promise.resolve({ intervalMs: this.pollIntervalMs(), repos: this.#meta.tracked(), health: this.#meta.health(), written: this.#meta.recentWritten(20) });
 	}
 
 	/**

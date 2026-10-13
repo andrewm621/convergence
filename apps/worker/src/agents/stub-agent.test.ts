@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
+import { ClaimsFile as ContractClaimsFile } from "contracts";
 import { parseContextRecord, runStubAgent } from "../../container/stub-agent-lib";
 
 // Mirrors the Claim / ClaimsFile contract in packages/contracts (PRD section 4): subject, value, basedOn.
@@ -55,6 +56,11 @@ describe("parseContextRecord", () => {
 		});
 	});
 
+	it("reads the quoted facet keys and values the Worker writes into a record", () => {
+		const written = '---\nid: notifications\nversion: 2\nauthority: "decision-owner"\nfacets:\n  "notifications.cadence": "weekly-digest"\n  "notifications.default": "opt-in"\nnot:\n  "notifications.default": "on"\n---\n# Notifications\n';
+		expect(parseContextRecord(written)).toEqual({ id: "notifications", version: 2, facets: { "notifications.cadence": "weekly-digest", "notifications.default": "opt-in" } });
+	});
+
 	it("keeps YAML 1.2 `on` as a string", () => {
 		expect(parseContextRecord(notifications)?.facets["notifications.default"]).toBe("on");
 	});
@@ -79,14 +85,31 @@ describe("runStubAgent", () => {
 		expect(written).toEqual(out.claims);
 	});
 
-	it("cites recordId@version for every claim", () => {
+	it("cites recordId@version for every claim, for the records the task is about", () => {
 		expect(out.claims.map((c) => [c.subject, c.value, c.basedOn])).toEqual([
 			["notifications.cadence", "immediate", "notifications@1"],
 			["notifications.default", "on", "notifications@1"],
-			["status.flag", true, "status-model@3"],
-			["status.max", 5, "status-model@3"],
-			["status.values", "draft", "status-model@3"],
 		]);
+	});
+
+	it("claims a record the prompt names by its id or its first word, and not the others", () => {
+		const status = runStubAgent({ ...input, prompt: "Add status badges and the status-change API" });
+		expect(new Set(status.claims.map((c) => c.basedOn))).toEqual(new Set(["status-model@3"]));
+		const named = runStubAgent({ ...input, prompt: "Review notifications and status-model together" });
+		expect(new Set(named.claims.map((c) => c.basedOn))).toEqual(new Set(["notifications@1", "status-model@3"]));
+	});
+
+	it("claims every record when the prompt names none of them", () => {
+		const all = runStubAgent({ ...input, prompt: "Tidy the build" });
+		expect(new Set(all.claims.map((c) => c.basedOn))).toEqual(new Set(["notifications@1", "status-model@3"]));
+	});
+
+	it("reads a flow list facet as an array of scalars, as the record parser does", () => {
+		const record = parseContextRecord("---\nid: status-model\nversion: 1\nfacets:\n  status.values: [draft, active, blocked, done]\n  status.none: []\n---\n");
+		expect(record?.facets).toEqual({ "status.values": ["draft", "active", "blocked", "done"], "status.none": [] });
+		const out2 = runStubAgent({ ...input, prompt: "status", contextFiles: { "context/s.md": "---\nid: status-model\nversion: 1\nfacets:\n  status.values: [draft, active]\n---\n" } });
+		expect(out2.claims).toEqual([{ subject: "status.values", value: ["draft", "active"], basedOn: "status-model@1" }]);
+		expect(ContractClaimsFile.safeParse(JSON.parse(out2.files[".delta/claims.json"] as string)).success).toBe(true);
 	});
 
 	it("makes a deterministic code change", () => {

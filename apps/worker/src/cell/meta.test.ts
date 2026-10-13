@@ -59,4 +59,15 @@ describe("poller bookkeeping", () => {
 		meta.advance("fork", A, AT);
 		expect(meta.health().healthy).toBe(true);
 	});
+
+	it("lists the commits the Worker wrote, newest first, with their kind", () => {
+		const meta = tracked();
+		meta.markWritten(A, "context", "decision-owner");
+		meta.markWritten(B, "merge", "decision-owner");
+		expect(meta.recentWritten(10)).toEqual([
+			{ sha: B, kind: "merge", actor: "decision-owner" },
+			{ sha: A, kind: "context", actor: "decision-owner" },
+		]);
+		expect(meta.recentWritten(1)).toHaveLength(1);
+	});
 });
