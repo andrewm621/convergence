@@ -772,3 +772,134 @@ describe("limitStream", () => {
 		await expect(new Response(limitStream(streamOf("abcde", "fghij", "k"), 8)).text()).rejects.toThrow(/body too large/);
 	});
 });
+
+// ---- Cost-cap bypass audit (finding from the automated review of 33fcd24) ----
+// Every path where a call's dollars could escape the per-run cap: a reported cost trusted over the token count, a zero
+// cost accepted by the meter, usage fields dropped as zero, reasoning tokens, settled ids reused, and rounding.
+describe("cost cap: a call is never charged less than its tokens at the table rates", () => {
+	const price = { inPerM: 1, outPerM: 10 };
+	const base = { upstreamOk: true, outcome: "end" as const, worstInputTokens: 30_000, maxTokens: 1000, price };
+	const priced = (i: number, o: number) => (i * 1 + o * 10) / 1e6;
+
+	it("charges max(reported, computed) when the reported cost is positive but far below the tokens times price", () => {
+		for (const cost of [1e-300, 5e-324, 1e-9, 0.00001]) {
+			const r = settleModelCall({ ...base, seen: { input: 200_000, output: 5000, cost, complete: true } });
+			expect(r.cost).toBeCloseTo(priced(200_000, 5000));
+			expect(r.input).toBe(200_000);
+		}
+	});
+
+	it("keeps a reported cost that is higher than the computed one (a surcharge the table doesn't know about)", () => {
+		expect(settleModelCall({ ...base, seen: { input: 100, output: 20, cost: 0.5, complete: true } }).cost).toBe(0.5);
+	});
+
+	it("the meter itself never takes a zero cost for a call that used tokens, whoever reports it", () => {
+		const limits = { ...DEFAULT_LIMITS, maxCostUsd: 0.25 };
+		for (const cost of [0, undefined as unknown as number]) {
+			const m0 = admit(newMeter("run-1", limits), { kind: "model", requestId: "a", reserveTokens: 100, reserveCostUsd: 0.04 }).meter;
+			const m = recordUsage(m0, { requestId: "a", input: 500_000, output: 10, cost });
+			expect(m.costUsd).toBeCloseTo(0.04);
+		}
+	});
+
+	it("counts the whole run at the cost cap: many cheap-looking reports cannot add up to less than the tokens cost", () => {
+		let m = newMeter("run-1", { ...DEFAULT_LIMITS, maxTotalTokens: 10_000_000, maxCostUsd: 0.25 });
+		let n = 0;
+		for (; n < 20 && !m.exceeded; n++) {
+			const id = `r${n}`;
+			m = admit(m, { kind: "model", requestId: id, reserveTokens: 10, reserveCostUsd: 0.001 }).meter;
+			const c = settleModelCall({ ...base, seen: { input: 100_000, output: 1000, cost: 1e-12, complete: true } });
+			m = recordUsage(m, { requestId: id, ...c });
+		}
+		// 100k in + 1k out at $1/$10 per M is $0.11 a call: the third call crosses $0.25.
+		expect(m.exceeded).toMatch(/cost ceiling/);
+		expect(n).toBeLessThanOrEqual(3);
+	});
+});
+
+describe("cost cap: a settled request id cannot be admitted or settled again", () => {
+	const limits = { ...DEFAULT_LIMITS, maxCostUsd: 0.25 };
+	const req = (requestId: string) => ({ kind: "model" as const, requestId, reserveTokens: 100, reserveCostUsd: 0.01 });
+
+	it("refuses to admit an id that was already settled, so a stale report can't be replayed onto a new reservation", () => {
+		let m = admit(newMeter("run-1", limits), req("a")).meter;
+		m = recordUsage(m, { requestId: "a", input: 10, output: 10, cost: 0.1 });
+		expect(admit(m, req("a")).admission).toMatchObject({ ok: false, status: 403 });
+	});
+
+	it("refuses an id that was folded in at the end of the run", () => {
+		const m = settleOutstanding(admit(newMeter("run-1", limits), req("a")).meter);
+		expect(admit(m, req("a")).admission).toMatchObject({ ok: false, status: 403 });
+	});
+
+	it("still accepts a meter stored before settled ids were tracked, and rejects a damaged list", () => {
+		const m = newMeter("run-1", limits);
+		const { settled: _s, ...old } = m;
+		expect(isSaneMeter(old)).toBe(true);
+		expect(isSaneMeter({ ...m, settled: "a" })).toBe(false);
+		expect(isSaneMeter({ ...m, settled: [1] })).toBe(false);
+	});
+});
+
+describe("cost cap: usage the tracker cannot read is not read as zero", () => {
+	function track(...events: unknown[]) {
+		const t = new UsageTracker();
+		for (const e of events) t.feed(`data: ${JSON.stringify(e)}\n`);
+		return t.result();
+	}
+	const stop = { type: "message_stop" };
+
+	it("marks usage incomplete when an input field is present but unreadable, instead of dropping it", () => {
+		for (const bad of [1.5, -3, "100", 2e9]) {
+			const r = track({ type: "message_start", message: { usage: { input_tokens: bad, cache_read_input_tokens: 5, output_tokens: 1 } } }, { type: "message_delta", usage: { output_tokens: 9 } }, stop);
+			expect(r?.complete).toBe(false);
+		}
+	});
+
+	it("still treats an absent or null cache field as absent (OpenRouter sends null)", () => {
+		const r = track({ type: "message_start", message: { usage: { input_tokens: 10, cache_read_input_tokens: null, output_tokens: 1 } } }, { type: "message_delta", usage: { output_tokens: 9 } }, stop);
+		expect(r).toEqual({ input: 10, output: 9, complete: true });
+	});
+
+	it("does not trust a complete stream that reports zero input tokens for a request that had a body", () => {
+		const r = track({ type: "message_start", message: { usage: { input_tokens: 0, output_tokens: 0 } } }, { type: "message_delta", usage: { output_tokens: 40 } }, stop);
+		expect(r?.complete).toBe(false);
+	});
+
+	it("counts reasoning tokens even when output_tokens does not include them", () => {
+		const r = track({ type: "message_start", message: { usage: { input_tokens: 10, output_tokens: 0 } } }, { type: "message_delta", usage: { output_tokens: 5, output_tokens_details: { reasoning_tokens: 4000 } } }, stop);
+		expect(r).toMatchObject({ output: 4000, complete: true });
+		const r2 = track({ type: "message_start", message: { usage: { input_tokens: 10 } } }, { type: "message_delta", usage: { output_tokens: 5, completion_tokens_details: { reasoning_tokens: 3000 } } }, stop);
+		expect(r2).toMatchObject({ output: 3000 });
+		const r3 = track({ type: "message_start", message: { usage: { input_tokens: 10 } } }, { type: "message_delta", usage: { output_tokens: 5, reasoning_tokens: 2000 } }, stop);
+		expect(r3).toMatchObject({ output: 2000 });
+	});
+
+	it("uses OpenAI-style prompt and completion token figures when they are the larger", () => {
+		const t = new UsageTracker();
+		t.feed(JSON.stringify({ usage: { input_tokens: 3, output_tokens: 2, prompt_tokens: 900, completion_tokens: 700 } }));
+		expect(t.result()).toEqual({ input: 900, output: 700, complete: true });
+	});
+});
+
+describe("cost cap: rounding", () => {
+	it("prices without drifting below the exact figure for large counts, and settles integral token counts", () => {
+		const p = { inPerM: 0.0261, outPerM: 0.9 };
+		expect(priceTokens(p, 999_999, 8192)).toBeGreaterThan(0.0261 * 0.999999);
+		expect(settleModelCall({ upstreamOk: true, outcome: "end", worstInputTokens: 10, maxTokens: 10, price: p, seen: { input: 1, output: 1, complete: true } }).cost).toBeGreaterThan(0);
+	});
+
+	it("trips at exactly the cap and not one rounding step above it", () => {
+		let m = newMeter("run-1", { ...DEFAULT_LIMITS, maxCostUsd: 0.25 });
+		m = admit(m, { kind: "model", requestId: "a", reserveTokens: 1, reserveCostUsd: 0.1 }).meter;
+		m = recordUsage(m, { requestId: "a", input: 1, output: 1, cost: 0.25 });
+		expect(m.exceeded).toMatch(/cost ceiling/);
+		let n = newMeter("run-1", { ...DEFAULT_LIMITS, maxCostUsd: 0.25 });
+		for (let i = 0; i < 10; i++) {
+			n = admit(n, { kind: "model", requestId: `r${i}`, reserveTokens: 1, reserveCostUsd: 0.025 }).meter;
+			n = recordUsage(n, { requestId: `r${i}`, input: 1, output: 1, cost: 0.025 });
+		}
+		// ten charges of 0.025 sum to 0.25 (give or take a float error): the run must be at its cap
+		expect(n.exceeded).toMatch(/cost ceiling/);
+	});
+});

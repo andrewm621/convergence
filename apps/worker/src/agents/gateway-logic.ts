@@ -250,6 +250,12 @@ export interface Meter {
 	costUsd: number;
 	/** Admitted model requests that have not been settled yet, by request id. Each holds its worst case. */
 	inflight: Record<string, Reservation>;
+	/**
+	 * Ids that were admitted and since settled (or folded in at the run's end). An id is single-use: it can't be
+	 * admitted again, so a replayed report can never settle a new reservation with an old, smaller figure. At most
+	 * `maxModelRequests` entries. Absent on a meter stored before this field existed.
+	 */
+	settled?: string[];
 	limits: RunLimits;
 }
 
@@ -278,6 +284,13 @@ export function reservedCostUsd(meter: Meter): number {
 const isCount = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && v >= 0;
 
 /**
+ * Dollar figures are summed as floats, so ten charges of 0.025 can land a hair under 0.25. Anything within a
+ * nano-dollar of the cap counts as at the cap.
+ */
+const COST_EPSILON_USD = 1e-9;
+const costAtCap = (usd: number, cap: number): boolean => usd >= cap - COST_EPSILON_USD;
+
+/**
  * Is a stored meter intact? A value that fails this (a missing field, NaN, a negative, a wrong type) must be treated
  * as no meter at all, which refuses everything, rather than read as "nothing used yet".
  */
@@ -290,6 +303,7 @@ export function isSaneMeter(m: unknown): m is Meter {
 	if (![x.modelRequests, x.gitRequests, x.inputTokens, x.outputTokens, x.costUsd].every(isCount)) return false;
 	if (!l || ![l.maxModelRequests, l.maxGitRequests, l.maxTotalTokens, l.maxOutputTokens, l.maxCostUsd].every(isCount)) return false;
 	if (!x.inflight || typeof x.inflight !== "object" || Array.isArray(x.inflight)) return false;
+	if (x.settled !== undefined && (!Array.isArray(x.settled) || !x.settled.every((id) => typeof id === "string"))) return false;
 	return Object.values(x.inflight).every((r) => !!r && isCount((r as Reservation).tokens) && isCount((r as Reservation).costUsd));
 }
 
@@ -308,13 +322,13 @@ export function admit(meter: Meter, req: AdmitRequest): { meter: Meter; admissio
 		return { meter: { ...meter, gitRequests: meter.gitRequests + 1 }, admission: { ok: true } };
 	}
 	// A reservation that isn't a finite non-negative figure can't be held against the budget, so it can't be admitted.
-	if (!isCount(req.reserveTokens) || !isCount(req.reserveCostUsd) || req.requestId === "" || Object.hasOwn(meter.inflight, req.requestId)) {
+	if (!isCount(req.reserveTokens) || !isCount(req.reserveCostUsd) || req.requestId === "" || Object.hasOwn(meter.inflight, req.requestId) || meter.settled?.includes(req.requestId)) {
 		return { meter, admission: { ok: false, status: 403, reason: "request cannot be metered" } };
 	}
 	if (meter.modelRequests + 1 > meter.limits.maxModelRequests) return trip("model request cap");
 	const used = meter.inputTokens + meter.outputTokens;
 	if (used + reservedTokens(meter) + req.reserveTokens > meter.limits.maxTotalTokens) return trip("token ceiling");
-	if (meter.costUsd + reservedCostUsd(meter) + req.reserveCostUsd > meter.limits.maxCostUsd) return trip("cost ceiling");
+	if (meter.costUsd + reservedCostUsd(meter) + req.reserveCostUsd > meter.limits.maxCostUsd + COST_EPSILON_USD) return trip("cost ceiling");
 	return {
 		meter: {
 			...meter,
@@ -328,19 +342,22 @@ export function admit(meter: Meter, req: AdmitRequest): { meter: Meter; admissio
 /**
  * Replace an in-flight request's reservation with what it used. Settling an id that isn't in flight (already settled,
  * or folded in at the end of the run) changes nothing, so a repeated report can't be counted twice. A figure that is
- * not a finite non-negative number is replaced by the reservation's worst case, never by zero.
+ * not a finite non-negative number is replaced by the reservation's worst case, never by zero. A cost of zero for a
+ * call that used tokens is not a cost, so it is replaced the same way (the gateway never sends one: it prices the tokens).
  */
 export function recordUsage(meter: Meter, u: { requestId: string; input: number; output: number; cost?: number }): Meter {
 	const held = Object.hasOwn(meter.inflight, u.requestId) ? meter.inflight[u.requestId] : undefined;
 	if (!held) return meter;
 	const { [u.requestId]: _settled, ...inflight } = meter.inflight;
 	const usable = isCount(u.input) && isCount(u.output);
+	const costUsable = isCount(u.cost) && (u.cost > 0 || (usable && u.input + u.output === 0));
 	const next: Meter = {
 		...meter,
 		inflight,
+		settled: [...(meter.settled ?? []), u.requestId],
 		inputTokens: meter.inputTokens + (usable ? u.input : held.tokens),
 		outputTokens: meter.outputTokens + (usable ? u.output : 0),
-		costUsd: meter.costUsd + (isCount(u.cost) ? u.cost : held.costUsd),
+		costUsd: meter.costUsd + (costUsable ? u.cost! : held.costUsd),
 	};
 	return tripIfOver(next);
 }
@@ -348,7 +365,7 @@ export function recordUsage(meter: Meter, u: { requestId: string; input: number;
 function tripIfOver(m: Meter): Meter {
 	if (m.exceeded) return m;
 	if (m.inputTokens + m.outputTokens >= m.limits.maxTotalTokens) return { ...m, exceeded: "token ceiling" };
-	if (m.costUsd >= m.limits.maxCostUsd) return { ...m, exceeded: "cost ceiling" };
+	if (costAtCap(m.costUsd, m.limits.maxCostUsd)) return { ...m, exceeded: "cost ceiling" };
 	return m;
 }
 
@@ -362,6 +379,7 @@ export function settleOutstanding(meter: Meter): Meter {
 	return tripIfOver({
 		...meter,
 		inflight: {},
+		settled: [...(meter.settled ?? []), ...Object.keys(meter.inflight)],
 		inputTokens: meter.inputTokens + held.reduce((a, r) => a + r.tokens, 0),
 		costUsd: meter.costUsd + held.reduce((a, r) => a + r.costUsd, 0),
 	});
@@ -394,8 +412,9 @@ export interface SettleInput {
  * What to charge for one model call. The reported usage is used only when the response was a 2xx that ended
  * cleanly and carried a complete usage block; every other case (a non-2xx, an aborted or truncated stream, a body
  * with no usage or unparseable) is charged the worst case: the whole request body as input and max_tokens as output,
- * at the model's top rates. Whatever was seen can only raise a charge. A missing, NaN, zero or negative `cost` is
- * replaced by tokens times the price table.
+ * at the model's top rates. Whatever was seen can only raise a charge. The dollars charged are the larger of the
+ * reported `cost` and the tokens times the price table, so a missing, NaN, zero or negative `cost` is priced from the
+ * tokens, and a tiny positive one can't undercut them.
  */
 export function settleModelCall(i: SettleInput): { input: number; output: number; cost: number } {
 	const worstCost = worstCaseCostUsd(i.price, i.worstInputTokens, i.maxTokens);
@@ -409,7 +428,7 @@ export function settleModelCall(i: SettleInput): { input: number; output: number
 		};
 	}
 	const priced = priceTokens(i.price, seen.input, seen.output);
-	const cost = isCount(seen.cost) && seen.cost > 0 ? seen.cost : priced;
+	const cost = Math.max(priced, isCount(seen.cost) ? seen.cost : 0);
 	return { input: seen.input, output: seen.output, cost };
 }
 
@@ -431,6 +450,10 @@ export function limitStream(body: ReadableStream<Uint8Array>, maxBytes: number):
 
 const MAX_PLAIN_USAGE_BYTES = 1024 * 1024;
 
+function nested(obj: unknown, key: string): unknown {
+	return obj && typeof obj === "object" ? (obj as Record<string, unknown>)[key] : undefined;
+}
+
 function tokenCount(v: unknown): number | null {
 	return typeof v === "number" && Number.isFinite(v) && Number.isInteger(v) && v >= 0 && v < 1e9 ? v : null;
 }
@@ -449,6 +472,8 @@ export class UsageTracker {
 	private finished = false;
 	/** A plain JSON body parsed as a whole. */
 	private parsedWhole = false;
+	/** A usage field was present but not a readable token count. */
+	private unreadable = false;
 
 	feed(chunk: string): void {
 		if (this.plain.length < MAX_PLAIN_USAGE_BYTES) this.plain += chunk;
@@ -479,10 +504,25 @@ export class UsageTracker {
 	private take(usage: unknown): void {
 		if (!usage || typeof usage !== "object") return;
 		const u = usage as Record<string, unknown>;
-		const parts = [u.input_tokens, u.cache_creation_input_tokens, u.cache_read_input_tokens].map(tokenCount);
-		if (parts.some((p) => p !== null)) this.input = Math.max(this.input ?? 0, parts.reduce<number>((a, p) => a + (p ?? 0), 0));
-		const out = tokenCount(u.output_tokens);
-		if (out !== null) this.output = Math.max(this.output ?? 0, out);
+		// A field that is there but unreadable (a fraction, a negative, a string, absurdly large) is not zero: the
+		// usage can no longer be trusted as complete, so the call is charged its worst case instead.
+		const field = (v: unknown): number | null => {
+			if (v === undefined || v === null) return null;
+			const n = tokenCount(v);
+			if (n === null) this.unreadable = true;
+			return n;
+		};
+		const parts = [u.input_tokens, u.cache_creation_input_tokens, u.cache_read_input_tokens].map(field);
+		const prompt = field(u.prompt_tokens);
+		if (parts.some((p) => p !== null) || prompt !== null) {
+			const anthropic = parts.some((p) => p !== null) ? parts.reduce<number>((a, p) => a + (p ?? 0), 0) : 0;
+			this.input = Math.max(this.input ?? 0, anthropic, prompt ?? 0);
+		}
+		// Reasoning tokens are billed as output. Providers include them in the output figure, but some report them only
+		// separately, so the larger of the two is charged rather than trusting that they are counted.
+		const reasoning = [u.reasoning_tokens, nested(u.output_tokens_details, "reasoning_tokens"), nested(u.completion_tokens_details, "reasoning_tokens")].map(field);
+		const outs = [field(u.output_tokens), field(u.completion_tokens), ...reasoning];
+		if (outs.some((o) => o !== null)) this.output = Math.max(this.output ?? 0, ...outs.map((o) => o ?? 0));
 		// OpenRouter adds the dollar cost of the call to `usage`; keep the highest value seen (it is cumulative per message).
 		const cost = u.cost;
 		if (typeof cost === "number" && Number.isFinite(cost) && cost >= 0 && cost < 1e6) this.cost = Math.max(this.cost ?? 0, cost);
@@ -505,7 +545,8 @@ export class UsageTracker {
 			}
 		}
 		if (this.input === null && this.output === null) return null;
-		const complete = (this.finished || this.parsedWhole) && this.input !== null && this.output !== null;
+		// A call that read a request body always has at least one input token, so zero input is not a usable figure.
+		const complete = (this.finished || this.parsedWhole) && this.input !== null && this.output !== null && this.input > 0 && !this.unreadable;
 		return { input: this.input ?? 0, output: this.output ?? 0, complete, ...(this.cost !== null ? { cost: this.cost } : {}) };
 	}
 }

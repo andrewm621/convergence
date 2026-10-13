@@ -209,9 +209,16 @@ describe("ModelGateway", () => {
 		expect(u.cost).toBeCloseTo((120 * 0.3 + 55 * 1.2) / 1e6);
 	});
 
-	it("passes the upstream's dollar cost to the meter", async () => {
+	it("passes the upstream's dollar cost to the meter when it is higher than the tokens at the table rates", async () => {
+		upstreamResponse = () => Response.json({ usage: { input_tokens: 50, output_tokens: 19, cost: 1.45e-3 } });
+		expect(await settled(await gateway().fetch(call(valid)))).toMatchObject({ input: 50, output: 19, cost: 1.45e-3 });
+	});
+
+	it("charges the tokens at the table rates when the upstream reports a lower cost", async () => {
 		upstreamResponse = () => Response.json({ usage: { input_tokens: 50, output_tokens: 19, cost: 1.45e-5 } });
-		expect(await settled(await gateway().fetch(call(valid)))).toMatchObject({ input: 50, output: 19, cost: 1.45e-5 });
+		const u = await settled(await gateway().fetch(call(valid)));
+		expect(u).toMatchObject({ input: 50, output: 19 });
+		expect(u.cost).toBeCloseTo((50 * 0.3 + 19 * 1.2) / 1e6);
 	});
 
 	it("prices the tokens when the response reports no cost, or a NaN or zero one", async () => {
