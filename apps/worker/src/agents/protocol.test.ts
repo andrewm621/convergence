@@ -25,6 +25,9 @@ import {
 	verifyPush,
 	verifyReceiptText,
 	withTimeout,
+	ContainerTimeoutError,
+	settleWithin,
+	withDeadline,
 } from "./protocol";
 
 const valid = { forkRepo: "notifications-wi-1", workItemId: "wi-1", prompt: "Add status badges" };
@@ -386,6 +389,32 @@ describe("untrusted container output", () => {
 			expect(decideRun({ ...base, verification: verdictOk, receipt: { required: true, result: undefined } })).toMatchObject({ state: "failed", pushVerified: false });
 			expect(decideRun({ ...base, verification: verdictOk, receipt: { required: true, result: { ok: false, error: "bad receipt" } } })).toMatchObject({ state: "failed", error: "bad receipt", pushVerified: false });
 			expect(decideRun({ ...base, verification: { ok: true, commit: null }, receipt: { required: true, result: { ok: true } } })).toMatchObject({ state: "failed", pushVerified: false });
+		});
+	});
+
+	describe("withDeadline and settleWithin", () => {
+		it("withDeadline aborts the operation and rejects with a ContainerTimeoutError when it never settles", async () => {
+			let signal: AbortSignal | undefined;
+			await expect(
+				withDeadline("a read", 20, (s) => {
+					signal = s;
+					return new Promise(() => {});
+				}),
+			).rejects.toBeInstanceOf(ContainerTimeoutError);
+			expect(signal?.aborted).toBe(true);
+		});
+
+		it("withDeadline passes a result and an error through, and leaves the signal alone", async () => {
+			let signal: AbortSignal | undefined;
+			await expect(withDeadline("a read", 1000, async (s) => ((signal = s), 7))).resolves.toBe(7);
+			expect(signal?.aborted).toBe(false);
+			await expect(withDeadline("a read", 1000, async () => Promise.reject(new Error("boom")))).rejects.toThrow("boom");
+		});
+
+		it("settleWithin gives the value, or null on a timeout or a failure, and never rejects", async () => {
+			await expect(settleWithin(Promise.resolve(3), 1000)).resolves.toBe(3);
+			await expect(settleWithin(new Promise(() => {}), 20)).resolves.toBeNull();
+			await expect(settleWithin(Promise.reject(new Error("x")), 1000)).resolves.toBeNull();
 		});
 	});
 

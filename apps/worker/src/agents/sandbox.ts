@@ -22,14 +22,17 @@ import {
 	claimedPushSha,
 	claudeEnv,
 	commitSubject,
+	ContainerTimeoutError,
 	decideRun,
 	parseActivity,
 	parseExitCode,
 	readCappedText,
 	remoteParts,
 	sanitizeText,
+	settleWithin,
 	verifyPush,
 	verifyReceiptText,
+	withDeadline,
 	withTimeout,
 	MAX_EVENTS_BYTES,
 	type ActivityLine,
@@ -62,6 +65,17 @@ const INACTIVITY_TIMEOUT_MS = 30 * 60 * 1000;
 const RUN_TIMEOUT_MS = 30 * 60 * 1000;
 const POLL_INTERVAL_MS = 500;
 const ALARM_INTERVAL_MS = 3_000;
+/**
+ * A container read or exec that has not answered by then is abandoned (its native process is aborted) and the run is left as it
+ * was until the next poll. Without it, one read that never returns would hold every refresh, and so every run read, forever.
+ */
+const CONTAINER_IO_TIMEOUT_MS = 10_000;
+/** Safety net for a whole refresh, finishing a run included (its verification reads have their own limits). */
+const REFRESH_TIMEOUT_MS = 120_000;
+/** Stopping the container and revoking the token while finishing a run. */
+const TEARDOWN_TIMEOUT_MS = 15_000;
+/** The run endpoint answers from the stored record after this long, even while a refresh is still in flight. */
+const READ_RUN_WAIT_MS = 5_000;
 const STDERR_READ_BYTES = 64 * 1024;
 const RUN_KEY = "run";
 const METER_KEY = "meter";
@@ -179,6 +193,7 @@ export class AgentSandbox extends DurableObject<Env> {
 	private readonly files: Files;
 	private setup: Promise<void> | undefined;
 	private refreshing: Promise<RunRecord | null> | undefined;
+	private readonly finishing = new Map<string, Promise<RunRecord>>();
 	/** Set synchronously on entry to startRun, so two overlapping dispatches can't both launch. */
 	private starting = false;
 
@@ -209,12 +224,12 @@ export class AgentSandbox extends DurableObject<Env> {
 		if (seen === "reused") return { status: "key_reused", run: this.storedRun() };
 		if (seen === "replay") {
 			const run = this.storedRun();
-			if (run) return { status: "replay", run: (await this.refresh()) ?? run };
+			if (run) return { status: "replay", run: (await this.refreshOrStored()) ?? run };
 		}
 		if (this.starting) return { status: "busy", run: this.storedRun() };
 		this.starting = true;
 		try {
-			const current = await this.refresh();
+			const current = await this.refreshOrStored();
 			if (current?.state === "running") return { status: "busy", run: current };
 			return { status: "started", run: await this.launch(input) };
 		} finally {
@@ -222,23 +237,29 @@ export class AgentSandbox extends DurableObject<Env> {
 		}
 	}
 
-	/** Current record, refreshed from the container while a run is in flight. */
+	/**
+	 * Current record, refreshed from the container while a run is in flight. It never waits long on the container: when the
+	 * refresh is slow or failing, the stored record answers (the activity lines may be a poll or two behind).
+	 */
 	async readRun(): Promise<RunRecord | null> {
-		return this.withLiveUsage(await this.refresh());
+		const stored = this.storedRun();
+		if (!stored || stored.state !== "running") return this.withLiveUsage(stored);
+		return this.withLiveUsage((await settleWithin(this.refresh(), READ_RUN_WAIT_MS)) ?? this.storedRun());
 	}
 
 	/** Hold until the run ends (or `timeoutMs`), then return the record. */
 	async waitForRun(timeoutMs: number): Promise<RunRecord | null> {
 		const deadline = Date.now() + timeoutMs;
 		for (;;) {
-			const run = await this.refresh();
+			const run = (await settleWithin(this.refresh(), READ_RUN_WAIT_MS)) ?? this.storedRun();
 			if (!run || run.state !== "running" || Date.now() >= deadline) return this.withLiveUsage(run);
 			await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
 		}
 	}
 
 	override async alarm(): Promise<void> {
-		const run = await this.refresh();
+		// A refresh that fails or times out must not stop the polling: the alarm is set again whenever the run is still going.
+		const run = await this.refreshOrStored();
 		if (run?.state === "running") await this.ctx.storage.setAlarm(Date.now() + ALARM_INTERVAL_MS);
 	}
 
@@ -435,12 +456,25 @@ export class AgentSandbox extends DurableObject<Env> {
 		return (this.ctx.storage.kv.get(RUN_KEY) as RunRecord | undefined) ?? null;
 	}
 
-	/** Single-flight: the alarm and a waiting request must not both finalize the same run. */
+	/**
+	 * Single-flight: the alarm and a waiting request must not both finalize the same run. The shared promise always settles
+	 * (it is bounded by REFRESH_TIMEOUT_MS), so `refreshing` is always cleared and the next call starts a fresh refresh.
+	 */
 	private refresh(): Promise<RunRecord | null> {
-		this.refreshing ??= this.doRefresh().finally(() => {
+		this.refreshing ??= withTimeout(this.doRefresh(), REFRESH_TIMEOUT_MS, "refreshing the run").finally(() => {
 			this.refreshing = undefined;
 		});
 		return this.refreshing;
+	}
+
+	/** A refresh, or the stored record when the refresh failed or timed out (the failure is logged, not thrown). */
+	private async refreshOrStored(): Promise<RunRecord | null> {
+		try {
+			return await this.refresh();
+		} catch (e) {
+			console.error(`run refresh failed: ${redactText(e instanceof Error ? e.message : String(e)).slice(0, 200)}`);
+			return this.storedRun();
+		}
 	}
 
 	private async doRefresh(): Promise<RunRecord | null> {
@@ -464,19 +498,31 @@ export class AgentSandbox extends DurableObject<Env> {
 			return this.finish(run, { state: "lost", exitCode: null, error: "container stopped before the runner recorded an exit code" });
 		}
 
-		let exitCode = parseExitCode(await this.readCapped(EXIT_CODE_PATH, 32));
-		if (exitCode === null) {
-			if (await this.runnerAlive()) {
-				// Keep the live tail fresh, and persisted in case the container disappears.
-				const live = { ...run, activity: await this.readActivity(run) };
-				this.ctx.storage.kv.put(RUN_KEY, live);
-				return live;
-			}
-			// It may have exited between the two reads.
+		let exitCode: number | null;
+		try {
 			exitCode = parseExitCode(await this.readCapped(EXIT_CODE_PATH, 32));
 			if (exitCode === null) {
-				return this.finish(run, { state: "lost", exitCode: null, error: "runner exited without a valid exit code" });
+				if (await this.runnerAlive()) {
+					// Keep the live tail fresh, and persisted in case the container disappears. An abandoned refresh that wakes up
+					// late must not put a stale `running` record over one that has since finished.
+					const live = { ...run, activity: await this.readActivity(run) };
+					const now = this.storedRun();
+					if (now?.runId === run.runId && now.state === "running") this.ctx.storage.kv.put(RUN_KEY, live);
+					return live;
+				}
+				// It may have exited between the two reads.
+				exitCode = parseExitCode(await this.readCapped(EXIT_CODE_PATH, 32));
 			}
+		} catch (e) {
+			// The container did not answer. That says nothing about the run: leave it running and ask again on the next poll.
+			if (e instanceof ContainerTimeoutError) {
+				console.error(`container probe gave no answer: ${e.message}`);
+				return run;
+			}
+			throw e;
+		}
+		if (exitCode === null) {
+			return this.finish(run, { state: "lost", exitCode: null, error: "runner exited without a valid exit code" });
 		}
 		if (exitCode === 0) return this.finish(run, { state: "succeeded", exitCode, error: null });
 		const stderr = (await this.readCapped(STDERR_PATH, STDERR_READ_BYTES)) ?? "";
@@ -487,10 +533,25 @@ export class AgentSandbox extends DurableObject<Env> {
 		});
 	}
 
-	private async finish(
+	/** Finishing is single-flight per run too: an abandoned refresh that wakes up late joins the finish already under way. */
+	private finish(
 		run: RunRecord,
 		runnerOutcome: { state: Exclude<RunState, "running" | "none">; exitCode: number | null; error: string | null },
 	): Promise<RunRecord> {
+		const under = this.finishing.get(run.runId);
+		if (under) return under;
+		const work = this.finishRun(run, runnerOutcome).finally(() => this.finishing.delete(run.runId));
+		this.finishing.set(run.runId, work);
+		return work;
+	}
+
+	private async finishRun(
+		run: RunRecord,
+		runnerOutcome: { state: Exclude<RunState, "running" | "none">; exitCode: number | null; error: string | null },
+	): Promise<RunRecord> {
+		// Already finished (or replaced by a newer run) while this call was waiting: the stored record stands.
+		const current = this.storedRun();
+		if (!current || current.runId !== run.runId || current.state !== "running") return current ?? run;
 		const finishedAt = new Date().toISOString();
 		const activity = await this.readActivitySafely(run);
 
@@ -519,7 +580,7 @@ export class AgentSandbox extends DurableObject<Env> {
 		// Cut the container off before judging it: clear the gateway registration (nothing more is admitted), stop the
 		// container, and revoke the write token. The fork history is then frozen while it is verified.
 		this.deactivateMeter();
-		if (this.container.running) await this.container.destroy().catch(() => undefined);
+		if (this.container.running) await withTimeout(this.container.destroy(), TEARDOWN_TIMEOUT_MS, "stopping the container").catch(() => undefined);
 		this.setup = undefined;
 		const tokenRevoked = await this.revokeToken(run.forkRepo, run.tokenId);
 
@@ -605,8 +666,8 @@ export class AgentSandbox extends DurableObject<Env> {
 
 	private async revokeToken(forkRepo: string, tokenId: string): Promise<boolean> {
 		try {
-			using repo = await this.env.ARTIFACTS.get(forkRepo);
-			return await repo.revokeToken(tokenId);
+			using repo = await withTimeout(this.env.ARTIFACTS.get(forkRepo), TEARDOWN_TIMEOUT_MS, "opening the fork");
+			return await withTimeout(repo.revokeToken(tokenId), TEARDOWN_TIMEOUT_MS, "revoking the token");
 		} catch (e) {
 			console.error(`token revoke failed for ${forkRepo}: ${errorCode(e) ?? "error"}`);
 			return false;
@@ -659,8 +720,10 @@ export class AgentSandbox extends DurableObject<Env> {
 			// The runner writes its pid right after it starts; before that, it is starting.
 			return true;
 		}
-		const probe = await this.container.exec(["/bin/sh", "-c", TASK_RUNNING_SCRIPT, "probe", PID_PATH]);
-		return (await probe.output()).exitCode === 0;
+		return withDeadline("probing the runner", CONTAINER_IO_TIMEOUT_MS, async (signal) => {
+			const probe = await this.container.exec(["/bin/sh", "-c", TASK_RUNNING_SCRIPT, "probe", PID_PATH], { signal });
+			return (await probe.output()).exitCode === 0;
+		});
 	}
 
 	/** Container events shifted onto the Durable Object's clock, validated, sanitized and redacted. */
@@ -688,7 +751,7 @@ export class AgentSandbox extends DurableObject<Env> {
 	/** At most `maxBytes` of a container file as text; undefined when it doesn't exist. */
 	private async readCapped(path: string, maxBytes: number): Promise<string | undefined> {
 		try {
-			return await readCappedText((await this.files.readFile(path)).body, maxBytes);
+			return await withDeadline(`reading ${path}`, CONTAINER_IO_TIMEOUT_MS, async (signal) => readCappedText((await this.files.readFile(path, { signal })).body, maxBytes));
 		} catch (error) {
 			if (SandboxFileError.is(error) && error.code === "ENOENT") return undefined;
 			throw error;
