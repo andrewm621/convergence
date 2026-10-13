@@ -5,7 +5,7 @@ import { reconcile } from "./reconcile";
 import { conditionTypes, createCell, effectTypes, promotionEvent, reasonsOf, resolutionEvent, type Cell } from "./testing/harness";
 import { baselinePush, forkPush, nextSha, notifications as n, registerItem, salesOps as s, variant } from "./testing/scenarios";
 
-const andrew = n.actors.andrew;
+const owner = n.actors.decisionOwner;
 const casey: Actor = { kind: "human", id: "casey", displayName: "Casey (not the authority)" };
 const T = "2026-10-13T17:00:00Z";
 
@@ -23,7 +23,7 @@ async function sCell(policy = s.policy): Promise<Cell> {
 }
 
 async function promote(c: Cell, workItemId: string, requestId: string, overrides: { expectedBaselineCommit?: string; forkHeadSha?: string; actor?: Actor } = {}) {
-	return c.send(promotionEvent(await c.state(), { workItemId, actor: overrides.actor ?? andrew, requestId, ts: T, ...overrides }));
+	return c.send(promotionEvent(await c.state(), { workItemId, actor: overrides.actor ?? owner, requestId, ts: T, ...overrides }));
 }
 
 /** WI-3 takes the board-deck exception: stale and conflicting on qualified-lead, but excepted. */
@@ -31,7 +31,7 @@ async function wi3WithException(c: Cell, requestId = "exc-1") {
 	await c.send(s.events.v2);
 	await c.send(s.events.wi3Pushed);
 	return c.send(
-		resolutionEvent(await c.state(), { kind: "accept-exception", workItemId: "WI-3", recordId: "qualified-lead", actor: andrew, requestId, ts: T, scope: "reports/q4-forecast.md", rationale: "Grandfathered on v1 for the board deck." }),
+		resolutionEvent(await c.state(), { kind: "accept-exception", workItemId: "WI-3", recordId: "qualified-lead", actor: owner, requestId, ts: T, scope: "reports/q4-forecast.md", rationale: "Grandfathered on v1 for the board deck." }),
 	);
 }
 
@@ -86,7 +86,7 @@ describe("R5 promotion gate", () => {
 	it("[negative] an unknown work item blocks", async () => {
 		const c = await nCell();
 		expect(evaluateGate(await c.state(), "WI-404", n.policy)).toMatchObject({ promotable: false, reasonCodes: ["UNKNOWN_WORK_ITEM"] });
-		const result = await c.send({ type: "PromotionRequested", ts: T, requestId: "p-404", workItemId: "WI-404", actor: andrew, expectedBaselineCommit: n.commits.baselineV1, forkHeadSha: n.commits.wi1Head });
+		const result = await c.send({ type: "PromotionRequested", ts: T, requestId: "p-404", workItemId: "WI-404", actor: owner, expectedBaselineCommit: n.commits.baselineV1, forkHeadSha: n.commits.wi1Head });
 		expect(reasonsOf(result)).toEqual(["UNKNOWN_WORK_ITEM"]);
 	});
 
@@ -116,7 +116,7 @@ describe("R5 promotion gate", () => {
 		const c = await sCell();
 		await c.send(s.events.v2);
 		await c.send(forkPush(s.workItems.wi3, null)); // no claims file
-		await c.send(resolutionEvent(await c.state(), { kind: "accept-exception", workItemId: "WI-3", recordId: "qualified-lead", actor: andrew, requestId: "exc-noclaims", ts: T, scope: "reports/q4-forecast.md" }));
+		await c.send(resolutionEvent(await c.state(), { kind: "accept-exception", workItemId: "WI-3", recordId: "qualified-lead", actor: owner, requestId: "exc-noclaims", ts: T, scope: "reports/q4-forecast.md" }));
 		const gate = evaluateGate(await c.state(), "WI-3", s.policy);
 		expect(gate.promotable).toBe(false);
 		expect(gate.reasonCodes).toContain("NO_CLAIMS");
@@ -125,7 +125,7 @@ describe("R5 promotion gate", () => {
 	it("[negative] an exception for a record with nothing stale or conflicting has nothing to except", async () => {
 		const c = await sCell();
 		await c.send(s.events.wi5Pushed);
-		const result = await c.send(resolutionEvent(await c.state(), { kind: "accept-exception", workItemId: "WI-5", recordId: "sales-activity", actor: andrew, requestId: "exc-nothing", ts: T, scope: "docs/glossary.md" }));
+		const result = await c.send(resolutionEvent(await c.state(), { kind: "accept-exception", workItemId: "WI-5", recordId: "sales-activity", actor: owner, requestId: "exc-nothing", ts: T, scope: "docs/glossary.md" }));
 		expect(reasonsOf(result)).toEqual(["ALREADY_RESOLVED"]);
 	});
 
@@ -168,7 +168,7 @@ describe("R6 revalidation", () => {
 		const c = await nCell();
 		await c.send(n.events.v2);
 		await c.send(n.events.wi2PushedV1);
-		const result = await c.send(resolutionEvent(await c.state(), { kind: "revalidate", workItemId: "WI-2", recordId: "notifications", actor: andrew, requestId: "rv-1", ts: T }));
+		const result = await c.send(resolutionEvent(await c.state(), { kind: "revalidate", workItemId: "WI-2", recordId: "notifications", actor: owner, requestId: "rv-1", ts: T }));
 
 		const diff = [
 			{
@@ -193,7 +193,7 @@ describe("R6 revalidation", () => {
 		const c = await nCell();
 		await c.send(n.events.v2);
 		await c.send(n.events.wi2PushedV1);
-		await c.send(resolutionEvent(await c.state(), { kind: "revalidate", workItemId: "WI-2", recordId: "notifications", actor: andrew, requestId: "rv-2", ts: T }));
+		await c.send(resolutionEvent(await c.state(), { kind: "revalidate", workItemId: "WI-2", recordId: "notifications", actor: owner, requestId: "rv-2", ts: T }));
 		await c.send(n.events.wi2ReceiptIssued);
 		expect(conditionTypes(await c.wi("WI-2"))).not.toContain("Stale");
 		expect((await c.wi("WI-2")).item.status).toBe("revalidating"); // still waiting for the re-run
@@ -207,6 +207,8 @@ describe("R6 revalidation", () => {
 	it("[negative] a receipt that is not at the current versions is refused", async () => {
 		const c = await nCell();
 		await c.send(n.events.v2);
+		await c.send(n.events.wi2PushedV1);
+		await c.send(resolutionEvent(await c.state(), { kind: "revalidate", workItemId: "WI-2", recordId: "notifications", actor: owner, requestId: "rv-mismatch", ts: T }));
 		const old = await c.send({ type: "ReceiptIssued", ts: T, workItemId: "WI-2", receipt: { ...n.receipts.wi2, contextPacketHash: "9".repeat(64) } });
 		expect(reasonsOf(old)).toEqual(["RECEIPT_MISMATCH"]);
 		const partial = await c.send({ type: "ReceiptIssued", ts: T, workItemId: "WI-2", receipt: { ...n.receipts.wi2Revalidated, accepted: n.receipts.wi2Revalidated.accepted.slice(0, 1), contextPacketHash: "8".repeat(64) } });
@@ -218,10 +220,10 @@ describe("R6 revalidation", () => {
 		const c = await nCell({ ...n.policy, maxRevalidations: 1 });
 		await c.send(n.events.v2);
 		await c.send(n.events.wi2PushedV1);
-		await c.send(resolutionEvent(await c.state(), { kind: "revalidate", workItemId: "WI-2", recordId: "notifications", actor: andrew, requestId: "rv-3a", ts: T }));
+		await c.send(resolutionEvent(await c.state(), { kind: "revalidate", workItemId: "WI-2", recordId: "notifications", actor: owner, requestId: "rv-3a", ts: T }));
 		await c.send(n.events.wi2ReceiptIssued);
 		await c.send(forkPush(n.workItems.wi2, n.claims.wi2V1)); // the agent got it wrong again
-		const second = await c.send(resolutionEvent(await c.state(), { kind: "revalidate", workItemId: "WI-2", recordId: "notifications", actor: andrew, requestId: "rv-3b", ts: T }));
+		const second = await c.send(resolutionEvent(await c.state(), { kind: "revalidate", workItemId: "WI-2", recordId: "notifications", actor: owner, requestId: "rv-3b", ts: T }));
 		expect(effectTypes(second)).toEqual(["REQUEST_REVIEW", "BLOCK_PROMOTION"]);
 		expect(reasonsOf(second)).toEqual(["REVALIDATION_LIMIT"]);
 		expect(effectTypes(second)).not.toContain("DISPATCH_WORK");
@@ -233,7 +235,7 @@ describe("R6 revalidation", () => {
 		await c.send(n.events.v2);
 		await c.send(n.events.wi2PushedV1);
 		for (const id of ["a", "b"]) {
-			const r = await c.send(resolutionEvent(await c.state(), { kind: "revalidate", workItemId: "WI-2", recordId: "notifications", actor: andrew, requestId: `rv-4${id}`, ts: T }));
+			const r = await c.send(resolutionEvent(await c.state(), { kind: "revalidate", workItemId: "WI-2", recordId: "notifications", actor: owner, requestId: `rv-4${id}`, ts: T }));
 			expect(effectTypes(r)).toContain("DISPATCH_WORK");
 			await c.send(forkPush(n.workItems.wi2, n.claims.wi2V1));
 		}
@@ -244,7 +246,7 @@ describe("R6 revalidation", () => {
 		const c = await sCell();
 		await c.send(s.events.v2);
 		await c.send(s.events.wi4Pushed);
-		const rv = await c.send(resolutionEvent(await c.state(), { kind: "revalidate", workItemId: "WI-4", recordId: "qualified-lead", actor: andrew, requestId: "rv-wi4", ts: T }));
+		const rv = await c.send(resolutionEvent(await c.state(), { kind: "revalidate", workItemId: "WI-4", recordId: "qualified-lead", actor: owner, requestId: "rv-wi4", ts: T }));
 		expect(rv.effects).toContainEqual(expect.objectContaining({ type: "DISPATCH_WORK", workItemId: "WI-4" }));
 		await c.send(s.events.wi4ReceiptIssued);
 		await c.send(s.events.wi4PushedRevalidated);
@@ -261,7 +263,7 @@ describe("R7 approval binding and promotion", () => {
 		const c = await nCell();
 		await c.send(n.events.v2);
 		await c.send(n.events.wi2PushedV1);
-		const prepared = resolutionEvent(await c.state(), { kind: "revalidate", workItemId: "WI-2", recordId: "notifications", actor: andrew, requestId: "bind-1", ts: T });
+		const prepared = resolutionEvent(await c.state(), { kind: "revalidate", workItemId: "WI-2", recordId: "notifications", actor: owner, requestId: "bind-1", ts: T });
 		// A context push lands after the human looked, before they clicked.
 		await c.send(n.events.v3ProseBump);
 		const result = await c.send(prepared);
@@ -270,8 +272,8 @@ describe("R7 approval binding and promotion", () => {
 	});
 
 	it.each([
-		["baseSha", { baseSha: "1234567" }],
-		["forkHeadSha", { forkHeadSha: "1234567" }],
+		["baseSha", { baseSha: "e700000000000000000000000000000000000001" }],
+		["forkHeadSha", { forkHeadSha: "e700000000000000000000000000000000000001" }],
 		["contextSnapshotHash", { contextSnapshotHash: "7".repeat(64) }],
 		["blobHash", { blobHash: "6".repeat(64) }],
 		["version", { version: 1 }],
@@ -279,7 +281,7 @@ describe("R7 approval binding and promotion", () => {
 		const c = await nCell();
 		await c.send(n.events.v2);
 		await c.send(n.events.wi2PushedV1);
-		const result = await c.send(resolutionEvent(await c.state(), { kind: "reject", workItemId: "WI-2", recordId: "notifications", actor: andrew, requestId: `bind-${_field}`, ts: T, binding: patch }));
+		const result = await c.send(resolutionEvent(await c.state(), { kind: "reject", workItemId: "WI-2", recordId: "notifications", actor: owner, requestId: `bind-${_field}`, ts: T, binding: patch }));
 		expect(reasonsOf(result)).toEqual(["STALE_BINDING"]);
 		expect((await c.wi("WI-2")).resolutions).toEqual([]);
 	});
@@ -294,7 +296,7 @@ describe("R7 approval binding and promotion", () => {
 			resolution: {
 				kind: "reject",
 				workItemId: "WI-2",
-				actor: andrew,
+				actor: owner,
 				rationale: "r",
 				binding: {
 					recordId: "notifications",
@@ -422,7 +424,7 @@ describe("R7 approval binding and promotion", () => {
 		const c = await nCell();
 		await c.send(n.events.v2);
 		await c.send(n.events.wi2PushedV1);
-		const result = await c.send(resolutionEvent(await c.state(), { kind: "reject", workItemId: "WI-2", recordId: "notifications", actor: andrew, requestId: "rej-1", ts: T, rationale: "Wrong approach entirely." }));
+		const result = await c.send(resolutionEvent(await c.state(), { kind: "reject", workItemId: "WI-2", recordId: "notifications", actor: owner, requestId: "rej-1", ts: T, rationale: "Wrong approach entirely." }));
 		expect(effectTypes(result)).toContain("BLOCK_PROMOTION");
 		expect((await c.wi("WI-2")).item.status).toBe("rejected");
 		expect(evaluateGate(await c.state(), "WI-2", n.policy).reasonCodes).toContain("RESOLUTION_REJECTED");
@@ -434,7 +436,7 @@ describe("R7 approval binding and promotion", () => {
 			type: "ResolutionRecorded",
 			ts: T,
 			requestId: "ghost",
-			resolution: { kind: "reject", workItemId: "WI-404", actor: andrew, rationale: "r", binding: { recordId: "notifications", version: 1, blobHash: "a".repeat(64), baseSha: n.commits.baselineV1, forkHeadSha: n.commits.wi1Head, contextSnapshotHash: n.snapshotHashes.v1 }, ts: T },
+			resolution: { kind: "reject", workItemId: "WI-404", actor: owner, rationale: "r", binding: { recordId: "notifications", version: 1, blobHash: "a".repeat(64), baseSha: n.commits.baselineV1, forkHeadSha: n.commits.wi1Head, contextSnapshotHash: n.snapshotHashes.v1 }, ts: T },
 		});
 		expect(reasonsOf(unknown)).toEqual(["UNKNOWN_WORK_ITEM"]);
 	});
@@ -533,7 +535,7 @@ describe("R9 idempotency", () => {
 		const c = await nCell();
 		await c.send(n.events.v2);
 		await c.send(n.events.wi2PushedV1);
-		const event = resolutionEvent(await c.state(), { kind: "revalidate", workItemId: "WI-2", recordId: "notifications", actor: andrew, requestId: "idem-1", ts: T });
+		const event = resolutionEvent(await c.state(), { kind: "revalidate", workItemId: "WI-2", recordId: "notifications", actor: owner, requestId: "idem-1", ts: T });
 		const first = await c.send(event);
 		const retry = await c.send(event);
 		expect([first.outcome, retry.outcome]).toEqual(["applied", "duplicate"]);
@@ -545,7 +547,7 @@ describe("R9 idempotency", () => {
 		const c = await nCell();
 		await c.send(n.events.v2);
 		await c.send(n.events.wi2PushedV1);
-		const first = resolutionEvent(await c.state(), { kind: "revalidate", workItemId: "WI-2", recordId: "notifications", actor: andrew, requestId: "idem-2", ts: T });
+		const first = resolutionEvent(await c.state(), { kind: "revalidate", workItemId: "WI-2", recordId: "notifications", actor: owner, requestId: "idem-2", ts: T });
 		await c.send(first);
 		const ledgerBefore = await c.store.ledger();
 		if (first.type !== "ResolutionRecorded") throw new Error("unreachable");

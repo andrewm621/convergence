@@ -83,18 +83,18 @@ for (const [storeLabel, makeStore] of stores) {
 			const gate = evaluateGate(await cell.state(), "WI-2", n.policy);
 			expect(gate.promotable).toBe(false);
 			expect(gate.reasonCodes).toEqual(expect.arrayContaining(["STALE_RECEIPT", "CLAIM_CONFLICT", "TEST_FAILED"]));
-			const blocked = await cell.send(promotionEvent(await cell.state(), { workItemId: "WI-2", actor: n.actors.andrew, requestId: "promote-wi2-early", ts: T }));
+			const blocked = await cell.send(promotionEvent(await cell.state(), { workItemId: "WI-2", actor: n.actors.decisionOwner, requestId: "promote-wi2-early", ts: T }));
 			expect(effectTypes(blocked)).toContain("BLOCK_PROMOTION");
 			await cell.send(n.events.wi1Pushed);
 			await cell.send(n.events.wi1Evidence);
-			const wi1Allowed = await cell.send(promotionEvent(await cell.state(), { workItemId: "WI-1", actor: n.actors.andrew, requestId: "promote-wi1", ts: T }));
+			const wi1Allowed = await cell.send(promotionEvent(await cell.state(), { workItemId: "WI-1", actor: n.actors.decisionOwner, requestId: "promote-wi1", ts: T }));
 			expect(effectTypes(wi1Allowed)).toContain("ALLOW_PROMOTION");
 			await cell.send({ type: "PromotionMerged", ts: T, workItemId: "WI-1", repo: n.repo, mergeCommitSha: n.commits.wi1MergeV2 });
 			expect((await cell.wi("WI-1")).item.status).toBe("promoted");
 			await cell.send({ type: "AgentRunFinished", ts: "2026-10-13T16:15:00Z", workItemId: "WI-1", runId: "run-a", outcome: "success" });
 
 			// 7. Revalidate WI-2: re-dispatch with the v1 -> v2 diff, a fresh receipt, new claims and passing checks.
-			const rv = await cell.send(resolutionEvent(await cell.state(), { kind: "revalidate", workItemId: "WI-2", recordId: "notifications", actor: n.actors.andrew, requestId: "rv-wi2", ts: T, rationale: "Decision changed under this work." }));
+			const rv = await cell.send(resolutionEvent(await cell.state(), { kind: "revalidate", workItemId: "WI-2", recordId: "notifications", actor: n.actors.decisionOwner, requestId: "rv-wi2", ts: T, rationale: "Decision changed under this work." }));
 			expect(effectTypes(rv)).toEqual(expect.arrayContaining(["REQUEST_REVALIDATION", "DISPATCH_WORK"]));
 			await cell.send(n.events.wi2ReceiptIssued);
 			await cell.send(n.events.wi2PushedRevalidated);
@@ -104,7 +104,7 @@ for (const [storeLabel, makeStore] of stores) {
 			expect((await cell.wi("WI-2")).item.status).toBe(n.expected.afterRevalidation["WI-2"].status);
 
 			// Promotion re-checks at current heads (R7), then WI-2 is promoted.
-			const wi2Allowed = await cell.send(promotionEvent(await cell.state(), { workItemId: "WI-2", actor: n.actors.andrew, requestId: "promote-wi2", ts: T }));
+			const wi2Allowed = await cell.send(promotionEvent(await cell.state(), { workItemId: "WI-2", actor: n.actors.decisionOwner, requestId: "promote-wi2", ts: T }));
 			expect(effectTypes(wi2Allowed)).toContain("ALLOW_PROMOTION");
 			await cell.send({ type: "PromotionMerged", ts: T, workItemId: "WI-2", repo: n.repo, mergeCommitSha: "b00000000000000000000000000000000000000f" });
 			await cell.send({ type: "AgentRunFinished", ts: "2026-10-13T16:45:00Z", workItemId: "WI-2", runId: "run-b", outcome: "success" });
@@ -137,17 +137,17 @@ for (const [storeLabel, makeStore] of stores) {
 
 			// WI-3: grandfathered on v1 for the board deck, scoped to its output.
 			const exception = s.expected.resolutions["WI-3"];
-			await cell.send(resolutionEvent(await cell.state(), { kind: "accept-exception", workItemId: "WI-3", recordId: "qualified-lead", actor: s.actors.andrew, requestId: "exc", ts: T, scope: exception.scope, rationale: "Q4 forecast is grandfathered on v1 for the board deck." }));
+			await cell.send(resolutionEvent(await cell.state(), { kind: "accept-exception", workItemId: "WI-3", recordId: "qualified-lead", actor: s.actors.decisionOwner, requestId: "exc", ts: T, scope: exception.scope, rationale: "Q4 forecast is grandfathered on v1 for the board deck." }));
 			expect((await cell.wi("WI-3")).item.status).toBe("ready");
 
 			// WI-4: revalidated.
-			await cell.send(resolutionEvent(await cell.state(), { kind: "revalidate", workItemId: "WI-4", recordId: "qualified-lead", actor: s.actors.andrew, requestId: "rv", ts: T }));
+			await cell.send(resolutionEvent(await cell.state(), { kind: "revalidate", workItemId: "WI-4", recordId: "qualified-lead", actor: s.actors.decisionOwner, requestId: "rv", ts: T }));
 			for (const e of [s.events.wi4ReceiptIssued, s.events.wi4PushedRevalidated, s.events.wi4RevalidatedCriteria, s.events.wi4RevalidatedActivity]) await cell.send(e);
 			expect((await cell.wi("WI-4")).item.status).toBe("ready");
 
 			// All three promote through the same gate.
 			for (const [i, id] of ["WI-5", "WI-3", "WI-4"].entries()) {
-				const allowed = await cell.send(promotionEvent(await cell.state(), { workItemId: id, actor: s.actors.andrew, requestId: `promote-${id}`, ts: T }));
+				const allowed = await cell.send(promotionEvent(await cell.state(), { workItemId: id, actor: s.actors.decisionOwner, requestId: `promote-${id}`, ts: T }));
 				expect(effectTypes(allowed), id).toContain("ALLOW_PROMOTION");
 				await cell.send({ type: "PromotionMerged", ts: T, workItemId: id, repo: s.repo, mergeCommitSha: `b${(900 + i).toString(16).padStart(39, "0")}` });
 			}

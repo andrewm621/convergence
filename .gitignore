@@ -38,3 +38,6 @@ worker-configuration.d.ts.bak
 
 # Maestro machine-local state
 .maestro/locks/
+
+# Claude Code agent worktrees
+.claude/worktrees/

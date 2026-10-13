@@ -1,6 +1,6 @@
 import type { CellState, Policy, ReasonCode, Resolution, WorkItemState } from "contracts";
 import { analyze, type Analysis } from "./analysis";
-import { currentSnapshot, isPromoted } from "./cell-state";
+import { currentSnapshot, isPromoted, isRejected } from "./cell-state";
 
 export type GateVerdict = {
 	promotable: boolean;
@@ -40,11 +40,6 @@ export function classifyExceptions(state: CellState, wi: WorkItemState, policy: 
 		(stillBound && authorised ? valid : lapsed).push(resolution);
 	}
 	return { valid, lapsed };
-}
-
-/** The last disposition wins: a later `revalidate` clears an earlier `reject`. */
-export function isRejected(wi: WorkItemState): boolean {
-	return wi.resolutions.at(-1)?.kind === "reject";
 }
 
 function humanResolved(wi: WorkItemState, validExceptions: Resolution[]): boolean {
@@ -93,15 +88,29 @@ export function gateFrom(state: CellState, wi: WorkItemState, policy: Policy, an
 		blockers.push(finding.message);
 	}
 
-	if (!waiverApplies) {
-		if (analysis.failedChecks.length > 0) block("TEST_FAILED", `Failing at the current head: ${analysis.failedChecks.join(", ")}.`);
-		const required = new Set([...policy.requires, ...wi.item.requires]);
-		if (required.has("contract-test") && !analysis.testsPassed && analysis.failedChecks.length === 0) {
-			const missing = analysis.requiredChecks.filter((c) => !analysis.headEvidence.some((e) => e.check === c && e.pass));
-			block("MISSING_EVIDENCE", missing.length ? `No passing evidence at the current head for: ${missing.join(", ")}.` : "No contract-test evidence at the current head.");
-		}
-		if (required.has("human-resolution") && !humanResolved(wi, valid)) block("HUMAN_RESOLUTION_MISSING", "A human resolution is required.");
+	// A fork that edits context/** is never promotable: agents propose context changes, they do not carry them in through a merge.
+	// No exception waives this; the change has to go through the baseline and its authority.
+	const editsContext = wi.contextPaths ?? [];
+	if (editsContext.length > 0) block("FORK_EDITS_CONTEXT", `This fork changes accepted context (${editsContext.join(", ")}). Propose that change on the baseline instead.`);
+
+	// An exception waives the excepted record's own validation check and nothing else: other records' checks still have to pass.
+	const waivedChecks = new Set<string>();
+	for (const resolution of valid) {
+		if (!waivable.has(resolution.binding.recordId)) continue;
+		const validation = currentSnapshot(state, resolution.binding.recordId)?.validation;
+		if (validation) waivedChecks.add(validation);
 	}
+	const failed = analysis.failedChecks.filter((check) => !waivedChecks.has(check));
+	if (failed.length > 0) block("TEST_FAILED", `Failing at the current head: ${failed.join(", ")}.`);
+	const required = new Set([...policy.requires, ...wi.item.requires]);
+	if (required.has("contract-test")) {
+		const passing = (check: string) => analysis.headEvidence.some((e) => e.check === check && e.pass);
+		const needed = analysis.requiredChecks.filter((check) => !waivedChecks.has(check));
+		const missing = needed.filter((check) => !passing(check) && !failed.includes(check));
+		if (missing.length > 0) block("MISSING_EVIDENCE", `No passing evidence at the current head for: ${missing.join(", ")}.`);
+		else if (analysis.requiredChecks.length === 0 && waivedChecks.size === 0 && analysis.headEvidence.length === 0) block("MISSING_EVIDENCE", "No contract-test evidence at the current head.");
+	}
+	if (required.has("human-resolution") && !humanResolved(wi, valid)) block("HUMAN_RESOLUTION_MISSING", "A human resolution is required.");
 
 	return {
 		promotable: reasons.size === 0,

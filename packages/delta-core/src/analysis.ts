@@ -1,5 +1,5 @@
-import { canonicalJson, parseRecordRef, type Claim, type CellState, type Evidence, type ReasonCode, type WorkItemState } from "contracts";
-import { acceptedDependenciesOf, currentSnapshot, dependenciesOf, isPromoted, snapshotAt, workItemIds } from "./cell-state";
+import { canonicalJson, compareStrings, parseRecordRef, type Claim, type CellState, type Evidence, type ReasonCode, type RecordSnapshot, type WorkItemState } from "contracts";
+import { acceptedDependenciesOf, currentSnapshot, dependenciesOf, isPromoted, isRejected, snapshotAt, workItemIds } from "./cell-state";
 import { diffFacets, facetValuesEqual } from "./facets";
 import type { Policy } from "contracts";
 
@@ -78,7 +78,7 @@ export function findStale(state: CellState, wi: WorkItemState, policy: Policy): 
 			findings.push({ recordId: dep.recordId, fromVersion: entry.version, toVersion: current.version, facetKeys: relevant, reasonCodes: ["STALE_RECEIPT", "FACET_CHANGED"] });
 		}
 	}
-	return findings.sort((a, b) => (a.recordId < b.recordId ? -1 : 1));
+	return findings.sort((a, b) => compareStrings(a.recordId, b.recordId));
 }
 
 function validClaims(wi: WorkItemState): Claim[] | null {
@@ -130,7 +130,34 @@ function findClaimIssues(state: CellState, wi: WorkItemState): Pick<Analysis, "c
 		}
 		const nowValue = current.facets[claim.subject];
 		const basisValue = basis.facets[claim.subject];
-		if (nowValue === undefined && basisValue === undefined) continue; // not a governed facet: nothing to contradict
+		if (nowValue === undefined && basisValue === undefined) {
+			// The cited record does not carry this subject. If another accepted record governs it, the claim cites the wrong record:
+			// a conflict when the value differs from the governing facet, Uncertain when it merely agrees. Never a pass.
+			const governors = governorsOf(state, claim.subject);
+			let flagged = false;
+			for (const governor of governors) {
+				const governing = governor.facets[claim.subject];
+				if (governing !== undefined && !facetValuesEqual(claim.value, governing)) {
+					flagged = true;
+					conflicts.push({
+						recordId: governor.recordId,
+						subject: claim.subject,
+						basedOn: claim.basedOn,
+						reasonCodes: ["CLAIM_CONFLICT", "WRONG_RECORD"],
+						message: `Claims ${claim.subject} = ${canonicalJson(claim.value)} citing ${claim.basedOn}, but ${governor.recordId}@${governor.version} governs it and says ${canonicalJson(governing)}.`,
+					});
+				}
+			}
+			if (!flagged && governors.length > 0) {
+				uncertain.push({
+					reasonCodes: ["WRONG_RECORD"],
+					recordId: ref.recordId,
+					subjects: [claim.subject],
+					message: `Claim on ${claim.subject} cites ${claim.basedOn}, but ${governors.map((g) => g.recordId).join(", ")} governs it.`,
+				});
+			}
+			continue; // ungoverned everywhere: nothing to contradict
+		}
 		const superseded = ref.version !== current.version;
 		if (nowValue !== undefined && !facetValuesEqual(claim.value, nowValue)) {
 			conflicts.push({
@@ -151,7 +178,7 @@ function findClaimIssues(state: CellState, wi: WorkItemState): Pick<Analysis, "c
 		}
 	}
 
-	for (const [recordId, subjects] of [...outside.entries()].sort(([a], [b]) => (a < b ? -1 : 1))) {
+	for (const [recordId, subjects] of [...outside.entries()].sort(([a], [b]) => compareStrings(a, b))) {
 		uncertain.push({
 			reasonCodes: ["UNDECLARED_DEP"],
 			recordId,
@@ -160,14 +187,24 @@ function findClaimIssues(state: CellState, wi: WorkItemState): Pick<Analysis, "c
 		});
 	}
 	return {
-		conflicts: conflicts.sort((a, b) => (a.subject < b.subject ? -1 : a.subject > b.subject ? 1 : 0)),
+		conflicts: conflicts.sort((a, b) => compareStrings(a.subject, b.subject)),
 		uncertain,
-		outsideReceipt: [...outside.entries()].map(([recordId, subjects]) => ({ recordId, subjects: [...subjects].sort() })).sort((a, b) => (a.recordId < b.recordId ? -1 : 1)),
+		outsideReceipt: [...outside.entries()].map(([recordId, subjects]) => ({ recordId, subjects: [...subjects].sort() })).sort((a, b) => compareStrings(a.recordId, b.recordId)),
 	};
 }
 
+/** Accepted records whose current facets include `subject`: the ones that actually govern it. */
+function governorsOf(state: CellState, subject: string): RecordSnapshot[] {
+	const out: RecordSnapshot[] = [];
+	for (const recordId of Object.keys(state.records).sort(compareStrings)) {
+		const snapshot = currentSnapshot(state, recordId);
+		if (snapshot && snapshot.facets[subject] !== undefined) out.push(snapshot);
+	}
+	return out;
+}
+
 function isGoverned(state: CellState, subject: string): boolean {
-	return Object.keys(state.records).some((recordId) => currentSnapshot(state, recordId)?.facets[subject] !== undefined);
+	return governorsOf(state, subject).length > 0;
 }
 
 /**
@@ -178,12 +215,12 @@ function isGoverned(state: CellState, subject: string): boolean {
  */
 function findCrossClaimConflicts(state: CellState, wi: WorkItemState): UncertainFinding[] {
 	const mine = validClaims(wi);
-	if (!mine || mine.length === 0) return [];
+	if (!mine || mine.length === 0 || isRejected(wi)) return [];
 	const findings: UncertainFinding[] = [];
 	for (const otherId of workItemIds(state)) {
 		if (otherId === wi.item.id) continue;
 		const other = state.workItems[otherId];
-		if (!other || isPromoted(other)) continue;
+		if (!other || isPromoted(other) || isRejected(other)) continue; // dead work does not contradict anyone
 		const theirs = validClaims(other);
 		if (!theirs) continue;
 		const subjects = new Set<string>();
@@ -209,7 +246,7 @@ export function evidenceAtHead(wi: WorkItemState): Evidence[] {
 	if (wi.headSha === null) return [];
 	const latest = new Map<string, Evidence>();
 	for (const evidence of wi.evidence) if (evidence.headSha === wi.headSha) latest.set(evidence.check, evidence);
-	return [...latest.values()].sort((a, b) => (a.check < b.check ? -1 : 1));
+	return [...latest.values()].sort((a, b) => compareStrings(a.check, b.check));
 }
 
 /** Checks the item's accepted dependencies require: the `validation` of each record it relies on. */

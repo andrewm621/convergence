@@ -19,7 +19,7 @@ export * from "./records";
 export const REPO = "sales-ops-baseline";
 
 export const actors = {
-	andrew: { kind: "human", id: "andrew", displayName: "Andrew (demo identity)" },
+	decisionOwner: { kind: "human", id: "decision-owner", displayName: "Decision owner (demo identity)" },
 	agentC: { kind: "agent", id: "agent-c", displayName: "Agent C" },
 	agentD: { kind: "agent", id: "agent-d", displayName: "Agent D" },
 	agentE: { kind: "agent", id: "agent-e", displayName: "Agent E" },
@@ -27,7 +27,7 @@ export const actors = {
 
 export const policy: Policy = {
 	version: 1,
-	authority: { "qualified-lead": "andrew", "sales-activity": "andrew" },
+	authority: { "qualified-lead": "decision-owner", "sales-activity": "decision-owner" },
 	staleness: "facet",
 	requires: [],
 	maxRevalidations: 2,

@@ -4,8 +4,8 @@ import { z } from "zod";
 export const Sha256 = z.string().regex(/^[0-9a-f]{64}$/, "expected a lowercase hex SHA-256");
 export type Sha256 = z.infer<typeof Sha256>;
 
-/** A git commit id (sha-1 or sha-256 hex). Fixtures and the real service both satisfy this. */
-export const CommitSha = z.string().regex(/^[0-9a-f]{7,64}$/, "expected a hex commit sha");
+/** A full git commit id: 40 hex characters (sha-1) or 64 (sha-256). Abbreviated shas are not ids. */
+export const CommitSha = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/, "expected a full 40 or 64 char hex commit sha");
 export type CommitSha = z.infer<typeof CommitSha>;
 
 /** ISO-8601 instant, e.g. 2026-10-13T16:00:00Z. Time is always an input, never read inside delta-core. */
@@ -36,6 +36,11 @@ export type FacetValue = z.infer<typeof FacetValue>;
 /** `recordId@version`, the form claims and supersedes pointers use. */
 export const RecordRefString = z.string().regex(/^[a-z0-9][a-z0-9_-]*@[1-9][0-9]*$/, "expected recordId@version");
 export type RecordRefString = z.infer<typeof RecordRefString>;
+
+/** Three-way string comparator for `sort`: never returns "greater" for equal strings. */
+export function compareStrings(a: string, b: string): number {
+	return a < b ? -1 : a > b ? 1 : 0;
+}
 
 export function formatRecordRef(recordId: string, version: number): string {
 	return `${recordId}@${version}`;

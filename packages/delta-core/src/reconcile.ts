@@ -1,6 +1,7 @@
 import {
 	ClaimsFile,
 	canonicalJson,
+	compareStrings,
 	dedupeKey,
 	isCommand,
 	type CellState,
@@ -94,6 +95,7 @@ function onWorkItemRegistered(draft: CellState, event: Of<"WorkItemRegistered">,
 		revalidating: false,
 		resolutions: [],
 		promotionApproval: null,
+		contextPaths: [],
 	};
 	draft.dependencies = [...draft.dependencies.filter((d) => d.workItemId !== id), ...event.dependencies.filter((d) => d.workItemId === id)];
 	return effectsForChanges(refreshWorkItem(draft, id, policy, event.ts).changed);
@@ -106,7 +108,7 @@ function onBaselinePushed(draft: CellState, event: Of<"BaselinePushed">, policy:
 	draft.snapshotHash = event.snapshotHash;
 	const effects: Effect[] = event.invalid.map((bad) => noAction(["RECORD_NOT_ACCEPTED"], { message: `${bad.path}: ${bad.error}` }));
 	if (event.records.length === 0 && event.invalid.length === 0) return [noAction(["NO_CONTEXT_CHANGE"])];
-	for (const snapshot of [...event.records].sort((a, b) => (a.recordId < b.recordId ? -1 : 1))) {
+	for (const snapshot of [...event.records].sort((a, b) => compareStrings(a.recordId, b.recordId))) {
 		effects.push(...onContextRecord(draft, snapshot, event.ts, policy));
 	}
 	return effects;
@@ -120,14 +122,16 @@ function onContextRecord(draft: CellState, snap: RecordSnapshot, ts: string, pol
 		if (snap.status === "proposed" && snap.version > (history.current ?? 0)) history.proposed = snap;
 		return [noAction(["RECORD_NOT_ACCEPTED"], { recordId, message: `${recordId}@${snap.version} is ${snap.status}; it does not govern anything.` })];
 	}
-	// A context file only becomes an accepted version if its acceptor is the record's authority.
-	const authority = policy.authority[recordId] ?? snap.authority;
+	// A context file only becomes an accepted version if its acceptor is the record's authority. The file's own
+	// `authority` field is not evidence of authority: it is trusted for a record's first version only. After that,
+	// authority is the policy's, else whatever the previous accepted version said (so only the sitting authority can hand it over).
+	const prev = currentSnapshot(draft, recordId);
+	const authority = policy.authority[recordId] ?? prev?.authority ?? snap.authority;
 	if (snap.acceptedBy !== authority) {
-		history.proposed = snap;
+		if (snap.version > (history.current ?? 0)) history.proposed = snap;
 		return [noAction(["FORBIDDEN_ACTOR", "RECORD_NOT_ACCEPTED"], { recordId, message: `${recordId}@${snap.version} was accepted by ${snap.acceptedBy ?? "nobody"}, not by its authority ${authority}.` })];
 	}
 
-	const prev = currentSnapshot(draft, recordId);
 	if (prev) {
 		if (snap.version < prev.version) return [noAction(["VERSION_NOT_NEWER"], { recordId, message: `${recordId}@${snap.version} is older than accepted v${prev.version}.` })];
 		if (snap.version === prev.version) {
@@ -153,11 +157,15 @@ function onContextRecord(draft: CellState, snap: RecordSnapshot, ts: string, pol
 		const hasException = wi.resolutions.some((r) => r.kind === "accept-exception" && r.binding.recordId === recordId);
 		const wasStale = wi.conditions.some((c) => c.type === "Stale" && c.recordRefs.some((ref) => ref.startsWith(`${recordId}@`)));
 		const nowStale = dependsOn && findStale(draft, wi, policy).some((f) => f.recordId === recordId);
+		// Work that holds a live approval, or whose claims cite this record, can change verdict without depending on a changed facet.
+		const involved = wi.promotionApproval !== null || (wi.claims?.status === "ok" && wi.claims.claims.some((c) => c.basedOn.startsWith(`${recordId}@`)));
 
 		// A prose-only edit leaves already-stale work as it was; only a lapsing exception needs a second look.
-		if ((!proseOnly && (nowStale || wasStale)) || hasException) {
+		if ((!proseOnly && (nowStale || wasStale || involved)) || hasException) {
 			const refresh = refreshWorkItem(draft, id, policy, ts);
-			effects.push(...effectsForChanges(refresh.changed));
+			const changes = effectsForChanges(refresh.changed);
+			if (changes.length > 0) effects.push(...changes);
+			else if (!proseOnly) effects.push(noAction(["NO_DEPENDENCY_ON_CHANGED_FACETS"], { workItemId: id, recordId, message: `${id} depends on this record, but nothing it relies on changed; left alone.` }));
 		} else if (!proseOnly) {
 			const reason = dependsOn ? "depends on this record, but none of the facets it relies on changed" : "does not depend on this record";
 			effects.push(noAction(["NO_DEPENDENCY_ON_CHANGED_FACETS"], { workItemId: id, recordId, message: `${id} ${reason}; left alone.` }));
@@ -185,10 +193,11 @@ function onForkPushed(draft: CellState, event: Of<"ForkPushed">, policy: Policy)
 	wi.headSha = event.commitSha;
 	wi.revalidating = false;
 	wi.promotionApproval = null;
+	wi.contextPaths = [...event.contextPaths].sort(compareStrings);
 
 	const effects: Effect[] = [];
 	if (event.contextPaths.length > 0) {
-		effects.push(noAction(["FORK_CONTEXT_IGNORED"], { workItemId: id, message: `A fork cannot change accepted context (${event.contextPaths.join(", ")}); only the baseline can.` }));
+		effects.push(noAction(["FORK_CONTEXT_IGNORED"], { workItemId: id, message: `A fork cannot change accepted context (${event.contextPaths.join(", ")}); only the baseline can. This fork is blocked from promotion.` }));
 	}
 
 	const parsed = event.claims === null ? null : ClaimsFile.safeParse(event.claims);
@@ -209,7 +218,7 @@ function onForkPushed(draft: CellState, event: Of<"ForkPushed">, policy: Policy)
 			subjects.add(claim.subject);
 			cited.set(recordId, subjects);
 		}
-		for (const [recordId, subjects] of [...cited.entries()].sort(([a], [b]) => (a < b ? -1 : 1))) {
+		for (const [recordId, subjects] of [...cited.entries()].sort(([a], [b]) => compareStrings(a, b))) {
 			const evidenceRef = `${event.repo}@${event.commitSha}:.delta/claims.json`;
 			const existing = draft.dependencies.find((d) => d.workItemId === id && d.recordId === recordId);
 			if (!existing) {
@@ -225,12 +234,18 @@ function onForkPushed(draft: CellState, event: Of<"ForkPushed">, policy: Policy)
 	effects.push(...effectsForChanges(refreshWorkItem(draft, id, policy, event.ts).changed));
 
 	// R3b: other live items that share a claimed subject may now disagree with (or stop disagreeing with) this one.
-	const subjects = new Set([...touched, ...validSubjects(wi)]);
+	effects.push(...refreshCounterparts(draft, id, new Set([...touched, ...validSubjects(wi)]), policy, event.ts));
+	return effects;
+}
+
+/** Refresh every other live item that claims one of `subjects`, because its cross-claim verdict may have changed. */
+function refreshCounterparts(draft: CellState, id: string, subjects: Set<string>, policy: Policy, ts: string): Effect[] {
+	const effects: Effect[] = [];
 	for (const otherId of workItemIds(draft)) {
 		const other = draft.workItems[otherId] as WorkItemState;
 		if (otherId === id || isPromoted(other)) continue;
 		if (![...validSubjects(other)].some((subject) => subjects.has(subject))) continue;
-		effects.push(...effectsForChanges(refreshWorkItem(draft, otherId, policy, event.ts).changed));
+		effects.push(...effectsForChanges(refreshWorkItem(draft, otherId, policy, ts).changed));
 	}
 	return effects;
 }
@@ -279,6 +294,8 @@ function onReceiptIssued(draft: CellState, event: Of<"ReceiptIssued">, policy: P
 	const wi = draft.workItems[id];
 	if (!wi) return [noAction(["UNKNOWN_WORK_ITEM"], { workItemId: id })];
 	if (isPromoted(wi)) return [noAction(["ALREADY_PROMOTED"], { workItemId: id })];
+	// A receipt is only taken while a human-requested revalidation is under way; nothing else may swap an item's receipt.
+	if (!wi.revalidating) return [noAction(["REVALIDATION_NOT_REQUESTED"], { workItemId: id, message: "No revalidation is under way for this work item; a new receipt is not taken." })];
 
 	const entries = event.receipt.accepted;
 	const matchesCurrent = entries.every((entry) => {
@@ -350,17 +367,25 @@ function onResolutionRecorded(draft: CellState, event: Of<"ResolutionRecorded">,
 		wi.resolutions.push(resolution);
 		wi.promotionApproval = null;
 		const refresh = refreshWorkItem(draft, id, policy, event.ts);
-		return [{ type: "BLOCK_PROMOTION", workItemId: id, reasonCodes: ["RESOLUTION_REJECTED"] }, ...effectsForChanges(refresh.changed)];
+		// Rejected work no longer counts in cross-claim comparisons (R3b), so its counterparts are re-evaluated.
+		return [
+			{ type: "BLOCK_PROMOTION", workItemId: id, reasonCodes: ["RESOLUTION_REJECTED"] },
+			...effectsForChanges(refresh.changed),
+			...refreshCounterparts(draft, id, validSubjects(wi), policy, event.ts),
+		];
 	}
 
-	// revalidate (R6), with a loop guard
+	// revalidate (R6): only for work that is stale or conflicting, with a loop guard
+	const analysis = analyze(draft, id, policy);
+	if (analysis.stale.length === 0 && analysis.conflicts.length === 0) {
+		return [noAction(["NOTHING_TO_REVALIDATE"], { workItemId: id, message: "Nothing stale or conflicting; there is nothing to revalidate." })];
+	}
 	if (wi.revalidations >= policy.maxRevalidations) {
 		return [
 			{ type: "REQUEST_REVIEW", workItemId: id, message: `Revalidated ${wi.revalidations} times already; a person needs to look at why this keeps failing.`, reasonCodes: ["REVALIDATION_LIMIT"] },
 			{ type: "BLOCK_PROMOTION", workItemId: id, reasonCodes: ["REVALIDATION_LIMIT"] },
 		];
 	}
-	const analysis = analyze(draft, id, policy);
 	const diff = diffsFor(draft, wi, analysis.stale.map((f) => f.recordId));
 	wi.resolutions.push(resolution);
 	wi.revalidations += 1;
@@ -369,6 +394,7 @@ function onResolutionRecorded(draft: CellState, event: Of<"ResolutionRecorded">,
 	const refresh = refreshWorkItem(draft, id, policy, event.ts);
 	return [
 		...effectsForChanges(refresh.changed),
+		...refreshCounterparts(draft, id, validSubjects(wi), policy, event.ts),
 		{ type: "REQUEST_REVALIDATION", workItemId: id, diff, reasonCodes: ["REVALIDATION_STARTED"] },
 		{ type: "DISPATCH_WORK", workItemId: id, mode: "revalidate", diff, reasonCodes: ["REVALIDATION_STARTED"] },
 	];
@@ -407,6 +433,16 @@ function onPromotionMerged(draft: CellState, event: Of<"PromotionMerged">, polic
 	if (isPromoted(wi)) return [noAction(["ALREADY_PROMOTED"], { workItemId: id })];
 	if (!wi.promotionApproval || wi.promotionApproval.forkHeadSha !== wi.headSha) {
 		return [noAction(["PROMOTION_NOT_APPROVED"], { workItemId: id, message: "No live promotion approval for this head; the merge is not recorded as a promotion." })];
+	}
+	// R7 at merge time too: re-run the gate at the current state. If anything moved since approval, the merge is not a promotion.
+	const refresh = refreshWorkItem(draft, id, policy, event.ts);
+	if (!refresh.gate.promotable) {
+		wi.promotionApproval = null;
+		return [
+			...effectsForChanges(refresh.changed),
+			{ type: "BLOCK_PROMOTION", workItemId: id, reasonCodes: refresh.gate.reasonCodes },
+			noAction(["PROMOTION_NOT_APPROVED", ...refresh.gate.reasonCodes], { workItemId: id, message: "The gate no longer passes at the current state; the merge is not recorded as a promotion." }),
+		];
 	}
 	wi.promotionApproval = null;
 	wi.item.status = "promoted";

@@ -9,14 +9,14 @@ const h = (c: string) => c.repeat(64);
 
 function receipt(): ContextReceipt {
 	return {
-		baselineCommit: "abc1234",
+		baselineCommit: "a100000000000000000000000000000000000001",
 		contextPacketHash: h("a"),
 		accepted: [
 			{ recordId: "status-model", version: 1, blobHash: h("b"), facetHash: h("c") },
 			{ recordId: "notifications", version: 1, blobHash: h("d"), facetHash: h("e") },
 		],
 		proposedVisible: [],
-		noteRef: formatNoteRef("abc1234"),
+		noteRef: formatNoteRef("a100000000000000000000000000000000000001"),
 	};
 }
 

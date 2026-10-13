@@ -27,7 +27,7 @@ export function describeStoreConformance(label: string, makeStore: () => CellSto
 			await store.init(createCellState(fixture.seed));
 			const first = await store.load();
 			if (!first) throw new Error("expected state");
-			first.baselineCommit = "deadbeef";
+			first.baselineCommit = "dead000000000000000000000000000000000001";
 			expect((await store.load())?.baselineCommit).toBe(fixture.seed.baselineCommit);
 		});
 
@@ -57,7 +57,7 @@ export function describeStoreConformance(label: string, makeStore: () => CellSto
 			await processEvent(store, first, fixture.policy);
 			const before = await store.load();
 			const stale = await buildLedgerEntry(EMPTY_LEDGER_HEAD, { event: second, effects: [], policyVersion: 1, baselineSha: fixture.seed.baselineCommit });
-			const mutated = { ...(before as NonNullable<typeof before>), baselineCommit: "deadbeef" };
+			const mutated = { ...(before as NonNullable<typeof before>), baselineCommit: "dead000000000000000000000000000000000001" };
 			await expect(store.commit({ state: mutated, entry: stale })).rejects.toBeInstanceOf(LedgerConflictError);
 			expect(await store.load()).toEqual(before);
 			expect((await store.ledger()).length).toBe(1);

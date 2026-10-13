@@ -94,9 +94,9 @@ Everything is TypeScript and Zod, in `packages/contracts`. All objects are porta
 id: notifications
 version: 2
 status: accepted            # proposed | accepted | superseded
-authority: andrew           # actor allowed to accept changes
-proposed_by: andrew
-accepted_by: andrew
+authority: decision-owner           # actor allowed to accept changes
+proposed_by: decision-owner
+accepted_by: decision-owner
 accepted_at: 2026-10-13T16:00:00Z
 supersedes: notifications@1
 validation: tests/contract/notifications.test.ts   # the Delta-run check (rule R8)
@@ -111,21 +111,21 @@ Users opt in to project status notifications, delivered as a weekly digest. (Dec
 ### The reconciler (pure, no I/O, no LLM)
 ```ts
 reconcile(state: CellState, event: DeltaEvent, policy: Policy): { state: CellState; effects: Effect[] }
-// Effect = REQUEST_REVALIDATION | BLOCK_PROMOTION | REQUEST_REVIEW | DISPATCH_WORK | RECORD_CONDITION | NO_ACTION
+// Effect = REQUEST_REVALIDATION | BLOCK_PROMOTION | REQUEST_REVIEW | DISPATCH_WORK | RECORD_CONDITION | ALLOW_PROMOTION | NO_ACTION
 ```
 Mapping to the thread spec: `BLOCK_PROMOTION` plus `REQUEST_REVIEW` is the PRD's split of the spec's `REQUEST_APPROVAL`.
 
 Rules for v1, all deterministic:
 - **R1 Staleness (facet-level).** A baseline push to `context/X` produces a new accepted version. Diff its **facets** against the version in each non-promoted WorkItem's receipt. Only items with an *accepted* dependency on a **changed facet** become `Stale`. Effects: `BLOCK_PROMOTION` and `REQUEST_REVIEW`. If only the prose changed (no facet changed), the effect is `NO_ACTION` with reason `PROSE_ONLY`. That is a demo beat: a typo fix doesn't page anyone.
 - **R2 Unaffected.** A WorkItem with no dependency on the changed facets stays `Fresh`. Effect: `NO_ACTION`, recorded with a reason code so the demo can show *why* it was left alone. WI-1 and WI-5 are the named negative controls.
-- **R3 Claim conflict.** When a fork push updates `.delta/claims.json`, compare each claim to the *current accepted* facets. A matching `subject` with a different value gives `ClaimConflict`. A claim `basedOn` a superseded version is also a conflict. Claims are labelled *agent-asserted*. Malformed or missing claims **fail closed** and give `Uncertain` with reason `NO_CLAIMS` or `MALFORMED_CLAIMS`.
+- **R3 Claim conflict.** When a fork push updates `.delta/claims.json`, compare each claim to the *current accepted* facets. A matching `subject` with a different value gives `ClaimConflict`. A claim `basedOn` a superseded version is also a conflict, judged at facet level: it conflicts only if the claimed facet differs between the cited version and the current one. A claim is compared to the record that governs its subject, so a claim citing the wrong record is a conflict (or `Uncertain` if its value merely agrees), never a pass. Claims are labelled *agent-asserted*. Malformed or missing claims **fail closed** and give `Uncertain` with reason `NO_CLAIMS` or `MALFORMED_CLAIMS`.
 - **R4 Undeclared reliance.** A claim citing a record that isn't in the receipt creates a `Dependency{basis: inferred, status: proposed}` and gives `Uncertain`. A human accepts or rejects it. Models propose; they never bind.
-- **R5 Promotion gate.** A WorkItem may be promoted only if it is `Fresh` **and** `TestsPassed` for every check in `requires[]`, *or* it holds a bound `accept-exception` from the record's `authority`. Anything unknown blocks.
+- **R5 Promotion gate.** A WorkItem may be promoted only if it is `Fresh` **and** `TestsPassed` for every check in `requires[]`, *or* it holds a bound `accept-exception` from the record's `authority`. An exception waives staleness, claim conflicts and the excepted record's own validation check, and nothing else: other records' checks must still pass, and unknowns (missing or malformed claims, undeclared dependencies, cross-claim conflict) are never waived. Anything unknown blocks. A fork that changes `context/**` is never promotable (`FORK_EDITS_CONTEXT`): agents propose context changes on the baseline, they do not carry them in through a merge.
 - **R6 Revalidation.** `revalidate` creates a new receipt at the current versions. It dispatches the agent again on the same fork with a diff-aware prompt ("decision X changed from v1 to v2; reconcile your work"). A loop guard applies: after `maxRevalidations`, the result is `REQUEST_REVIEW`.
-- **R7 Approval binding.** Every Resolution binds `recordId@version+blobHash`, `baseSha` and `forkHeadSha`. `promote` re-runs R1, R3 and R8 **at the current heads inside the DO** and carries `expectedBaselineCommit` (compare-and-swap). An exception **lapses** if its record gets a new accepted version. A context push that lands between approve and promote can't slip through.
+- **R7 Approval binding.** Every Resolution binds `recordId@version+blobHash`, `baseSha` and `forkHeadSha`. `promote` re-runs R1, R3 and R8 **at the current heads inside the DO** and carries `expectedBaselineCommit` (compare-and-swap). An exception **lapses** if its record gets a new accepted version. A context push that lands between approve and promote can't slip through: promotion is two-phase (the gate emits `ALLOW_PROMOTION`, the adapter merges, then the merge is recorded), and recording the merge re-runs the gate at the current state.
 - **R8 Evidence (Delta-run, not agent-run).** Each scenario ships one contract check (for example, `notifications.default == opt-in` asserted against the code's actual default). Delta's runner executes it at the fork head on every push and again at promote, and stores `Evidence`. The conflict therefore doesn't depend on the agent honestly reporting its own claims. It also keeps the demo alive if the live agent skips claims.
-- **R9 Idempotency.** Events are deduplicated on `(repo, commitSha)`, because Queues deliver at least once and the poller can double-fire. Mutating endpoints take an `Idempotency-Key`.
-- **R3b Cross-claim conflict (P1).** Two non-promoted items that claim different values for the same subject give `Uncertain`. This covers the phone-optional-vs-required case.
+- **R9 Idempotency.** Events are deduplicated on `(repo, commitSha)`, because Queues deliver at least once and the poller can double-fire. Evidence is keyed by `(repo, commitSha, check, runId)`, so a re-run at the same head (for example at promote) is not dropped as a replay. A merge is keyed by work item and merge commit. Mutating endpoints take an `Idempotency-Key`.
+- **R3b Cross-claim conflict (P1).** Two non-promoted items that claim different values for the same subject give `Uncertain`. This covers the phone-optional-vs-required case. It applies only to subjects no accepted facet governs (R3 arbitrates the rest) and ignores rejected items.
 
 Named invariant tests run against both fixtures, on an in-memory store **and** the DO store:
 - "unaffected work never changes status"
@@ -225,7 +225,7 @@ Mid-flight, `qualified-lead` v2 adds a "verified budget signal" requirement. WI-
 One screen, three panes, live over WebSocket.
 
 - **Left, Context timeline.** Each ContextRecord with its version history (v1 → v2), who accepted it and when. A "Propose change" editor commits a new version to the baseline.
-- **Center, Work graph.** React Flow with the baseline node and one fork node per work item. Status chips: `running · fresh · stale · conflict · revalidating · ready · promoted`. Edges from each work item to the context records it depends on light up red when stale. **This is the "Oh!" moment:** the decision changes, and exactly one edge turns red.
+- **Center, Work graph.** React Flow with the baseline node and one fork node per work item. Status chips: `running · fresh · stale · uncertain · conflict · revalidating · ready · rejected · promoted`. Edges from each work item to the context records it depends on light up red when stale. **This is the "Oh!" moment:** the decision changes, and exactly one edge turns red.
 - **Right, Inspector** for the selected work item:
   - *Receipt*: the records, versions and hashes it was given.
   - *Semantic diff*: claims vs the accepted facets, colored by match, conflict or undeclared.

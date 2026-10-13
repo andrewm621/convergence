@@ -42,6 +42,12 @@ export const WorkItemState = z.strictObject({
 	revalidating: z.boolean(),
 	resolutions: z.array(Resolution),
 	promotionApproval: PromotionApproval.nullable(),
+	/**
+	 * Paths under `context/` the fork changed, from the adapter's tree diff of the fork against its
+	 * base, replaced on every push. Non-empty blocks promotion (FORK_EDITS_CONTEXT): agents propose
+	 * context changes, they never carry them in through a merge.
+	 */
+	contextPaths: z.array(z.string()).optional(),
 });
 export type WorkItemState = z.infer<typeof WorkItemState>;
 

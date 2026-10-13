@@ -14,9 +14,9 @@ export const NOTIFICATIONS_V1 = `---
 id: notifications
 version: 1
 status: accepted
-authority: andrew
-proposed_by: andrew
-accepted_by: andrew
+authority: decision-owner
+proposed_by: decision-owner
+accepted_by: decision-owner
 accepted_at: 2026-10-12T16:00:00Z
 validation: ${NOTIFICATIONS_CHECK}
 facets:
@@ -36,9 +36,9 @@ export const NOTIFICATIONS_V2 = `---
 id: notifications
 version: 2
 status: accepted
-authority: andrew
-proposed_by: andrew
-accepted_by: andrew
+authority: decision-owner
+proposed_by: decision-owner
+accepted_by: decision-owner
 accepted_at: 2026-10-13T16:00:00Z
 supersedes: notifications@1
 validation: ${NOTIFICATIONS_CHECK}
@@ -60,9 +60,9 @@ export const NOTIFICATIONS_V3_PROSE_BUMP = `---
 id: notifications
 version: 3
 status: accepted
-authority: andrew
-proposed_by: andrew
-accepted_by: andrew
+authority: decision-owner
+proposed_by: decision-owner
+accepted_by: decision-owner
 accepted_at: 2026-10-13T18:00:00Z
 supersedes: notifications@2
 validation: ${NOTIFICATIONS_CHECK}
@@ -76,15 +76,15 @@ Project status notifications are opt-in and arrive as a weekly digest.
 `;
 
 /** An unauthorised change: accepted by someone who is not the record's authority. */
-export const NOTIFICATIONS_V2_FORGED = NOTIFICATIONS_V2.replace("accepted_by: andrew", "accepted_by: agent-b");
+export const NOTIFICATIONS_V2_FORGED = NOTIFICATIONS_V2.replace("accepted_by: decision-owner", "accepted_by: agent-b");
 
 export const STATUS_MODEL_V1 = `---
 id: status-model
 version: 1
 status: accepted
-authority: andrew
-proposed_by: andrew
-accepted_by: andrew
+authority: decision-owner
+proposed_by: decision-owner
+accepted_by: decision-owner
 accepted_at: 2026-10-12T16:00:00Z
 validation: ${STATUS_MODEL_CHECK}
 facets:

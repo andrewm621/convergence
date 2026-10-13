@@ -1,6 +1,7 @@
 import { canonicalJson, type CellState, type Condition, type ConditionType, type Policy, type ReasonCode, type WorkItemState, type WorkItemStatus } from "contracts";
 import { analyze, type Analysis } from "./analysis";
-import { gateFrom, isBlockingReason, isRejected, type GateVerdict } from "./gate";
+import { isRejected } from "./cell-state";
+import { gateFrom, isBlockingReason, type GateVerdict } from "./gate";
 
 const ORDER: ConditionType[] = ["Fresh", "Stale", "Uncertain", "ClaimConflict", "TestFailed", "TestsPassed", "Blocked", "Ready", "Promoted"];
 

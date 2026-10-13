@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createCell, conditionTypes, effectTypes, reasonsOf } from "./testing/harness";
+import { createCell, conditionTypes, effectTypes, reasonsOf, resolutionEvent } from "./testing/harness";
 import { forkPush, notifications as n, registerItem, salesOps as s } from "./testing/scenarios";
 
 async function cell() {
@@ -78,6 +78,7 @@ describe("R3 claim conflict", () => {
 		const c = await cell();
 		await c.send(n.events.v2);
 		await c.send(n.events.wi2PushedV1);
+		await c.send(resolutionEvent(await c.state(), { kind: "revalidate", workItemId: "WI-2", recordId: "notifications", actor: n.actors.decisionOwner, requestId: "rv-r3", ts: "2026-10-13T17:00:00Z" }));
 		await c.send(n.events.wi2ReceiptIssued);
 		await c.send(n.events.wi2PushedRevalidated);
 		expect(conditionTypes(await c.wi("WI-2"))).not.toContain("ClaimConflict");
@@ -127,7 +128,8 @@ describe("R3 claim conflict", () => {
 		expect(reasonsOf(result)).toContain("FORK_CONTEXT_IGNORED");
 		expect((await c.state()).records).toEqual(before);
 		expect((await c.wi("WI-1")).item.status).toBe("running");
-		expect((await c.wi("WI-2")).conditions.map((x) => x.type)).toEqual(["Fresh"]);
+		// ...and the fork is blocked from promotion for trying.
+		expect((await c.wi("WI-2")).conditions.find((x) => x.type === "Blocked")?.reasonCodes).toContain("FORK_EDITS_CONTEXT");
 	});
 
 	it("[negative] a push from a repo that is not the item's fork is ignored", async () => {
@@ -212,7 +214,7 @@ describe("R4 undeclared reliance", () => {
 	it("[positive] a human accepting the dependency makes it gate (the receipt never delivered it, so the item is Stale)", async () => {
 		const c = await cell();
 		await c.send(forkPush(wi1, n.claims.wi1Undeclared));
-		await c.send({ type: "DependencyDecided", ts: "2026-10-13T17:00:00Z", requestId: "dep-1", workItemId: "WI-1", recordId: "notifications", decision: "accepted", actor: n.actors.andrew });
+		await c.send({ type: "DependencyDecided", ts: "2026-10-13T17:00:00Z", requestId: "dep-1", workItemId: "WI-1", recordId: "notifications", decision: "accepted", actor: n.actors.decisionOwner });
 		const stale = (await c.wi("WI-1")).conditions.find((x) => x.type === "Stale");
 		expect(stale?.reasonCodes).toEqual(["STALE_RECEIPT"]);
 		expect((await c.state()).dependencies.find((d) => d.recordId === "notifications" && d.workItemId === "WI-1")?.status).toBe("accepted");
@@ -221,7 +223,7 @@ describe("R4 undeclared reliance", () => {
 	it("[positive] a human rejecting the dependency clears the uncertainty", async () => {
 		const c = await cell();
 		await c.send(forkPush(wi1, n.claims.wi1Undeclared));
-		await c.send({ type: "DependencyDecided", ts: "2026-10-13T17:00:00Z", requestId: "dep-2", workItemId: "WI-1", recordId: "notifications", decision: "rejected", actor: n.actors.andrew });
+		await c.send({ type: "DependencyDecided", ts: "2026-10-13T17:00:00Z", requestId: "dep-2", workItemId: "WI-1", recordId: "notifications", decision: "rejected", actor: n.actors.decisionOwner });
 		expect(conditionTypes(await c.wi("WI-1"))).toEqual(["Fresh"]);
 	});
 

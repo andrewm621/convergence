@@ -26,7 +26,7 @@ export const WI2_REPO = "notifications-wi-2";
 
 export const policy: Policy = {
 	version: 1,
-	authority: { notifications: "andrew", "status-model": "andrew" },
+	authority: { notifications: "decision-owner", "status-model": "decision-owner" },
 	staleness: "facet",
 	requires: [],
 	maxRevalidations: 2,

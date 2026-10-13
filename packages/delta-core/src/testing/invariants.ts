@@ -109,7 +109,7 @@ export function describeInvariants(storeLabel: string, makeStore: () => CellStor
 					{ ...sc.agent, id: sc.human.id }, // an agent borrowing the human's id is still an agent
 					{ kind: "system", id: "delta", displayName: "Delta" } as Actor,
 				].entries()) {
-					for (const kind of ["revalidate", "reject"] as const) {
+					for (const kind of ["revalidate", "reject", "accept-exception"] as const) {
 						const event = resolutionEvent(await cell.state(), {
 							kind,
 							workItemId: sc.affectedId,
@@ -117,6 +117,7 @@ export function describeInvariants(storeLabel: string, makeStore: () => CellStor
 							actor,
 							requestId: `agent-${i}-${kind}`,
 							ts: "2026-10-13T17:00:00Z",
+							scope: "any scope",
 						});
 						const result = await cell.send(event);
 						expect(result.effects).toEqual([expect.objectContaining({ type: "NO_ACTION", reasonCodes: ["FORBIDDEN_ACTOR"] })]);
@@ -127,7 +128,7 @@ export function describeInvariants(storeLabel: string, makeStore: () => CellStor
 				expect(await cell.wi(sc.affectedId)).toEqual(before);
 				// The refusals are in the ledger, so they are auditable.
 				const refused = (await cell.store.ledger()).filter((e) => e.type === "ResolutionRecorded");
-				expect(refused).toHaveLength(6);
+				expect(refused).toHaveLength(9);
 
 				// And the same event from a human is accepted.
 				const ok = await cell.send(
@@ -150,7 +151,7 @@ export function describeInvariants(storeLabel: string, makeStore: () => CellStor
 					["ts", (e) => (e.ts = "2031-01-01T00:00:00Z")],
 					["type", (e) => (e.type = e.type === "ForkPushed" ? "BaselinePushed" : "ForkPushed")],
 					["policyVersion", (e) => (e.policyVersion += 1)],
-					["baselineSha", (e) => (e.baselineSha = "deadbeef")],
+					["baselineSha", (e) => (e.baselineSha = "dead000000000000000000000000000000000001")],
 					["seq", (e) => (e.seq += 100)],
 					["prevHash", (e) => (e.prevHash = "1".repeat(64))],
 					["hash", (e) => (e.hash = "2".repeat(64))],

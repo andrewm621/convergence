@@ -115,7 +115,7 @@ export function promotionEvent(
 		workItemId: o.workItemId,
 		actor: o.actor,
 		expectedBaselineCommit: o.expectedBaselineCommit ?? state.baselineCommit,
-		forkHeadSha: o.forkHeadSha ?? wi?.headSha ?? "0000000",
+		forkHeadSha: o.forkHeadSha ?? wi?.headSha ?? "0f00000000000000000000000000000000000001",
 	};
 }
 

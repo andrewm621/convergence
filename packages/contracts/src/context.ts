@@ -87,7 +87,7 @@ export type ReceiptEntry = z.infer<typeof ReceiptEntry>;
 
 /** Where a receipt lives in git: `refs/notes/delta` annotating a commit on the work item's fork. */
 export const NOTES_REF = "refs/notes/delta";
-export const NoteRef = z.string().regex(/^refs\/notes\/delta:[0-9a-f]{7,64}$/, "expected refs/notes/delta:<commitSha>");
+export const NoteRef = z.string().regex(/^refs\/notes\/delta:(?:[0-9a-f]{40}|[0-9a-f]{64})$/, "expected refs/notes/delta:<commitSha>");
 export type NoteRef = z.infer<typeof NoteRef>;
 
 export function formatNoteRef(commitSha: string): NoteRef {

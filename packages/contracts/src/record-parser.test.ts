@@ -5,9 +5,9 @@ const GOOD = `---
 id: notifications
 version: 2
 status: accepted
-authority: andrew
-proposed_by: andrew
-accepted_by: andrew
+authority: decision-owner
+proposed_by: decision-owner
+accepted_by: decision-owner
 accepted_at: 2026-10-13T16:00:00Z
 supersedes: notifications@1
 validation: tests/contract/notifications.test.ts
@@ -29,9 +29,9 @@ function withFrontMatter(yaml: string): string {
 const MINIMAL = `id: ctx
 version: 1
 status: accepted
-authority: andrew
-proposed_by: andrew
-accepted_by: andrew
+authority: decision-owner
+proposed_by: decision-owner
+accepted_by: decision-owner
 accepted_at: 2026-10-13T16:00:00Z
 facets:
   a.b: 1`;
@@ -62,7 +62,7 @@ describe("parseContextRecord", () => {
 		["bad YAML", withFrontMatter("id: [unclosed")],
 		["duplicate keys", withFrontMatter(`${MINIMAL}\nversion: 2`)],
 		["unknown key", withFrontMatter(`${MINIMAL}\nsurprise: true`)],
-		["accepted without accepted_by", withFrontMatter(MINIMAL.replace("accepted_by: andrew\n", ""))],
+		["accepted without accepted_by", withFrontMatter(MINIMAL.replace("accepted_by: decision-owner\n", ""))],
 		["version zero", withFrontMatter(MINIMAL.replace("version: 1", "version: 0"))],
 		["version as string", withFrontMatter(MINIMAL.replace("version: 1", 'version: "1"'))],
 		["bad status", withFrontMatter(MINIMAL.replace("status: accepted", "status: maybe"))],

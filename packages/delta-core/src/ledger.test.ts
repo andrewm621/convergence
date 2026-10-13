@@ -46,7 +46,7 @@ describe("ledger hash chain", () => {
 		const entries = await chain(4);
 		const forged = structuredClone(entries);
 		const target = forged[1] as ReconciliationEvent;
-		target.baselineSha = "deadbeef";
+		target.baselineSha = "dead000000000000000000000000000000000001";
 		const { hash: _old, ...fields } = target;
 		target.hash = await hashLedgerLine(fields);
 		const verdict = await verifyChain(forged);
@@ -59,7 +59,7 @@ describe("ledger hash chain", () => {
 			const out: ReconciliationEvent[] = [entries[0] as ReconciliationEvent];
 			let head = { seq: 1, hash: (entries[0] as ReconciliationEvent).hash };
 			for (const e of entries.slice(1)) {
-				const entry = await buildLedgerEntry(head, { event: e.payload.event, effects: [], policyVersion: 1, baselineSha: "deadbeef" });
+				const entry = await buildLedgerEntry(head, { event: e.payload.event, effects: [], policyVersion: 1, baselineSha: "dead000000000000000000000000000000000001" });
 				out.push(entry);
 				head = { seq: entry.seq, hash: entry.hash };
 			}

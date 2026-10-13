@@ -50,6 +50,11 @@ export function acceptedDependenciesOf(state: CellState, workItemId: string): De
 	return dependenciesOf(state, workItemId).filter((dep) => dep.status === "accepted");
 }
 
+/** The last disposition wins: a later `revalidate` clears an earlier `reject`. */
+export function isRejected(wi: WorkItemState): boolean {
+	return wi.resolutions.at(-1)?.kind === "reject";
+}
+
 export function isPromoted(wi: WorkItemState): boolean {
 	return wi.item.status === "promoted";
 }

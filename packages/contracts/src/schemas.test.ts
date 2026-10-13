@@ -1,15 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { Claim, ClaimsFile, Resolution, WorkItem, WsMessage, parseRecordRef, formatRecordRef } from "./index";
 
-const human = { kind: "human", id: "andrew", displayName: "Andrew (demo identity)" } as const;
+const human = { kind: "human", id: "decision-owner", displayName: "Decision owner (demo identity)" } as const;
 const sha = "a".repeat(64);
 
 const binding = {
 	recordId: "notifications",
 	version: 2,
 	blobHash: sha,
-	baseSha: "abc1234",
-	forkHeadSha: "def5678",
+	baseSha: "a100000000000000000000000000000000000001",
+	forkHeadSha: "d500000000000000000000000000000000000001",
 	contextSnapshotHash: sha,
 };
 

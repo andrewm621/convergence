@@ -14,9 +14,9 @@ export const QUALIFIED_LEAD_V1 = `---
 id: qualified-lead
 version: 1
 status: accepted
-authority: andrew
-proposed_by: andrew
-accepted_by: andrew
+authority: decision-owner
+proposed_by: decision-owner
+accepted_by: decision-owner
 accepted_at: 2026-09-29T16:00:00Z
 validation: ${QUALIFIED_LEAD_CHECK}
 facets:
@@ -39,9 +39,9 @@ export const QUALIFIED_LEAD_V2 = `---
 id: qualified-lead
 version: 2
 status: accepted
-authority: andrew
-proposed_by: andrew
-accepted_by: andrew
+authority: decision-owner
+proposed_by: decision-owner
+accepted_by: decision-owner
 accepted_at: 2026-10-13T16:00:00Z
 supersedes: qualified-lead@1
 validation: ${QUALIFIED_LEAD_CHECK}
@@ -61,9 +61,9 @@ export const SALES_ACTIVITY_V1 = `---
 id: sales-activity
 version: 1
 status: accepted
-authority: andrew
-proposed_by: andrew
-accepted_by: andrew
+authority: decision-owner
+proposed_by: decision-owner
+accepted_by: decision-owner
 accepted_at: 2026-09-29T16:00:00Z
 validation: ${SALES_ACTIVITY_CHECK}
 facets:

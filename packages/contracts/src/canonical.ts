@@ -23,6 +23,9 @@ function canonicalize(value: unknown, path: string): unknown {
 			return value;
 		case "object": {
 			if (Array.isArray(value)) return value.map((item, i) => canonicalize(item, `${path}[${i}]`));
+			// Dates, Maps, Sets, typed arrays and class instances have no stable JSON form; hashing them as {} would be silent.
+			const proto = Object.getPrototypeOf(value);
+			if (proto !== Object.prototype && proto !== null) throw new TypeError(`canonicalJson: non-plain object at ${path}`);
 			const out: Record<string, unknown> = {};
 			for (const key of Object.keys(value as Record<string, unknown>).sort()) {
 				const child = (value as Record<string, unknown>)[key];

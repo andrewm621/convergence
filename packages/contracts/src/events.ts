@@ -152,7 +152,7 @@ export type DeltaEventType = DeltaEvent["type"];
  * R9: events are deduplicated on `(repo, commitSha)` because Queues deliver at least once and the
  * poller can double-fire. Push events use exactly that pair. Events that are not a push (and so
  * have no commit of their own, or share one with a push) are keyed by what makes them unique:
- * Evidence by check and run, commands by their Idempotency-Key.
+ * Evidence by check and run, a merge by work item and merge commit, commands by their Idempotency-Key.
  */
 export function dedupeKey(event: DeltaEvent): string {
 	switch (event.type) {
@@ -170,7 +170,7 @@ export function dedupeKey(event: DeltaEvent): string {
 		case "ReceiptIssued":
 			return `receipt:${event.workItemId}:${event.receipt.baselineCommit}:${event.receipt.contextPacketHash}`;
 		case "PromotionMerged":
-			return `promoted:${event.workItemId}`;
+			return `promoted:${event.workItemId}:${event.mergeCommitSha}`;
 		case "AgentRunStarted":
 			return `run:${event.workItemId}:${event.runId}:started`;
 		case "AgentRunFinished":

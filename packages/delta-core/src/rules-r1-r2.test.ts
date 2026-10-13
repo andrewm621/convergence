@@ -111,7 +111,7 @@ describe("R1 staleness is facet-level", () => {
 		await cell.send(n.events.wi1Pushed);
 		await cell.send(n.events.wi1Evidence);
 		const { promotionEvent } = await import("./testing/harness");
-		const allowed = await cell.send(promotionEvent(await cell.state(), { workItemId: "WI-1", actor: n.actors.andrew, requestId: "p1", ts: "2026-10-13T17:00:00Z" }));
+		const allowed = await cell.send(promotionEvent(await cell.state(), { workItemId: "WI-1", actor: n.actors.decisionOwner, requestId: "p1", ts: "2026-10-13T17:00:00Z" }));
 		expect(effectTypes(allowed)).toContain("ALLOW_PROMOTION");
 		await cell.send({ type: "PromotionMerged", ts: "2026-10-13T17:01:00Z", workItemId: "WI-1", repo: n.repo, mergeCommitSha: nextSha("b") });
 		const sm = variant(n.docs.statusModelV1.snapshot, { version: 2, facets: { ...n.docs.statusModelV1.snapshot.facets, "status.transitions": "any" } });
