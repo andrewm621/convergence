@@ -26,7 +26,10 @@ export class ContextReader {
 		this.#port = port;
 	}
 
-	/** Parse the given paths of a tree. Unparseable files come back with `ok: false`; they never throw. */
+	/**
+	 * Parse the given paths of a tree. Content that was read but is not a valid record comes back with `ok: false`.
+	 * A blob that could not be read at all THROWS: unknown is not invalid, and the caller must not move past the commit.
+	 */
 	async read(repo: string, tree: FlatTree, paths: string[]): Promise<ContextFile[]> {
 		const out: ContextFile[] = [];
 		for (const path of [...paths].sort(compareStrings)) {
@@ -51,8 +54,11 @@ export class ContextReader {
 		if (cached) return cached;
 		const text = await this.#port.readBlob(repo, oid);
 		let result: ContextFile["result"];
-		if (text === null) result = { ok: false, error: "blob could not be read" };
-		else if (text.length > MAX_RECORD_BYTES) result = { ok: false, error: "context record is too large" };
+		// Unknown is not invalid. Reporting a blob we could not read as `invalid` lets the reconciler log it and
+		// the poller move on, which can drop a decision change for good. Throw, and cache nothing, so the commit
+		// stays unobserved and the next poll reads it again.
+		if (text === null) throw new Error(`context blob ${oid.slice(0, 7)} could not be read from ${repo}`);
+		if (text.length > MAX_RECORD_BYTES) result = { ok: false, error: "context record is too large" };
 		else result = await toRecordSnapshot(text, { blobHash: oid });
 		this.#cache.set(oid, result);
 		return result;

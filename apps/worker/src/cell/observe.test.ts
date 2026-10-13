@@ -34,6 +34,28 @@ async function observed(deps: ObserveDeps, commit: Awaited<ReturnType<typeof set
 	return { event, recordPaths };
 }
 
+describe("baseline commits: an unreadable blob is unknown, not invalid", () => {
+	it("throws when a changed context blob cannot be read, caches nothing, and reads it on the next try", async () => {
+		const { world, deps, written, head } = await setup();
+		const sha = await world.push("base", { "context/notifications.md": NOTIFICATIONS_V2 }, { author: AUTHORITY, committer: WORKER_COMMITTER });
+		written.set(sha, { kind: "context", actor: AUTHORITY });
+		const commit = await head();
+		world.nullNextBlobs(1);
+		await expect(observeBaselineCommit(deps, "base", commit)).rejects.toThrow(/could not be read/);
+		const { event } = await observed(deps, commit);
+		expect(event.records.map((r) => `${r.recordId}@${r.version}`)).toEqual(["notifications@2"]);
+		expect(event.invalid).toEqual([]);
+	});
+
+	it("still reports real bytes that are not a record as invalid", async () => {
+		const { world, deps, head } = await setup();
+		await world.push("base", { "context/notifications.md": "not a record\n" }, { author: AUTHORITY, committer: WORKER_COMMITTER });
+		const { event } = await observed(deps, await head());
+		expect(event.records).toEqual([]);
+		expect(event.invalid).toHaveLength(1);
+	});
+});
+
 describe("baseline commits: only the Worker, as the authority, can accept context", () => {
 	it("accepts a context change the Worker wrote as the authority", async () => {
 		const { world, deps, written, head } = await setup();
