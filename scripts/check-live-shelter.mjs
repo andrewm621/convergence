@@ -11,15 +11,15 @@
 // exactly the repos this run created, by name (unless kept). Other `smoke-` repos, such as a recorded demo's, are never touched.
 // Exits non-zero if any check fails. The act:
 //
-//   WI-1 front-desk intake script (scripts/front-desk.md) relies on pets and id_required of shelter-intake-policy
-//   WI-2 cots and blankets list (supplies/cots-and-blankets.md) relies on capacity_note of the SAME record
-//   The decision changes while both agents work (v2: crated pets admitted, ID not listed). Only WI-1 goes stale: its file is
-//   not the one that changed, it merges cleanly, and it is still wrong. WI-2 stays green.
+//   SH-1 front-desk intake script (scripts/front-desk.md) relies on pets and id_required of shelter-intake-policy
+//   SH-2 cots and blankets list (supplies/cots-and-blankets.md) relies on capacity_note of the SAME record
+//   The decision changes while both agents work (v2: crated pets admitted, ID not listed). Only SH-1 goes stale: its file is
+//   not the one that changed, it merges cleanly, and it is still wrong. SH-2 stays green.
 //
 //   --cell <name>              run in a cell with this name instead of a throwaway one, to leave a demo behind. The name must be
 //                              shelter-intake-<something> (lowercase letters, digits, dashes, at most 40), so the console can open it
 //                              with ?cell=<name>. The cell must not exist yet. Implies --keep.
-//   --stop-before-revalidate   stop once v2 has made WI-1 stale and blocked (WI-2 ready, nothing promoted), so the revalidate, the
+//   --stop-before-revalidate   stop once v2 has made SH-1 stale and blocked (SH-2 ready, nothing promoted), so the revalidate, the
 //                              re-dispatch and both promotions can be done on camera in the console. Implies --keep.
 //   --keep                     leave the repos behind.
 //   --model <slug>             run both agents on this allowlisted OpenRouter model instead of the Worker's default.
@@ -168,11 +168,11 @@ if (seeded.status !== 200 || items.length !== 2) {
 }
 const baselineRepo = seeded.json.baseline.name;
 note(`repos: ${created.join(", ")}`);
-const [wi1, wi2] = items; // WI-1 relies on facets the change moves; WI-2 does not
+const [wi1, wi2] = items; // SH-1 relies on facets the change moves; SH-2 does not
 const POLICY_ID = "shelter-intake-policy";
 const policyPath = `context/${POLICY_ID}.md`;
-note(`WI-1 ${wi1.title} -> ${wi1.path}, relies on ${j(wi1.dependencies)}`);
-note(`WI-2 ${wi2.title} -> ${wi2.path}, relies on ${j(wi2.dependencies)}`);
+note(`SH-1 ${wi1.title} -> ${wi1.path}, relies on ${j(wi1.dependencies)}`);
+note(`SH-2 ${wi2.title} -> ${wi2.path}, relies on ${j(wi2.dependencies)}`);
 
 // ---------------------------------------------------------------------------------------------------------
 // 1. Init the cell and register the work items
@@ -185,7 +185,7 @@ const regs = [];
 for (const item of items) {
 	regs.push(await post("/work-items", { id: item.id, title: item.title, forkRepo: item.forkRepo, agent: item.agent, requires: item.requires, dependencies: item.dependencies }, `reg-${item.id}`));
 }
-check("register WI-1 and WI-2", regs.every((r) => r.status === 201), regs.map((r) => `${r.status}/${r.ms} ms`).join(" ") + (regs.every((r) => r.status === 201) ? "" : ` ${j(regs.map((r) => r.json))}`));
+check("register SH-1 and SH-2", regs.every((r) => r.status === 201), regs.map((r) => `${r.status}/${r.ms} ms`).join(" ") + (regs.every((r) => r.status === 201) ? "" : ` ${j(regs.map((r) => r.json))}`));
 
 // ---------------------------------------------------------------------------------------------------------
 // 2. Dispatch both real agents at once. Each dispatch holds its request until the run ends (re-sent with the same
@@ -221,17 +221,17 @@ const v2 = await post("/context-changes", seeded.json.contextChange, "v2");
 const v2ResponseMs = Math.round(performance.now() - tV2);
 check("shelter-intake-policy v2 context change accepted", v2.status === 201 && v2.json?.kind === "new-version" && v2.json?.version === 2, `${v2.status} ${v2ResponseMs} ms ${v2.status === 201 ? `path=${v2.json?.path} observed=${v2.json?.observed}` : j(v2.json)}`);
 const v2Path = v2.json?.path ?? policyPath;
-const stale = await until(async () => ["stale", "conflict"].includes(await statusOf("WI-1")), 20_000, "WI-1 stale", 150);
+const stale = await until(async () => ["stale", "conflict"].includes(await statusOf("SH-1")), 20_000, "SH-1 stale", 150);
 // The commit itself is a write to Artifacts and takes as long as Artifacts takes; the claim is about the evaluation after the commit lands.
-check("WI-1 goes stale within 10 s of v2 being accepted", Boolean(stale.value) && stale.ms < 10_000, `context change took ${v2ResponseMs} ms; stale visible +${stale.ms} ms after the response; status=${await statusOf("WI-1")}`);
+check("SH-1 goes stale within 10 s of v2 being accepted", Boolean(stale.value) && stale.ms < 10_000, `context change took ${v2ResponseMs} ms; stale visible +${stale.ms} ms after the response; status=${await statusOf("SH-1")}`);
 results.timings.v2RequestMs = v2ResponseMs;
 results.timings.staleVisibleMs = v2ResponseMs + stale.ms;
 results.timings.v2AfterDispatchMs = Date.now() - dispatchAt;
-const wi2AfterV2 = await wiOf("WI-2");
-check("WI-2 is untouched by v2 (no Stale condition: it relies on capacity_note, which did not move)", !conditionsOf(wi2AfterV2).includes("Stale") && !["stale", "conflict"].includes(wi2AfterV2?.item.status), `status=${wi2AfterV2?.item.status} conditions=${j(conditionsOf(wi2AfterV2))}`);
+const wi2AfterV2 = await wiOf("SH-2");
+check("SH-2 is untouched by v2 (no Stale condition: it relies on capacity_note, which did not move)", !conditionsOf(wi2AfterV2).includes("Stale") && !["stale", "conflict"].includes(wi2AfterV2?.item.status), `status=${wi2AfterV2?.item.status} conditions=${j(conditionsOf(wi2AfterV2))}`);
 const ledgerV2 = (await get("/ledger?limit=500")).json.entries;
 const effV2 = ledgerV2.filter((e) => e.type === "BaselinePushed").at(-1)?.payload?.effects ?? [];
-check("v2 ledger line: WI-1 stale on pets + id_required, WI-2 NO_DEPENDENCY_ON_CHANGED_FACETS", effV2.some((e) => e.workItemId === "WI-1" && e.type === "RECORD_CONDITION") && effV2.some((e) => e.workItemId === "WI-2" && e.reasonCodes?.includes("NO_DEPENDENCY_ON_CHANGED_FACETS")), j(effV2.map((e) => `${e.type}:${e.workItemId ?? ""}:${(e.reasonCodes ?? []).join("+")}`)));
+check("v2 ledger line: SH-1 stale on pets + id_required, SH-2 NO_DEPENDENCY_ON_CHANGED_FACETS", effV2.some((e) => e.workItemId === "SH-1" && e.type === "RECORD_CONDITION") && effV2.some((e) => e.workItemId === "SH-2" && e.reasonCodes?.includes("NO_DEPENDENCY_ON_CHANGED_FACETS")), j(effV2.map((e) => `${e.type}:${e.workItemId ?? ""}:${(e.reasonCodes ?? []).join("+")}`)));
 
 // ---------------------------------------------------------------------------------------------------------
 // 4. Both runs finish and push. The documents are real model output.
@@ -248,27 +248,27 @@ if (!(run1?.state === "succeeded" && run2?.state === "succeeded")) {
 }
 await sleep(4000); // usage reports can land just after a run ends
 const [fin1, fin2] = await Promise.all(items.map((item) => readRun(item.id)));
-results.runs.first = { "WI-1": runSummary(fin1), "WI-2": runSummary(fin2) };
-note(`WI-1 run: ${j(results.runs.first["WI-1"])}`);
-note(`WI-2 run: ${j(results.runs.first["WI-2"])}`);
+results.runs.first = { "SH-1": runSummary(fin1), "SH-2": runSummary(fin2) };
+note(`SH-1 run: ${j(results.runs.first["SH-1"])}`);
+note(`SH-2 run: ${j(results.runs.first["SH-2"])}`);
 
 const seen = await until(async () => {
-	const [a, b] = [await wiOf("WI-1"), await wiOf("WI-2")];
+	const [a, b] = [await wiOf("SH-1"), await wiOf("SH-2")];
 	return a?.headSha === run1.commit && b?.headSha === run2.commit;
 }, 30_000, "ForkPushed for both");
 check("ForkPushed recorded for both forks, at the heads the runs verified", Boolean(seen.value), `${seen.ms} ms`);
 
 const doc1 = await fileOf(wi1.forkRepo, wi1.path);
 const doc2 = await fileOf(wi2.forkRepo, wi2.path);
-check("WI-1 wrote its script and WI-2 its supply list, each at its own path", Boolean(doc1) && Boolean(doc2), `${wi1.path} ${doc1?.length ?? 0} chars; ${wi2.path} ${doc2?.length ?? 0} chars`);
+check("SH-1 wrote its script and SH-2 its supply list, each at its own path", Boolean(doc1) && Boolean(doc2), `${wi1.path} ${doc1?.length ?? 0} chars; ${wi2.path} ${doc2?.length ?? 0} chars`);
 note(`${wi1.path}: ${firstLines(doc1, 8)}`);
 note(`${wi2.path}: ${firstLines(doc2, 8)}`);
 const claims1 = await readClaims(wi1.forkRepo);
 const claims2 = await readClaims(wi2.forkRepo);
-note(`WI-1 claims: ${j(claims1)}`);
-note(`WI-2 claims: ${j(claims2)}`);
-check("WI-1 built on v1: its claims cite shelter-intake-policy@1", claims1.length > 0 && claims1.every((c) => c.basedOn === `${POLICY_ID}@1`), j(claims1.map((c) => `${c.subject}@${c.basedOn}`)));
-check("WI-2 claims only capacity_note (the agent stayed in its lane)", claims2.length > 0 && claims2.every((c) => c.subject === "capacity_note" && c.basedOn.startsWith(`${POLICY_ID}@`)), j(claims2.map((c) => `${c.subject}@${c.basedOn}`)));
+note(`SH-1 claims: ${j(claims1)}`);
+note(`SH-2 claims: ${j(claims2)}`);
+check("SH-1 built on v1: its claims cite shelter-intake-policy@1", claims1.length > 0 && claims1.every((c) => c.basedOn === `${POLICY_ID}@1`), j(claims1.map((c) => `${c.subject}@${c.basedOn}`)));
+check("SH-2 claims only capacity_note (the agent stayed in its lane)", claims2.length > 0 && claims2.every((c) => c.subject === "capacity_note" && c.basedOn.startsWith(`${POLICY_ID}@`)), j(claims2.map((c) => `${c.subject}@${c.basedOn}`)));
 
 // What lands where: the stale file is not the file that changed.
 check("the stale item is a DIFFERENT file from the record that changed", wi1.path !== v2Path && !wi1.path.startsWith("context/"), `stale: ${wi1.path}; changed: ${v2Path}`);
@@ -277,54 +277,54 @@ check("the stale item is a DIFFERENT file from the record that changed", wi1.pat
 // 5. Stale and blocked visible; the unaffected item is ready
 // ---------------------------------------------------------------------------------------------------------
 await sleep(1500);
-const s1 = await wiOf("WI-1");
-const s2 = await wiOf("WI-2");
-check("WI-1 is stale, with its pushed script built on v1", ["stale", "conflict"].includes(s1?.item.status), `status=${s1?.item.status} conditions=${j(conditionsOf(s1))}`);
-const gate1 = await get("/work-items/WI-1/gate");
-check("gate dry-run for the stale WI-1 fails with reason codes (blocked)", gate1.status === 200 && gate1.json?.pass === false && gate1.json?.reasonCodes?.length > 0, `${gate1.ms} ms ${j(gate1.json?.reasonCodes)}`);
-const gate2 = await get("/work-items/WI-2/gate");
-check("WI-2 is ready and its gate passes (it never relied on what changed)", s2?.item.status === "ready" && gate2.status === 200 && gate2.json?.pass === true, `status=${s2?.item.status} ${j(gate2.json?.reasonCodes)} ${gate2.json?.pass === true ? "" : j(gate2.json)}`);
+const s1 = await wiOf("SH-1");
+const s2 = await wiOf("SH-2");
+check("SH-1 is stale, with its pushed script built on v1", ["stale", "conflict"].includes(s1?.item.status), `status=${s1?.item.status} conditions=${j(conditionsOf(s1))}`);
+const gate1 = await get("/work-items/SH-1/gate");
+check("gate dry-run for the stale SH-1 fails with reason codes (blocked)", gate1.status === 200 && gate1.json?.pass === false && gate1.json?.reasonCodes?.length > 0, `${gate1.ms} ms ${j(gate1.json?.reasonCodes)}`);
+const gate2 = await get("/work-items/SH-2/gate");
+check("SH-2 is ready and its gate passes (it never relied on what changed)", s2?.item.status === "ready" && gate2.status === 200 && gate2.json?.pass === true, `status=${s2?.item.status} ${j(gate2.json?.reasonCodes)} ${gate2.json?.pass === true ? "" : j(gate2.json)}`);
 
 if (stopBeforeRevalidate) {
-	note("stopping before the revalidate, as asked: v2 is accepted, WI-1 is stale and blocked, WI-2 is ready, nothing is promoted");
+	note("stopping before the revalidate, as asked: v2 is accepted, SH-1 is stale and blocked, SH-2 is ready, nothing is promoted");
 	note(`console: <worker url>/?cell=${scenario}   (token in the address bar hash, as usual)`);
 	note(`repos kept: ${created.join(", ")}`);
 	await finish();
 }
 
 // ---------------------------------------------------------------------------------------------------------
-// 6. Promote WI-2 (the baseline moved since the fork: a real merge, not a fast-forward)
+// 6. Promote SH-2 (the baseline moved since the fork: a real merge, not a fast-forward)
 // ---------------------------------------------------------------------------------------------------------
 {
 	const st = await stateOf();
 	t = performance.now();
-	const prom = await post("/work-items/WI-2/promote", { expectedBaselineCommit: st.baselineCommit, forkHeadSha: (await wiOf("WI-2")).headSha }, "prom-wi2");
+	const prom = await post("/work-items/SH-2/promote", { expectedBaselineCommit: st.baselineCommit, forkHeadSha: (await wiOf("SH-2")).headSha }, "prom-wi2");
 	const ms = Math.round(performance.now() - t);
-	check("promote WI-2 (baseline moved since the fork: a real merge)", prom.status === 200 && prom.json?.promoted === true, `${prom.status} ${ms} ms ${j(prom.json).slice(0, 300)}`);
+	check("promote SH-2 (baseline moved since the fork: a real merge)", prom.status === 200 && prom.json?.promoted === true, `${prom.status} ${ms} ms ${j(prom.json).slice(0, 300)}`);
 	results.timings.promoteWI2Ms = ms;
 	const head = ((await call("GET", `/api/repos/${baselineRepo}/log?limit=3`)).json?.commits ?? [])[0];
 	check("baseline head is a real merge commit (2 parents) and now holds the supply list", head?.parents?.length === 2 && (await fileOf(baselineRepo, wi2.path)) !== null, `parents=${head?.parents?.length}`);
 }
 
 // ---------------------------------------------------------------------------------------------------------
-// 7. Revalidate WI-1. The cell issues the receipt, re-dispatches the agent with the v2 context, runs its own contract check on the
-//    pushed file and records it as evidence. A failed check leaves WI-1 blocked and a human can revalidate again (maxRevalidations 2).
+// 7. Revalidate SH-1. The cell issues the receipt, re-dispatches the agent with the v2 context, runs its own contract check on the
+//    pushed file and records it as evidence. A failed check leaves SH-1 blocked and a human can revalidate again (maxRevalidations 2).
 // ---------------------------------------------------------------------------------------------------------
 let revalidated = false;
 for (let attempt = 1; attempt <= 2 && !revalidated; attempt++) {
 	const st = await stateOf();
-	const wi = await wiOf("WI-1");
+	const wi = await wiOf("SH-1");
 	const hist = st.records[POLICY_ID];
 	const rec = hist.versions[String(hist.current)];
 	const binding = { recordId: POLICY_ID, version: rec.version, blobHash: rec.blobHash, baseSha: st.baselineCommit, forkHeadSha: wi.headSha, contextSnapshotHash: st.snapshotHash };
-	const res = await post("/work-items/WI-1/resolutions", { kind: "revalidate", rationale: "Rework the front-desk script to the current intake policy.", binding }, `reval${attempt}`);
-	check(`revalidate resolution for WI-1 recorded (attempt ${attempt})`, res.status === 200 || res.status === 201, `${res.status} ${res.status < 300 ? "" : j(res.json).slice(0, 400)}`);
+	const res = await post("/work-items/SH-1/resolutions", { kind: "revalidate", rationale: "Rework the front-desk script to the current intake policy.", binding }, `reval${attempt}`);
+	check(`revalidate resolution for SH-1 recorded (attempt ${attempt})`, res.status === 200 || res.status === 201, `${res.status} ${res.status < 300 ? "" : j(res.json).slice(0, 400)}`);
 	if (res.status >= 300) break;
 	const tRe = performance.now();
 	const job = await until(
 		async () => {
 			// The job is keyed by the resolution's Idempotency-Key, which post() prefixed with the label.
-			const jb = ((await get("/dispatches")).json?.jobs ?? []).find((x) => x.workItemId === "WI-1" && x.requestId.startsWith(`reval${attempt}-`));
+			const jb = ((await get("/dispatches")).json?.jobs ?? []).find((x) => x.workItemId === "SH-1" && x.requestId.startsWith(`reval${attempt}-`));
 			return jb && (jb.phase === "done" || jb.phase === "failed") ? jb : false;
 		},
 		480_000,
@@ -334,33 +334,33 @@ for (let attempt = 1; attempt <= 2 && !revalidated; attempt++) {
 	check(`the cell re-dispatched the agent itself and the job reached done (attempt ${attempt})`, job.value?.phase === "done", `${job.ms} ms ${j(job.value)}`);
 	results.timings[`redispatch${attempt}Ms`] = job.ms;
 	await sleep(4000);
-	const run = await readRun("WI-1");
+	const run = await readRun("SH-1");
 	results.runs[`revalidation${attempt}`] = runSummary(run);
-	note(`WI-1 re-dispatched run: ${j(runSummary(run))}`);
+	note(`SH-1 re-dispatched run: ${j(runSummary(run))}`);
 	check("the re-dispatched run succeeded and its push is verified", run?.state === "succeeded" && run?.pushVerified === true, `${run?.state} ${run?.error ?? ""} (${Math.round((performance.now() - tRe) / 1000)} s)`);
-	const after = await wiOf("WI-1");
+	const after = await wiOf("SH-1");
 	const doc = await fileOf(wi1.forkRepo, wi1.path);
 	note(`${wi1.path} after revalidation: ${firstLines(doc, 8)}`);
 	const reClaims = await readClaims(wi1.forkRepo);
-	note(`WI-1 claims after revalidation: ${j(reClaims)}`);
+	note(`SH-1 claims after revalidation: ${j(reClaims)}`);
 	check("the revalidated push re-cites shelter-intake-policy@2 and states the new pets and ID facets", reClaims.length > 0 && reClaims.every((c) => c.basedOn === `${POLICY_ID}@2`) && reClaims.some((c) => c.subject === "pets") && reClaims.some((c) => c.subject === "id_required"), j(reClaims.map((c) => `${c.subject}@${c.basedOn}`)));
 	check("the cell holds a new receipt at shelter-intake-policy v2 (issued by the Worker before the dispatch)", after?.receipt?.accepted?.some((e) => e.recordId === POLICY_ID && e.version === 2), j(after?.receipt?.accepted?.map((e) => `${e.recordId}@${e.version}`)));
 	const atHead = (after?.evidence ?? []).filter((e) => e.headSha === after?.headSha);
 	const ran = atHead.filter((e) => e.kind === "delta-run-check");
 	check("the Worker ran the shelter contract check itself on the pushed file (kind delta-run-check, names the file and sha)", ran.length >= 1 && ran.every((e) => /Delta-run contract check .* at [0-9a-f]{7}, reading .*front-desk\.md/.test(e.output)), j(ran.map((e) => `${e.check}:${e.pass}`)));
 	for (const e of ran) note(`evidence: pass=${e.pass} ${e.output}`);
-	const gateR = await get("/work-items/WI-1/gate");
-	revalidated = (await statusOf("WI-1")) === "ready" && gateR.json?.pass === true;
-	check(`WI-1 is ready and the gate passes at the new head (attempt ${attempt})`, revalidated, `status=${await statusOf("WI-1")} ${j(gateR.json?.reasonCodes)}`);
+	const gateR = await get("/work-items/SH-1/gate");
+	revalidated = (await statusOf("SH-1")) === "ready" && gateR.json?.pass === true;
+	check(`SH-1 is ready and the gate passes at the new head (attempt ${attempt})`, revalidated, `status=${await statusOf("SH-1")} ${j(gateR.json?.reasonCodes)}`);
 	if (!revalidated && attempt < 2) note("the contract check failed on the model's rewrite; a human can revalidate again, so this run does (maxRevalidations is 2)");
 }
 
 if (revalidated) {
 	const st = await stateOf();
 	t = performance.now();
-	const prom = await post("/work-items/WI-1/promote", { expectedBaselineCommit: st.baselineCommit, forkHeadSha: (await wiOf("WI-1")).headSha }, "prom-wi1");
+	const prom = await post("/work-items/SH-1/promote", { expectedBaselineCommit: st.baselineCommit, forkHeadSha: (await wiOf("SH-1")).headSha }, "prom-wi1");
 	const ms = Math.round(performance.now() - t);
-	check("promote WI-1 after the revalidation merges", prom.status === 200 && prom.json?.promoted === true, `${prom.status} ${ms} ms ${j(prom.json).slice(0, 300)}`);
+	check("promote SH-1 after the revalidation merges", prom.status === 200 && prom.json?.promoted === true, `${prom.status} ${ms} ms ${j(prom.json).slice(0, 300)}`);
 	results.timings.promoteWI1Ms = ms;
 	const merged = await fileOf(baselineRepo, wi1.path);
 	check("the baseline now holds the script, built on the crated-pets policy (names Hall B)", merged !== null && /Hall B/.test(merged), `${merged === null ? "missing" : `${merged.length} chars`}`);
@@ -377,7 +377,7 @@ if (revalidated) {
 	check("both promotions are in the ledger as PromotionMerged", led.filter((e) => e.type === "PromotionMerged").length === 2, `${led.filter((e) => e.type === "PromotionMerged").length}`);
 	const poller = (await get("/poller")).json;
 	check("poller healthy at the end", poller?.health?.healthy === true, j(poller?.health));
-	check("final statuses: WI-1 and WI-2 promoted", (await statusOf("WI-1")) === "promoted" && (await statusOf("WI-2")) === "promoted", `${await statusOf("WI-1")}/${await statusOf("WI-2")}`);
+	check("final statuses: SH-1 and SH-2 promoted", (await statusOf("SH-1")) === "promoted" && (await statusOf("SH-2")) === "promoted", `${await statusOf("SH-1")}/${await statusOf("SH-2")}`);
 	const runs = Object.values(results.runs).flatMap((r) => (r.model ? [r] : Object.values(r)));
 	results.totalCostUsd = Number(runs.reduce((sum, r) => sum + (r.costUsd ?? 0), 0).toFixed(4));
 	note(`model cost metered by the gateways, all runs: $${results.totalCostUsd}`);

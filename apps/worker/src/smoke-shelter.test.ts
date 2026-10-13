@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { contractChecks } from "scenario-shelter-intake";
 import { CONTRACT_CHECKS, runContractCheck } from "./cell/contract-checks";
 import { ContextChangeRequest, planContextChange } from "./cell/context-change";
+import { runtimeIdFor } from "./agents/work-item-ids";
 import { POLICY_PATH, ROLES_PATH, SHELTER_WORK_ITEMS, buildShelterSeed, shelterAgentsMd } from "./smoke-shelter";
 
 describe("the seed for the live shelter act", () => {
@@ -30,20 +31,30 @@ describe("the seed for the live shelter act", () => {
 	});
 
 	it("registers two items on different documents, one relying on a facet the change moves and one that does not", () => {
-		expect(seed.workItems.map((w) => w.id)).toEqual(["WI-1", "WI-2"]);
+		expect(seed.workItems.map((w) => w.id)).toEqual(["SH-1", "SH-2"]);
 		const changed = Object.keys(seed.contextChange.not);
 		const facetsOf = (id: string) => SHELTER_WORK_ITEMS.find((w) => w.id === id)?.dependencies.flatMap((d) => d.facetKeys) ?? [];
 		expect(changed.sort()).toEqual(["id_required", "pets"]);
-		expect(facetsOf("WI-1").some((k) => changed.includes(k))).toBe(true);
-		expect(facetsOf("WI-2").some((k) => changed.includes(k))).toBe(false);
+		expect(facetsOf("SH-1").some((k) => changed.includes(k))).toBe(true);
+		expect(facetsOf("SH-2").some((k) => changed.includes(k))).toBe(false);
 		expect(new Set(seed.workItems.map((w) => w.path)).size).toBe(2);
 		// The stale document is a different file from the record that changed.
 		for (const w of seed.workItems) expect(w.path).not.toBe(POLICY_PATH);
 	});
 
+	it("uses work item ids whose runtime ids do not collide with the notifications act (WI-1, WI-2), so the acts never share a sandbox", () => {
+		const runtime = seed.workItems.map((w) => {
+			const r = runtimeIdFor(w.id);
+			if (!r.ok) throw new Error(r.error);
+			return r.id;
+		});
+		expect(runtime).toEqual(["sh-1", "sh-2"]);
+		for (const id of runtime) expect(["wi-1", "wi-2"]).not.toContain(id);
+	});
+
 	it("keeps the green item free of an initial test requirement, because a first push gets no Worker-run evidence", () => {
-		expect(SHELTER_WORK_ITEMS.find((w) => w.id === "WI-1")?.requires).toEqual(["contract-test"]);
-		expect(SHELTER_WORK_ITEMS.find((w) => w.id === "WI-2")?.requires).toEqual([]);
+		expect(SHELTER_WORK_ITEMS.find((w) => w.id === "SH-1")?.requires).toEqual(["contract-test"]);
+		expect(SHELTER_WORK_ITEMS.find((w) => w.id === "SH-2")?.requires).toEqual([]);
 	});
 
 	it("reads only paths the contract check reads", () => {
