@@ -224,7 +224,9 @@ function toRows(facets: Record<string, FacetValue>): FacetRow[] {
 
 /** The "Propose change" editor: edit facets and prose, see what it will do, commit with an Idempotency-Key. */
 export function ChangeEditor({ recordId, snapshot, onClose }: { recordId: string; snapshot: RecordSnapshot; onClose(): void }) {
-	const { client, editorRequest, notify, markChangeSent, clearChangeSent } = useConsole();
+	const { client, view, editorRequest, notify, markChangeSent, clearChangeSent } = useConsole();
+	// The baseline the editor opened on: a change made from a version that has since moved is refused, not merged over.
+	const [openedAt] = useState(view.baselineCommit);
 	const draft = editorRequest && editorRequest.recordId === recordId ? editorRequest : null;
 	const [rows, setRows] = useState<FacetRow[]>(() => toRows(draft?.facets ?? snapshot.facets));
 	const [prose, setProse] = useState(draft?.prose ?? "");
@@ -267,14 +269,14 @@ export function ChangeEditor({ recordId, snapshot, onClose }: { recordId: string
 		if (nothingToCommit || keyProblem || effectiveRationale === "") return;
 		setSubmitting(true);
 		markChangeSent();
-		const result = await client.api.proposeContextChange({ recordId, facets, prose, rationale: effectiveRationale }, newIdempotencyKey());
+		const result = await client.api.proposeContextChange({ recordId, facets, prose, rationale: effectiveRationale, ...(openedAt ? { expectedBaselineCommit: openedAt } : {}) }, newIdempotencyKey());
 		setSubmitting(false);
 		if (!result.ok) clearChangeSent();
 		if (result.ok) {
 			notify("success", result.message ?? "Committed.");
 			onClose();
 		} else {
-			notify("danger", result.message);
+			notify("danger", result.code === "BASELINE_MOVED" ? `The decisions changed after you opened this editor, so nothing was committed. Close it and reopen to start from the latest version. (${result.message})` : result.message);
 		}
 	}
 

@@ -387,6 +387,21 @@ describe("gate, resolutions and promotion", () => {
 	});
 });
 
+describe("concurrent requests against one baseline", () => {
+	it("two context changes made from the same baseline: one commits, the other is refused with BASELINE_MOVED and the baseline it is at", async () => {
+		const s = await scenario();
+		const opened = (await get(s, "/state")).body.baselineCommit as string;
+		const mine = { recordId: "notifications", facets: V2_FACETS, rationale: "opt-in", expectedBaselineCommit: opened };
+		const theirs = { recordId: "notifications", facets: { ...V2_FACETS, "notifications.cadence": "daily-digest" }, rationale: "daily", expectedBaselineCommit: opened };
+		const first = await post(s, "/context-changes", mine);
+		expect([first.status, first.body.version]).toEqual([201, 2]);
+		const second = await post(s, "/context-changes", theirs);
+		expect([second.status, second.body.error.code]).toEqual([409, "BASELINE_MOVED"]);
+		expect(second.body.error.baselineCommit).toBe(first.body.commitSha);
+		expect((await w.world(s, { op: "files", repo: BASELINE }))["context/notifications.md"]).not.toContain("daily-digest");
+	});
+});
+
 describe("ledger", () => {
 	it("verifies an untouched chain and reports the seq of an edited line", async () => {
 		const s = await scenario();
