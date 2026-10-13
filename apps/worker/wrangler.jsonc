@@ -1,0 +1,17 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "delta-convergence",
+  // No account_id on purpose: wrangler takes it from CLOUDFLARE_ACCOUNT_ID (gitignored .env).
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-12",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "vars": { "APP_VERSION": "0.0.1" },
+  "artifacts": [{ "binding": "ARTIFACTS", "namespace": "default" }],
+  "durable_objects": {
+    "bindings": [{ "name": "WORKSPACE_CELL", "class_name": "WorkspaceCell" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["WorkspaceCell"] }],
+  "observability": { "enabled": true }
+  // DEV_TOKEN is a Worker secret (wrangler secret put DEV_TOKEN); locally it lives in .dev.vars.
+}

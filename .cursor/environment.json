@@ -1,0 +1,4 @@
+{
+  "install": "corepack enable && pnpm install --frozen-lockfile=false",
+  "terminals": []
+}
