@@ -9,6 +9,7 @@ import {
 	sha256Hex,
 	toRecordSnapshot,
 	type CellState,
+	type FacetValue,
 	type DeltaEventInput,
 	type Effect,
 	type Policy,
@@ -72,6 +73,8 @@ const Prepared = z.object({
 	/** The fork head the run starts from; the receipt note annotates it. */
 	baseHead: CommitSha,
 	noteError: z.string().optional(),
+	/** Set once AgentRunFinished is in the ledger, so a later retry or failure never writes a second, contradicting one. */
+	finished: z.enum(["success", "failure"]).optional(),
 });
 type Prepared = z.infer<typeof Prepared>;
 
@@ -100,6 +103,8 @@ class Permanent extends Error {}
 class Requeue extends Error {}
 /** The runtime has a run in flight for this work item. Waited out, not counted as a failed attempt. */
 class Busy extends Error {}
+/** The revalidation this job was for is over (the agent pushed, or the work was promoted) before the dispatch: nothing to run. */
+class Superseded extends Error {}
 
 const iso = (ts: string): string => new Date(ts).toISOString().replace(/\.\d{3}Z$/, "Z");
 const short = (sha: string): string => sha.slice(0, 7);
@@ -149,6 +154,23 @@ export function claimsCheck(input: { state: CellState; workItemId: string; polic
 	for (const finding of analysis.conflicts) problems.push(finding.message);
 	for (const finding of analysis.uncertain) problems.push(finding.message);
 	return { pass: problems.length === 0, problems };
+}
+
+/**
+ * The facets a work item relied on for the records whose `validation:` is `check`: the facet keys of its accepted
+ * dependencies on those records (an empty list means the whole record), with their accepted values. The check
+ * asserts exactly these.
+ */
+export function reliedOn(state: CellState, workItemId: string, check: string): { facets: Record<string, FacetValue>; relied: string[] } {
+	const facets: Record<string, FacetValue> = {};
+	const relied = new Set<string>();
+	for (const dep of acceptedDependenciesOf(state, workItemId)) {
+		const record = currentSnapshot(state, dep.recordId);
+		if (!record || record.validation !== check) continue;
+		Object.assign(facets, record.facets);
+		for (const key of dep.facetKeys.length > 0 ? dep.facetKeys : Object.keys(record.facets)) relied.add(key);
+	}
+	return { facets, relied: [...relied].sort() };
 }
 
 export class RevalidationDispatcher {
@@ -214,6 +236,11 @@ export class RevalidationDispatcher {
 			await this.#fail(job, message);
 			return;
 		}
+		if (error instanceof Superseded) {
+			host.meta.updateDispatch(job.requestId, { phase: "done", error: message, retryAt: null }, Date.now());
+			await host.activity(job.workItemId, "status", `Re-dispatch skipped: ${message}`).catch(() => undefined);
+			return;
+		}
 		if (error instanceof Requeue) {
 			if (job.requeues >= MAX_REQUEUES) {
 				await this.#fail(job, `${message} (prepared ${job.requeues + 1} times; the baseline kept moving)`);
@@ -245,7 +272,10 @@ export class RevalidationDispatcher {
 	async #fail(job: DispatchJobRow, reason: string, options: { runFinished?: boolean } = {}): Promise<void> {
 		const host = this.#host;
 		host.meta.updateDispatch(job.requestId, { phase: "failed", error: reason, retryAt: null }, Date.now());
-		if (job.runId && !options.runFinished) {
+		// The row passed in may be older than the payload: whether the run was already closed is read from the stored job.
+		const stored = host.meta.dispatches().find((j) => j.requestId === job.requestId);
+		const closed = options.runFinished || Prepared.safeParse(stored?.payload).data?.finished !== undefined;
+		if (job.runId && !closed) {
 			try {
 				await host.submit({ type: "AgentRunFinished", ts: host.now(), workItemId: job.workItemId, runId: job.runId, outcome: "failure" });
 			} catch (error) {
@@ -376,6 +406,9 @@ export class RevalidationDispatcher {
 		const state = await host.loadState();
 		const wi = state.workItems[job.workItemId];
 		if (!wi) throw new Permanent(`${job.workItemId} is not a registered work item`);
+		// A second revalidation (or the agent's own push, or a promotion) may have ended this one while the job waited.
+		if (wi.item.status === "promoted") throw new Superseded(`${job.workItemId} was promoted before the agent was dispatched.`);
+		if (!wi.revalidating) throw new Superseded(`the revalidation of ${job.workItemId} was already over (a push ended it) before the agent was dispatched.`);
 		let run: AgentRunView;
 		try {
 			run = await withTimeout(
@@ -401,7 +434,8 @@ export class RevalidationDispatcher {
 
 	// ---------- running -> done ----------
 
-	async #check(job: DispatchJobRow, prepared: Prepared): Promise<void> {
+	async #check(job: DispatchJobRow, preparedIn: Prepared): Promise<void> {
+		let prepared = preparedIn;
 		const host = this.#host;
 		const run = await host.runtime.status(prepared.runtimeId);
 		if (!run || run.runId !== job.runId) {
@@ -413,7 +447,13 @@ export class RevalidationDispatcher {
 		if (job.misses > 0) host.meta.updateDispatch(job.requestId, { misses: 0 }, Date.now());
 		if (run.state === "running") return;
 
-		await host.submit({ type: "AgentRunFinished", ts: iso(run.finishedAt ?? host.now()), workItemId: job.workItemId, runId: run.runId, outcome: run.state === "succeeded" ? "success" : "failure" });
+		// Closed once, whatever happens next: a retry (or a later failure of this job) must not add a second, contradicting line.
+		if (prepared.finished === undefined) {
+			const outcome = run.state === "succeeded" ? "success" : "failure";
+			await host.submit({ type: "AgentRunFinished", ts: iso(run.finishedAt ?? host.now()), workItemId: job.workItemId, runId: run.runId, outcome });
+			prepared = { ...prepared, finished: outcome };
+			host.meta.updateDispatch(job.requestId, { payload: prepared }, Date.now());
+		}
 		if (run.state !== "succeeded" || !run.commit || run.pushVerified !== true) {
 			await this.#fail(job, redactText(run.error ?? `the run ${run.state === "succeeded" ? "ended without a verified push" : run.state}`), { runFinished: true });
 			return;
@@ -442,11 +482,8 @@ export class RevalidationDispatcher {
 		const required = analyze(state, job.workItemId, host.policy()).requiredChecks;
 		const unrun: string[] = [];
 		for (const check of required) {
-			const record = Object.keys(state.records)
-				.sort()
-				.map((id) => currentSnapshot(state, id))
-				.find((snapshot) => snapshot?.validation === check);
-			const result = record ? await runContractCheck(host.port, { repo: forkRepo, sha: head.sha, tree, check, facets: record.facets }) : null;
+			const { facets, relied } = reliedOn(state, job.workItemId, check);
+			const result = await runContractCheck(host.port, { repo: forkRepo, sha: head.sha, tree, check, facets, required: relied });
 			if (!result) {
 				unrun.push(check);
 				continue;

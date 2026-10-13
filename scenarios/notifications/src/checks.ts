@@ -4,7 +4,8 @@ import { NOTIFICATIONS_CHECK, STATUS_MODEL_CHECK } from "./records";
 /**
  * Scenario A's contract checks (rule R8), keyed by the `validation:` path of the records that name them.
  * Delta Convergence runs them on the file contents of a pushed head, so a conflict never depends on an
- * agent reporting on itself. Plain text matching, deterministic, no model.
+ * agent reporting on itself. Plain text matching, deterministic, no model. Each check asserts exactly the facets
+ * the work item relied on, which the Worker passes in.
  *
  * The convention they test: code states a governed facet as a declaration named after the facet key, with a
  * literal value, for example `export const NOTIFICATIONS_DEFAULT = "opt-in";` or `status.values: [draft, active]`.
@@ -49,19 +50,26 @@ function sameValue(declared: string | string[], expected: FacetValue): boolean {
 const show = (value: string | string[] | FacetValue): string => JSON.stringify(value);
 
 /**
- * Assert the accepted facets against the declarations in the code. A declaration whose value differs is a
- * failure; a facet in `required` that is not declared anywhere is a failure; a facet not in `required` that
- * is not declared is simply not asserted (the check says so in its output).
+ * Assert the facets the work item relied on (`required`) against the declarations in the code. A required facet
+ * that is not declared anywhere is a failure, and so is a declaration whose value differs. Facets the item did
+ * not rely on are not asserted. With nothing required there is nothing to assert, and that fails closed: a check
+ * that had nothing to check must not pass.
  */
 function assertFacets(name: string, files: Record<string, string>, facets: Record<string, FacetValue>, required: string[]): ContractCheckResult {
+	const scanned = `${Object.keys(files).length} file${Object.keys(files).length === 1 ? "" : "s"} under src/`;
+	const keys = [...new Set(required)].sort();
+	if (keys.length === 0) return { pass: false, output: `${name} failed on ${scanned}. The work item relies on no facet of this record, so there was nothing to assert.` };
 	const lines: string[] = [];
 	const failures: string[] = [];
-	for (const key of Object.keys(facets).sort()) {
+	for (const key of keys) {
+		if (!Object.hasOwn(facets, key)) {
+			failures.push(`${key} is not an accepted facet`);
+			continue;
+		}
 		const expected = facets[key] as FacetValue;
 		const declarations = declarationsOf(files, key);
 		if (declarations.length === 0) {
-			if (required.includes(key)) failures.push(`${key} is not declared in the code (expected ${show(expected)})`);
-			else lines.push(`${key}: not declared, not asserted`);
+			failures.push(`${key} is not declared in the code (expected ${show(expected)})`);
 			continue;
 		}
 		for (const d of declarations) {
@@ -69,9 +77,8 @@ function assertFacets(name: string, files: Record<string, string>, facets: Recor
 			else failures.push(`${d.path}: ${key} = ${show(d.value)}, accepted is ${show(expected)}`);
 		}
 	}
-	const scanned = `${Object.keys(files).length} file${Object.keys(files).length === 1 ? "" : "s"} under src/`;
 	return failures.length === 0
-		? { pass: true, output: `${name} passed on ${scanned}. ${lines.join("; ")}.` }
+		? { pass: true, output: `${name} passed on ${scanned}, asserting ${keys.join(", ")}. ${lines.join("; ")}.` }
 		: { pass: false, output: `${name} failed on ${scanned}. ${failures.join("; ")}.${lines.length > 0 ? ` Matching: ${lines.join("; ")}.` : ""}` };
 }
 
@@ -80,10 +87,10 @@ const SOURCE = (path: string): boolean => /^src\/.+\.(?:ts|tsx|js|mjs|json)$/.te
 export const contractChecks: Record<string, ContractCheck> = {
 	[NOTIFICATIONS_CHECK]: {
 		reads: SOURCE,
-		run: (files, facets) => assertFacets("notifications contract", files, facets, ["notifications.default", "notifications.cadence"]),
+		run: (files, facets, required) => assertFacets("notifications contract", files, facets, required),
 	},
 	[STATUS_MODEL_CHECK]: {
 		reads: SOURCE,
-		run: (files, facets) => assertFacets("status-model contract", files, facets, []),
+		run: (files, facets, required) => assertFacets("status-model contract", files, facets, required),
 	},
 };

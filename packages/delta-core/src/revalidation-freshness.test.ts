@@ -98,3 +98,27 @@ describe("R7: freshness at promote follows the receipt, and only the Worker's Re
 		expect((await c.wi("WI-2")).item.status).not.toBe("promoted");
 	});
 });
+
+describe("R6: one revalidation at a time", () => {
+	it("[negative] a second revalidate while one is under way is refused with REVALIDATION_IN_PROGRESS and dispatches nothing, before and after the receipt", async () => {
+		const c = await revalidating();
+		const again = async (requestId: string) => c.send(resolutionEvent(await c.state(), { kind: "revalidate", workItemId: "WI-2", recordId: "notifications", actor: owner, requestId, ts: T }));
+		for (const label of ["before-receipt", "after-receipt"]) {
+			const refused = await again(`rv-${label}`);
+			expect(reasonsOf(refused)).toContain("REVALIDATION_IN_PROGRESS");
+			expect(effectTypes(refused)).not.toContain("DISPATCH_WORK");
+			expect(effectTypes(refused)).not.toContain("REQUEST_REVALIDATION");
+			expect((await c.wi("WI-2")).revalidations).toBe(1);
+			expect((await c.wi("WI-2")).resolutions).toHaveLength(1);
+			await c.send(n.events.wi2ReceiptIssued);
+		}
+	});
+
+	it("[positive] the agent's push ends the revalidation, so the item is no longer pending", async () => {
+		const c = await revalidating();
+		await c.send(n.events.wi2ReceiptIssued);
+		expect((await c.wi("WI-2")).revalidating).toBe(true);
+		await c.send(n.events.wi2PushedRevalidated);
+		expect((await c.wi("WI-2")).revalidating).toBe(false);
+	});
+});

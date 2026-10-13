@@ -298,7 +298,7 @@ check("WI-1 is promoted", ["promoted", "merged"].includes(await statusOf("WI-1")
 	} catch {
 		// leave empty
 	}
-	check("the revalidated push carries claims that re-cite notifications@2 with the new facet values", reClaims.length > 0 && reClaims.every((c) => c.basedOn === "notifications@2") && reClaims.some((c) => c.subject === "notifications.default" && c.value === "opt-in"), j(reClaims));
+	check("the revalidated push carries claims that re-cite notifications@2 with the new facet values", reClaims.length > 0 && reClaims.filter((c) => c.basedOn.startsWith("notifications@")).every((c) => c.basedOn === "notifications@2") && reClaims.some((c) => c.subject === "notifications.default" && c.value === "opt-in") && reClaims.some((c) => c.subject === "status.values"), j(reClaims));
 
 	const after = await wiOf("WI-2");
 	check("the poller recorded the revalidated push as the head of WI-2", after?.headSha === run.json?.commit, `${after?.headSha?.slice(0, 7)} vs ${run.json?.commit?.slice(0, 7)}`);
@@ -308,7 +308,7 @@ check("WI-1 is promoted", ["promoted", "merged"].includes(await statusOf("WI-1")
 	check("ledger order: ReceiptIssued, AgentRunStarted, then the push, AgentRunFinished and EvidenceRecorded", order.lastIndexOf("ReceiptIssued") < order.lastIndexOf("AgentRunStarted") && order.lastIndexOf("AgentRunStarted") < order.lastIndexOf("EvidenceRecorded"), j(order.slice(-10)));
 	const atHead = (after?.evidence ?? []).filter((e) => e.headSha === after?.headSha);
 	const ran = atHead.filter((e) => e.kind === "delta-run-check");
-	check("the Worker ran each required contract check itself on the pushed files (kind delta-run-check, names the file and sha)", ran.length > 0 && ran.every((e) => e.pass && /Delta-run contract check .* at [0-9a-f]{7}, reading /.test(e.output)), j(ran.map((e) => `${e.check}:${e.pass}`)));
+	check("the Worker ran each required contract check itself on the pushed files (kind delta-run-check, names the file and sha)", ran.length === 2 && ran.every((e) => e.pass && /Delta-run contract check .* at [0-9a-f]{7}, reading /.test(e.output)), j(ran.map((e) => `${e.check}:${e.pass}`)));
 	check("the claims check is recorded beside them, informational only (kind delta-claims-check under delta:claims-vs-receipt)", atHead.some((e) => e.kind === "delta-claims-check" && e.check === "delta:claims-vs-receipt"), j(atHead.map((e) => `${e.check}:${e.pass}:${e.kind}`)));
 	note(`receipt noteRef=${after?.receipt?.noteRef ?? "none"}; noteError=${job.value?.noteError ?? "none"}  (UNVERIFIED before this run: whether Artifacts accepts a push to refs/notes/delta)`);
 	const noteLog = await call("GET", `/api/repos/${fork2}/log?ref=refs/notes/delta`);

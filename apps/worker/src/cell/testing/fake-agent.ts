@@ -1,4 +1,4 @@
-import { runStubAgent } from "../../../container/stub-agent-lib";
+import { parseContextRecord, runStubAgent } from "../../../container/stub-agent-lib";
 import { AgentRuntimeError, type AgentDispatch, type AgentRunView, type AgentRuntimePort } from "../agent-port";
 import type { FakeWorld } from "./fake-artifacts";
 
@@ -18,7 +18,7 @@ export type FakeAgentBehavior = {
 	/** Keep every run open until `release()`. */
 	hold: boolean;
 	/** What the run does when it settles. */
-	outcome: "push" | "no-push" | "fail" | "keep-old-claims" | "wrong-code";
+	outcome: "push" | "no-push" | "fail" | "keep-old-claims" | "wrong-code" | "missing-facet";
 	/** Make this many dispatch calls throw a retryable runtime error first. */
 	failDispatches: number;
 	/** The error code those throws carry (`RUN_IN_PROGRESS` is the busy runtime). */
@@ -99,7 +99,9 @@ export class FakeAgentRuntime implements AgentRuntimePort {
 			return;
 		}
 		const contextFiles = Object.fromEntries(Object.entries(request.revalidate.context).map(([name, text]) => [`.delta/context/${name}`, text]));
-		const out = runStubAgent({ workItemId: request.workItemId, prompt: request.prompt, contextFiles, indexTs: this.#world.filesAt(request.forkRepo)["src/index.ts"] ?? null });
+		// The dispatcher delivers exactly the receipt's records, so the delivered ids are the context's.
+		const deliveredIds = Object.values(request.revalidate.context).flatMap((text) => parseContextRecord(text)?.id ?? []);
+		const out = runStubAgent({ workItemId: request.workItemId, prompt: request.prompt, contextFiles, deliveredIds, indexTs: this.#world.filesAt(request.forkRepo)["src/index.ts"] ?? null });
 		const files: Record<string, string> = { ...out.files, ...contextFiles };
 		// An agent that changed the code but never touched its claims leaves the old claims file in the tree.
 		if (outcome === "keep-old-claims") delete files[".delta/claims.json"];
@@ -107,6 +109,12 @@ export class FakeAgentRuntime implements AgentRuntimePort {
 		if (outcome === "wrong-code") {
 			for (const [path, text] of Object.entries(files)) {
 				if (path.startsWith("src/work/")) files[path] = text.replace(/^(export const \w+ = ).*?;/gm, '$1"previous";');
+			}
+		}
+		// An agent that writes code for some of the facets it relies on and leaves one undeclared (the status facets).
+		if (outcome === "missing-facet") {
+			for (const [path, text] of Object.entries(files)) {
+				if (path.startsWith("src/work/")) files[path] = text.replace(/^export const STATUS_.*\n/gm, "");
 			}
 		}
 		const commit = await this.#world.push(request.forkRepo, files, { author: view.author, message: `revalidate: ${request.prompt}` });

@@ -145,14 +145,21 @@ describe("revalidate loop (M4)", () => {
 			expect(e.output).toMatch(/Delta-run contract check .* at [0-9a-f]{7}, reading src\/index\.ts, src\/work\/wi-2\.ts/);
 			expect(e.output).not.toMatch(/NOT A TEST/);
 		}
-		expect(ran.find((e) => e.check === CHECKS[0])?.output).toContain('src/work/wi-2.ts: notifications.default = "opt-in" as accepted');
+		// Each check asserts exactly the facets WI-2 declared a dependency on, and found them declared in the pushed code
+		// (the status-model check does not pass for want of anything to check).
+		const output = (check: string) => ran.find((e) => e.check === check)?.output ?? "";
+		expect(output(CHECKS[0] as string)).toContain("asserting notifications.cadence, notifications.default");
+		expect(output(CHECKS[0] as string)).toContain('src/work/wi-2.ts: notifications.default = "opt-in" as accepted');
+		expect(output(CHECKS[1] as string)).toContain("asserting status.values");
+		expect(output(CHECKS[1] as string)).toMatch(/src\/work\/wi-2\.ts: status\.values = \[.*\] as accepted/);
 		const claimsEvidence = atHead.filter((e) => e.kind === "delta-claims-check");
 		expect(claimsEvidence).toHaveLength(1);
 		expect(claimsEvidence[0]).toMatchObject({ check: "delta:claims-vs-receipt", pass: true });
 		expect(claimsEvidence[0].output).toMatch(/NOT A TEST/);
 		expect(atHead).toHaveLength(3);
 		expect(after.claims.status).toBe("ok");
-		expect(after.claims.claims.every((c: any) => c.basedOn === "notifications@2")).toBe(true);
+		// Claims cover every record the receipt delivered, at the delivered versions.
+		expect(new Set(after.claims.claims.map((c: any) => c.basedOn))).toEqual(new Set(["notifications@2", "status-model@1"]));
 
 		// The console can name the agent: the run-started event carries what runs the work.
 		expect((await ledger(s)).find((e) => e.type === "AgentRunStarted")?.payload.event).toMatchObject({ workItemId: "WI-2", model: "stub agent" });
@@ -270,6 +277,18 @@ describe("revalidate loop (M4)", () => {
 		expect((await gateOf(s)).pass).toBe(true);
 	}, 40_000);
 
+	it("a second revalidate while one is under way is refused (409) and starts no second run", async () => {
+		const s = await stale({ agent: { hold: true } });
+		expect((await revalidate(s)).res.status).toBe(200);
+		await jobAt(s, "running");
+		const second = await revalidate(s);
+		expect([second.res.status, second.res.body.error.code]).toEqual([409, "REVALIDATION_IN_PROGRESS"]);
+		await w.world(s, { op: "agentRelease" });
+		await jobAt(s, "done");
+		expect(await w.world(s, { op: "agentCalls" })).toHaveLength(1);
+		expect(await jobs(s)).toHaveLength(1);
+	}, 30_000);
+
 	it("a failed run leaves the work blocked, closes the run as a failure and records no evidence", async () => {
 		const s = await stale({ agent: { outcome: "fail" } });
 		await revalidate(s);
@@ -307,11 +326,32 @@ describe("revalidate loop (M4)", () => {
 		await jobAt(s, "done");
 		const wi2 = await workItem(s, "WI-2");
 		const failed = wi2.evidence.filter((e) => e.headSha === wi2.headSha && e.kind === "delta-run-check" && !e.pass);
-		expect(failed.map((e) => e.check)).toEqual([CHECKS[0]]);
-		expect(failed[0].output).toMatch(/notifications contract failed/);
-		expect(failed[0].output).toContain('src/work/wi-2.ts: notifications.default = "previous", accepted is "opt-in"');
+		expect(failed.map((e) => e.check).sort()).toEqual(CHECKS);
+		const notifications = failed.find((e) => e.check === CHECKS[0]);
+		expect(notifications?.output).toMatch(/notifications contract failed/);
+		expect(notifications?.output).toContain('src/work/wi-2.ts: notifications.default = "previous", accepted is "opt-in"');
+		expect(failed.find((e) => e.check === CHECKS[1])?.output).toMatch(/status\.values = "previous"/);
 		// The claims look right, so the claims check passes; it still cannot stand in for the test.
 		expect(wi2.evidence.find((e) => e.kind === "delta-claims-check")).toMatchObject({ pass: true });
+		const gate = await gateOf(s);
+		expect(gate.pass).toBe(false);
+		expect(gate.reasonCodes).toContain("TEST_FAILED");
+		const promote = await post(s, "/work-items/WI-2/promote", { expectedBaselineCommit: gate.baselineCommit, forkHeadSha: gate.forkHeadSha });
+		expect([promote.status, promote.body.error.code]).toEqual([409, "PROMOTION_BLOCKED"]);
+	}, 30_000);
+
+	it("a run check with no declared required facet fails", async () => {
+		// The push declares the notifications facets and nothing for status.values, which WI-2 depends on. The status-model
+		// check must not pass for having found nothing to compare.
+		const s = await stale({ agent: { outcome: "missing-facet" } });
+		await revalidate(s);
+		await jobAt(s, "done");
+		const wi2 = await workItem(s, "WI-2");
+		const ran = wi2.evidence.filter((e) => e.headSha === wi2.headSha && e.kind === "delta-run-check");
+		expect(ran.find((e) => e.check === CHECKS[0])).toMatchObject({ pass: true });
+		const status = ran.find((e) => e.check === CHECKS[1]);
+		expect(status).toMatchObject({ pass: false });
+		expect(status?.output).toContain("status.values is not declared in the code");
 		const gate = await gateOf(s);
 		expect(gate.pass).toBe(false);
 		expect(gate.reasonCodes).toContain("TEST_FAILED");

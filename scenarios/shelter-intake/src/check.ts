@@ -91,7 +91,9 @@ const DOCUMENT_PATHS = new Set([SCRIPT_PATH, SIGNAGE_PATH, BRIEFING_PATH, SUPPLI
 export const contractChecks: Record<string, ContractCheck> = {
 	[SHELTER_INTAKE_CHECK]: {
 		reads: (path) => DOCUMENT_PATHS.has(path),
-		run(files, facets) {
+		run(files, facets, required) {
+			// The rules read the policy as a whole, but an item that relies on none of it has nothing to be checked against.
+			if (required.length === 0) return { pass: false, output: "the work item relies on no facet of this record, so there was nothing to assert" };
 			const paths = Object.keys(files).sort();
 			if (paths.length === 0) return { pass: false, output: "none of the scenario documents is in the push, so nothing could be asserted" };
 			const results = paths.map((path) => runShelterIntakeCheck(path, files[path] as string, facets));

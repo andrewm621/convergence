@@ -18,18 +18,26 @@ export const CONTRACT_CHECKS: Readonly<Record<string, ContractCheck>> = { ...not
 
 const MAX_FILES = 40;
 const MAX_FILE_CHARS = 200_000;
+/** Evidence.output is read by people and shipped in every frame: a long list of declarations is cut here. */
+const MAX_OUTPUT_CHARS = 4096;
+const TRUNCATED = "… (truncated)";
+
+function capped(text: string): string {
+	return text.length <= MAX_OUTPUT_CHARS ? text : `${text.slice(0, MAX_OUTPUT_CHARS - TRUNCATED.length)}${TRUNCATED}`;
+}
 
 export type ContractCheckRun = { pass: boolean; output: string };
 
 /**
- * Run the check named by `check` at `sha` of `repo`. Returns null when no check is registered for that path.
+ * Run the check named by `check` at `sha` of `repo`, asserting the facet keys in `required` (what the work item relied
+ * on; an empty list fails closed in the check). Returns null when no check is registered for that path.
  * Reads only the files the check asks for, by the blob ids of the repo's own tree at that sha, so the text is
  * what git has at that commit. A file that cannot be read throws (the caller retries); one that is too large
  * or too many files fail closed.
  */
 export async function runContractCheck(
 	port: ArtifactsPort,
-	input: { repo: string; sha: string; tree: FlatTree; check: string; facets: Record<string, FacetValue> },
+	input: { repo: string; sha: string; tree: FlatTree; check: string; facets: Record<string, FacetValue>; required: string[] },
 	registry: Readonly<Record<string, ContractCheck>> = CONTRACT_CHECKS,
 ): Promise<ContractCheckRun | null> {
 	if (!Object.hasOwn(registry, input.check)) return null;
@@ -46,6 +54,6 @@ export async function runContractCheck(
 		if (text.length > MAX_FILE_CHARS) return { pass: false, output: `Delta-run contract check ${input.check} at ${at} failed closed: ${path} is larger than ${MAX_FILE_CHARS} characters.` };
 		files[path] = text;
 	}
-	const result = definition.run(files, input.facets);
-	return { pass: result.pass, output: `Delta-run contract check ${input.check} at ${at}, reading ${paths.length === 0 ? "no files" : paths.join(", ")}: ${result.output}` };
+	const result = definition.run(files, input.facets, input.required);
+	return { pass: result.pass, output: capped(`Delta-run contract check ${input.check} at ${at}, reading ${paths.length === 0 ? "no files" : paths.join(", ")}: ${result.output}`) };
 }

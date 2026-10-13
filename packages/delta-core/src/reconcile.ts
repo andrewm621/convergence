@@ -376,7 +376,11 @@ function onResolutionRecorded(draft: CellState, event: Of<"ResolutionRecorded">,
 		];
 	}
 
-	// revalidate (R6): only for work that is stale or conflicting, with a loop guard
+	// revalidate (R6): only for work that is stale or conflicting, with a loop guard. One at a time: while a
+	// revalidation is under way (until the agent's next push) another would queue a second run for the same work.
+	if (wi.revalidating) {
+		return [noAction(["REVALIDATION_IN_PROGRESS"], { workItemId: id, recordId: binding.recordId, message: "A revalidation is already under way for this work item; wait for the agent's push before revalidating again." })];
+	}
 	const analysis = analyze(draft, id, policy);
 	if (analysis.stale.length === 0 && analysis.conflicts.length === 0) {
 		return [noAction(["NOTHING_TO_REVALIDATE"], { workItemId: id, message: "Nothing stale or conflicting; there is nothing to revalidate." })];

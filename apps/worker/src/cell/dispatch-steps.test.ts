@@ -65,11 +65,16 @@ async function setup(options: { receipted?: boolean; enqueue?: boolean; recordPa
 	if (options.enqueue !== false) meta.enqueueDispatch({ requestId: "rv-1", workItemId: "WI-2", diff: [], nowMs: Date.now() - (options.queuedMsAgo ?? 0) });
 
 	const blobs = new Map(Object.values(n.docs).map((d) => [d.snapshot.blobHash, d.text]));
+	// What the fork looks like to the dispatcher: the head the log reports, its tree, and which blobs cannot be read.
+	const chain = { head: n.commits.wi2HeadV1 as string, tree: new Map<string, { hash: string; mode: string }>(), unreadable: new Set<string>() };
 	const port = {
-		readBlob: async (_repo: string, oid: string) => blobs.get(oid) ?? null,
-		log: async () => [{ sha: n.commits.wi2HeadV1, message: "m", authorName: "workitem-wi-2", committerName: "delta", parents: [], committedAt: 1 }],
+		readBlob: async (_repo: string, oid: string) => {
+			if (chain.unreadable.has(oid)) return null;
+			return blobs.get(oid) ?? null;
+		},
+		log: async () => [{ sha: chain.head, message: "m", authorName: "workitem-wi-2", committerName: "delta", parents: [], committedAt: 1 }],
 		writeNote: async () => undefined,
-		tree: async () => new Map(),
+		tree: async () => chain.tree,
 	} as unknown as ArtifactsPort;
 
 	const runtime = new ScriptedRuntime();
@@ -102,7 +107,7 @@ async function setup(options: { receipted?: boolean; enqueue?: boolean; recordPa
 		logError: () => undefined,
 	};
 	const dispatcher = new RevalidationDispatcher(host);
-	return { n, store, meta, runtime, dispatcher, activity, submitted };
+	return { n, store, meta, runtime, dispatcher, activity, submitted, chain, send };
 }
 
 const job = (meta: CellMeta, requestId = "rv-1") => meta.dispatches().find((j) => j.requestId === requestId);
@@ -210,5 +215,40 @@ describe("dispatcher steps against a scripted host", () => {
 		await processEvent(t.store, n.events.wi2PushedRevalidated, n.policy);
 		await t.dispatcher.step();
 		expect(t.meta.dispatches()).toEqual([]);
+	});
+
+	it("a job whose revalidation ended while it waited (the agent pushed) finishes as superseded and starts no second run", async () => {
+		const t = await setup();
+		t.runtime.dispatchError = new AgentRuntimeError("RUN_IN_PROGRESS", "busy", true);
+		await t.dispatcher.step(); // queued -> receipted, then the runtime says busy
+		expect(job(t.meta)?.phase).toBe("receipted");
+		await t.send(t.n.events.wi2PushedRevalidated); // the first run's push: the revalidation is over
+		t.runtime.dispatchError = null;
+		t.meta.updateDispatch("rv-1", { retryAt: null }, Date.now());
+		const callsBefore = t.runtime.calls.length;
+		await t.dispatcher.step();
+		expect(job(t.meta)).toMatchObject({ phase: "done" });
+		expect(job(t.meta)?.error).toMatch(/already over/);
+		expect(t.runtime.calls).toHaveLength(callsBefore); // nothing was asked of the runtime
+		expect(t.submitted.some((e) => e.type === "AgentRunStarted")).toBe(false);
+	});
+
+	it("AgentRunFinished is written once for a run: retries that fail after a successful finish never add a failure line", async () => {
+		const t = await setup();
+		await t.dispatcher.step(); // -> running
+		await t.send(t.n.events.wi2PushedRevalidated);
+		t.chain.head = t.n.commits.wi2HeadRevalidated;
+		t.chain.tree = new Map([["src/work/wi-2.ts", { hash: "gone", mode: "100644" }]]);
+		t.chain.unreadable.add("gone");
+		t.runtime.view = run({ state: "succeeded", finishedAt: T, commit: t.n.commits.wi2HeadRevalidated, pushVerified: true });
+		for (let i = 0; i < 8 && job(t.meta)?.phase !== "failed"; i++) {
+			t.meta.updateDispatch("rv-1", { retryAt: null }, Date.now());
+			await t.dispatcher.step();
+		}
+		expect(job(t.meta)?.phase).toBe("failed");
+		expect(job(t.meta)?.error).toMatch(/gave up after 5 attempts: cannot read src\/work\/wi-2\.ts/);
+		const finished = t.submitted.filter((e) => e.type === "AgentRunFinished");
+		expect(finished).toHaveLength(1);
+		expect(finished[0]).toMatchObject({ outcome: "success" });
 	});
 });

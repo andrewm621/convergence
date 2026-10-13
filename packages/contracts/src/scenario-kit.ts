@@ -51,5 +51,10 @@ export type ContractCheckResult = { pass: boolean; output: string };
 export type ContractCheck = {
 	/** Which files of the pushed tree the check reads (repo-relative paths). The Worker passes only these to `run`. */
 	reads(path: string): boolean;
-	run(files: Record<string, string>, facets: Record<string, FacetValue>): ContractCheckResult;
+	/**
+	 * `required` is the facet keys the work item relied on for this check's records, derived by the Worker from the
+	 * item's accepted dependencies. The check asserts exactly those and fails closed when there are none, so it can
+	 * never pass for having had nothing to check.
+	 */
+	run(files: Record<string, string>, facets: Record<string, FacetValue>, required: string[]): ContractCheckResult;
 };

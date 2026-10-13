@@ -44,7 +44,7 @@ Everything the container writes (events, exit code, stderr, `pushed <sha>` lines
 
 ## Modes
 `AGENT_MODE` (a Worker var) selects the agent. Everything else in the pipeline is identical.
-- `stub` (default): `container/stub-agent-lib.ts` makes a deterministic change under `src/work/<id>.ts`, appends an export to `src/index.ts` and writes `.delta/claims.json` from the context records it read. `STUB_STEP_MS` paces it so concurrent runs visibly overlap.
+- `stub` (default): `container/stub-agent-lib.ts` makes a deterministic change under `src/work/<id>.ts`, appends an export to `src/index.ts` and writes `.delta/claims.json` from the context records it read. On a revalidation run it covers every facet of exactly the records in `.delta/receipt.json` (what the control plane delivered); on a first run it narrows by the task title. `STUB_STEP_MS` paces it so concurrent runs visibly overlap.
 - `claude`: runs `claude --print --output-format stream-json ...` (Claude Code, pinned in the image) through OpenRouter's Anthropic-compatible endpoint. To enable it:
   1. Worker secret `OPENROUTER_API_KEY` (`wrangler secret put OPENROUTER_API_KEY`; locally in `apps/worker/.dev.vars`).
   2. `AGENT_MODE=claude`. Deploy with `--var AGENT_MODE:claude` or edit `wrangler.jsonc`.

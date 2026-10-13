@@ -247,6 +247,10 @@ function findCrossClaimConflicts(state: CellState, wi: WorkItemState): Uncertain
  * Does this Evidence count as a test result for its check? Everything does except `delta-claims-check`, the
  * Worker's comparison of agent-written claims with the receipt. That is derived from the agent's own word, so
  * it must never satisfy, fail or overwrite a validation check (rule R8: Delta-run, not agent-run).
+ *
+ * This is an exclusion list on purpose: evidence with no `kind` is the fixtures' hand-recorded results (including
+ * sales-ops), and an allowlist would orphan all of them. Only the Worker's internal observation hook writes
+ * evidence, never an HTTP caller, and the one kind it writes for a test result is `delta-run-check`.
  */
 export function countsAsTest(evidence: Evidence): boolean {
 	return evidence.kind !== "delta-claims-check";

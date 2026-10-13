@@ -68,7 +68,7 @@ export type ClaimsFile = z.infer<typeof ClaimsFile>;
  *
  * - `executed-test`: a test suite was executed.
  * - `delta-run-check`: a pure, deterministic assertion the Worker ran on the file contents of a verified
- *   push (rule R8). This is what satisfies a record's `validation:` check.
+ *   push (rule R8). This is the one kind the Worker records as a test result.
  * - `delta-claims-check`: the Worker's comparison of the push's claims with the issued receipt. It is derived
  *   from agent-written claims, so it is informational only: the reconciler never counts it as a test result
  *   for any check, passing or failing, so it cannot satisfy or overwrite a validation check. It is NOT a
