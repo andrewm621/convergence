@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { ActorChip, SeededBadge, statusMeta, StatusChip, useDegraded } from "@/components/status";
 import { shortHash } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { agentModelOf, analysisOf, builtOnStamps, quietOf, reasonSentences } from "@/state/derive";
+import { agentModelOf, analysisOf, builtOnStamps, quietOf, readyByException, reasonSentences } from "@/state/derive";
 import { useConsole } from "@/state/console-context";
 import { scenarioMeta } from "./scenario-meta";
 import { FIT, NODE_SIZE, TILE, type BaselineData, type ClusterData, type DependencyEdgeData, type ItemData, type RecordData } from "./graph-layout";
@@ -70,6 +70,8 @@ export function WorkItemNode({ data }: NodeProps & { data: ItemData }) {
 	const degraded = useDegraded();
 	const found = useMemo(() => quietOf(view, wi), [view, wi]);
 	const quiet = degraded ? null : found;
+	// Ready only because an accepted exception lifts a block: amber, not the green of cleanly ready work. Not while degraded (shown as unconfirmed).
+	const excepted = useMemo(() => !degraded && readyByException(view, wi), [degraded, view, wi]);
 	const receipt = wi.receipt.accepted.map((entry) => `${entry.recordId}@${entry.version}`).join(" · ");
 	// Blocked on a changed decision: the card says which version it was built on and which is current, in words.
 	const blockedBy = useMemo(() => {
@@ -85,7 +87,7 @@ export function WorkItemNode({ data }: NodeProps & { data: ItemData }) {
 			data-status={wi.item.status}
 			role="button"
 			tabIndex={0}
-			aria-label={`${wi.item.id} ${wi.item.title}, ${wi.item.status}`}
+			aria-label={`${wi.item.id} ${wi.item.title}, ${wi.item.status}${excepted ? " with an accepted exception" : ""}`}
 			aria-pressed={selected}
 			onKeyDown={(event) => {
 				if (event.key === "Enter" || event.key === " ") {
@@ -104,7 +106,7 @@ export function WorkItemNode({ data }: NodeProps & { data: ItemData }) {
 				<span className="font-mono text-[13px] font-semibold">{wi.item.id}</span>
 				{running && <Loader className="size-3.5 shrink-0 text-info motion-safe:animate-spin" aria-hidden />}
 				<ActorChip actor={wi.item.actor} label={scenarioMeta(client.scenario, client.kind === "live").agentLabel ?? agentModelOf(view.ledger, wi.item.id) ?? undefined} className="min-w-0 text-[13px]" />
-				<StatusChip status={wi.item.status} leftAlone={quiet !== null} className="ml-auto text-[13px]" />
+				<StatusChip status={wi.item.status} leftAlone={quiet !== null} excepted={excepted} className="ml-auto text-[13px]" />
 			</div>
 			<p className="truncate leading-tight font-semibold" style={{ fontSize: FIT.itemTitlePx }} title={wi.item.title}>
 				{wi.item.title}

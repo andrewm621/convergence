@@ -6,6 +6,7 @@ import {
 	CircleSlash,
 	Cpu,
 	FlaskConical,
+	Gavel,
 	GitMerge,
 	HelpCircle,
 	Hourglass,
@@ -37,8 +38,8 @@ export const STATUS_META: Record<WorkItemStatus, StatusMeta> = {
 	stale: { label: "Blocked", tone: "danger", icon: TriangleAlert, description: "Stale: built on a decision that has since changed. A changed decision is not a verdict on the work." },
 	conflict: { label: "Blocked", tone: "danger", icon: Swords, description: "Conflict: its claims or checks contradict an accepted decision." },
 	revalidating: { label: "revalidating", tone: "info", icon: RefreshCw, description: "Re-running on the current decisions." },
-	ready: { label: "Ready to merge", tone: "primary", icon: CheckCheck, description: "Cleared by the gate. A human decides whether to promote." },
-	promoted: { label: "Merged", tone: "merged", icon: GitMerge, description: "Promoted: merged into the baseline." },
+	ready: { label: "Ready to merge", tone: "primary", icon: CheckCheck, description: "Cleared by the gate. A human decides whether to merge." },
+	promoted: { label: "Merged", tone: "merged", icon: GitMerge, description: "Merged into the baseline." },
 	uncertain: { label: "uncertain", tone: "warning", icon: HelpCircle, description: "Delta Convergence cannot tell: claims are missing or rely on something undeclared." },
 	rejected: { label: "rejected", tone: "neutral", icon: CircleSlash, description: "A human rejected this work." },
 };
@@ -51,11 +52,12 @@ export function useDegraded(): boolean {
 }
 
 /**
- * What to show for a status. While the poller is degraded a work item that reads `fresh` or `ready` cannot be
+ * What to show for a status. `excepted`: ready only because an accepted exception lifts what would block it (rule R5), so it is
+ * amber and reads differently from cleanly ready work. While the poller is degraded a work item that reads `fresh` or `ready` cannot be
  * trusted (a baseline change may be sitting unread; unknown is not unaffected), so it is shown as `unconfirmed`,
  * never Fresh and never "Cleared by the gate".
  */
-export function statusMeta(status: WorkItemStatus, degraded: boolean, leftAlone = false): StatusMeta {
+export function statusMeta(status: WorkItemStatus, degraded: boolean, leftAlone = false, excepted = false): StatusMeta {
 	if (degraded && (status === "fresh" || status === "ready")) {
 		return { label: "unconfirmed", tone: "warning", icon: HelpCircle, description: "The poller is degraded, so Delta Convergence cannot confirm that no decision it depends on has changed." };
 	}
@@ -64,16 +66,29 @@ export function statusMeta(status: WorkItemStatus, degraded: boolean, leftAlone 
 	if (status === "running" && leftAlone && !degraded) {
 		return { label: "Left alone", tone: "success", icon: ShieldCheck, description: "No recorded dependency on what the last decision change touched. Its agent is still working." };
 	}
+	if (status === "ready" && excepted) {
+		return { label: "Ready · exception", tone: "warning", icon: Gavel, description: "Cleared by the gate only because of an accepted exception. Something would block it without that exception. A human still decides whether to merge." };
+	}
 	return STATUS_META[status];
 }
 
-/** `leftAlone`: the latest decision change was evaluated against this work and left it alone (rule R2). */
-export function StatusChip({ status, leftAlone = false, className }: { status: WorkItemStatus; leftAlone?: boolean; className?: string }) {
+/**
+ * `leftAlone`: the latest decision change was evaluated against this work and left it alone (rule R2).
+ * `excepted`: the gate passes only through an accepted exception. `data-status` stays "ready"; `data-excepted` marks the difference.
+ */
+export function StatusChip({ status, leftAlone = false, excepted = false, className }: { status: WorkItemStatus; leftAlone?: boolean; excepted?: boolean; className?: string }) {
 	const degraded = useDegraded();
-	const meta = statusMeta(status, degraded, leftAlone);
+	const meta = statusMeta(status, degraded, leftAlone, excepted);
 	const Icon = meta.icon;
 	return (
-		<Badge tone={meta.tone} data-status={status} data-unconfirmed={meta.label === "unconfirmed" ? "" : undefined} title={meta.description} className={cn("font-semibold", className)}>
+		<Badge
+			tone={meta.tone}
+			data-status={status}
+			data-unconfirmed={meta.label === "unconfirmed" ? "" : undefined}
+			data-excepted={meta.label === "Ready · exception" ? "" : undefined}
+			title={meta.description}
+			className={cn("font-semibold", className)}
+		>
 			<Icon className={cn(status === "revalidating" && "motion-safe:animate-spin")} aria-hidden />
 			{meta.label}
 		</Badge>

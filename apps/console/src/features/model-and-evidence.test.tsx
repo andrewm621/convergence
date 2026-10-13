@@ -114,7 +114,7 @@ describe("the exception-lapse beat", () => {
 		expect(record.getAllByText("Lapsed").length).toBeGreaterThan(0);
 		expect(record.getAllByText("EXCEPTION_LAPSED").length).toBeGreaterThan(0);
 		expect(record.getByText(/shelter-intake-policy moved from v2 to v3/)).toBeInTheDocument();
-		expect(await screen.findByText("Promote would be blocked")).toBeInTheDocument();
+		expect(await screen.findByText("Merge would be blocked")).toBeInTheDocument();
 	});
 
 	it("leaves the exception standing before then", async () => {

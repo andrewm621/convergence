@@ -140,7 +140,7 @@ export function notificationsScript(bundle: NotificationsScenario): MockScript {
 		{
 			id: "promote-wi2",
 			title: "WI-2 promotes",
-			caption: "Promote re-checks at the current heads, then merges. The baseline holds both changes.",
+			caption: "Merge re-checks at the current heads, then merges. The baseline holds both changes.",
 			async run({ session }) {
 				await session.promoteNow("WI-2");
 				return { select: "WI-2", tab: "actions" };
