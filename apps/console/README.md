@@ -9,7 +9,7 @@ Stack: Vite, React 19, Tailwind v4, shadcn/ui, `@xyflow/react`, `@dagrejs/dagre`
 ```bash
 pnpm install
 pnpm --filter console dev        # http://localhost:5173/?mock=1
-pnpm --filter console build      # dist/, relative base, servable as Worker static assets
+pnpm --filter console build      # dist/, absolute base (/), served as Worker static assets
 pnpm --filter console test
 ```
 

@@ -4,8 +4,9 @@ import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
-	// Relative base: the build is served later as Worker static assets from any path.
-	base: "./",
+	// Absolute base: the Worker serves index.html for any unknown path (SPA fallback), and a relative "./assets/..." would
+	// resolve under that path (/foo/assets/...) and come back as HTML, leaving a blank page.
+	base: "/",
 	plugins: [react(), tailwindcss()],
 	resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
 	build: { target: "es2023", chunkSizeWarningLimit: 1500 },
