@@ -31,7 +31,7 @@ Heads up on that second route: `wrangler dev` has no local emulator for Cloudfla
 
 Built for the Cloudflare ["Build the next GitHub"](https://www.cloudflare.com/git-competition/) challenge on Workers, Durable Objects, Artifacts and Sandbox containers.
 
-<!-- TODO(andrew): AI-assisted-code disclosure line. Your call on whether and how to say it. -->
+Built with AI coding agents, directed and reviewed by the decision owner.
 
 ## The problem
 
@@ -271,9 +271,11 @@ Result on `main` plus this README, run 2026-10-13: typecheck clean, and all test
 |---|---|---|
 | `packages/contracts` | 4 | 59 |
 | `packages/delta-core` | 15 | 280 |
-| `apps/worker` | 30 | 693 |
-| `apps/console` | 17 | 146 |
-| **Total** | **66** | **1,178** |
+| `apps/worker` | 32 | 730 |
+| `apps/console` | 17 | 148 |
+| **Total** | **68** | **1,217** |
+
+The console tests run in jsdom and some use short timeouts, so they can time out on a heavily loaded machine. If one does, rerun that package alone (`pnpm --filter console test`) once the machine is quiet before treating it as a failure. For the counts above the machine was heavily loaded, and the console suite passed in full (148 of 148) only with longer test and async-wait timeouts set from outside the repo; the other three packages passed with the stock settings.
 
 The `scenarios/*` packages have no test files of their own; their fixtures are exercised by the `delta-core` tests.
 

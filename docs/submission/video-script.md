@@ -1,6 +1,6 @@
 # Delta Convergence: demo video script
 
-**Status:** draft v2, revised after the review-council dry run and two decisions from Andrew (B13 naming, B14 knowledge-work act). Written before the build is finished. Revise after M4 (resolve + promote) and again after M6 (ship). It is final only when it matches what the deployed console actually does on recording day.
+**Status:** draft v2, revised after the review-council dry run and two decisions from the decision owner (B13 naming, B14 knowledge-work act). Written before the build is finished. Revise after M4 (resolve + promote) and again after M6 (ship). It is final only when it matches what the deployed console actually does on recording day.
 **Target runtime:** 6:50 (the contest allows 5 to 10 minutes; the council target was about 6:30 to 7:00).
 **Format:** screen recording with voiceover. Narrator and face cam are still open (PRD §13, item 4).
 
@@ -55,7 +55,7 @@ If a live step fails and a fallback goes in, change the on-screen tag and the na
 |---|---|---|---|---|---|
 | 0:00 to 0:08 | LIVE (excerpt) | Console, Scenario A ("Notifications"), two forks mid-run, both green. Small corner tag: "excerpt, shown in full at 1:32". | "Two agents, one codebase. One makes the phone field optional, the other makes the API require it, and no line conflicts." | One-sentence human-problem hook, spoken over the product rather than an illustration. | Take two's graph, tagged "recorded earlier". |
 | 0:08 to 0:20 | LIVE (excerpt) | Quick cut to the scratch terminal (large font): `git merge` clean, each branch's tests green. Cut back to the console: one edge turns red, chip flips to `stale`, the word "blocked" appears on the work item. The red edge stays on screen. | "Here is that kind of failure in a real run: clean merge, green tests, blocked." | The single remembered image: the red edge, with the thesis said aloud while it is on screen. | If the red edge is slow, hold the terminal shot and let the edge land on the last word. |
-| 0:20 to 0:32 | LIVE (excerpt) | Pitch line as large text over the console. Then the name: "Delta Convergence". | "Git tells you when two agents changed the same lines. Delta Convergence tells you when two agents are building from different decisions, and won't let the stale one merge. I'm Andrew." | Pitch line, spoken and shown. | None needed. |
+| 0:20 to 0:32 | LIVE (excerpt) | Pitch line as large text over the console. Then the name: "Delta Convergence". | "Git tells you when two agents changed the same lines. Delta Convergence tells you when two agents are building from different decisions, and won't let the stale one merge. I'm the decision owner." | Pitch line, spoken and shown. | None needed. |
 
 ## 1. One-sentence positioning (0:32 to 0:42) · GRAPHIC
 
@@ -146,7 +146,7 @@ If a live step fails and a fallback goes in, change the on-screen tag and the na
 
 ## Optional insert: "where this goes" (20 s) · NOT BUILT
 
-**Off by default.** Include only if Andrew approves (PRD §13, item 7). It would sit between segments 10 and 11 and is **not** counted in the 6:50 runtime.
+**Off by default.** Include only if the decision owner approves (PRD §13, item 7). It would sit between segments 10 and 11 and is **not** counted in the 6:50 runtime.
 
 | Mode | On screen | Narration |
 |---|---|---|
@@ -197,7 +197,7 @@ A token-revocation beat is **not** included; the PRD lists it as not adopted. Ad
 
 **Pre-submit pass:** compare every sentence here against the README "Implemented vs not" table and the passing tests; cut or fix anything that doesn't match. The full claims list is in `submission-copy.md`.
 
-## Decisions for Andrew
+## Decisions for the decision owner
 
 - Narrator and face cam (PRD §13, item 4). This script assumes voiceover only.
 - Whether "No LLM is required to operate Delta Convergence" is a public claim. The script says "the control loop makes no model calls".

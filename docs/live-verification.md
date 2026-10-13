@@ -1,6 +1,6 @@
 # Live verification (integration stage A)
 
-The M2 control loop, merged into `main`, was deployed and run against the real Cloudflare Artifacts binding with the stub agent. Everything below was observed on the deployed Worker on 2026-10-12 (local evening); the Worker's URL is not recorded here.
+The M2 control loop, merged into `main`, was deployed and run against the real Cloudflare Artifacts binding with the stub agent. Everything below was observed on the deployed Worker on 2026-10-12 (local evening) or 2026-10-13, as each section says; the Worker's URL is not recorded here.
 
 Repeat it with `scripts/check-live.mjs` (needs `ENABLE_SMOKE=1`, `AGENT_MODE=stub`):
 
@@ -100,11 +100,30 @@ Found, and fixed in the PR `fix/demo-recordable`:
 
 1. **WI-2 promote returned `409 MERGE_CONFLICT` after WI-1 was promoted.** Both stub agents appended a different `export * from "./work/<id>"` line at the same spot of `src/index.ts`, a textual add/add conflict. Delta Convergence reported it correctly; the cause was the stub and the scenario. Reproducing it with isomorphic-git showed a second collision the stub could not avoid: every fork has its own `.delta/claims.json`, which is also an add/add conflict once the first fork is in the baseline, so fixing only the barrel would not have helped. Fixes: the stub writes only `src/work/<id>.ts` and `.delta/claims.json` (no shared barrel), and the promotion merge lets the fork being promoted win a conflict when every conflicting path is under `.delta/` (control-plane metadata); a conflict on any other path is still `MERGE_CONFLICT`. Tests: `git-merge.test.ts` (real isomorphic-git, including the old barrel still conflicting) and `revalidate-loop.workerd.test.ts` (WI-1 then WI-2 both promote). The fixed path has not been run live yet.
 
+## Oct 13: the shelter act live
+
+The shelter act (`scripts/check-live-shelter.mjs`, described in [`shelter-live.md`](shelter-live.md)) was run on the deployed Worker with real agents, not the stub: GLM through OpenRouter, in Sandbox containers, on separate Artifacts forks.
+
+| Check | Result | Observed |
+|---|---|---|
+| Two real agents, each in its own Sandbox container, concurrent | pass | the two runs overlapped |
+| Policy change (v2) while both agents were running | pass | the decision owner changed `shelter-intake-policy` mid-run |
+| Stale-block of the work item that relied on the changed facets | pass | SH-1 (front-desk script) went stale and was blocked within about **64 ms** of v2 being accepted |
+| Work item that did not rely on them | pass | SH-2 (supply list) stayed green and was promoted as a merge with two parents |
+| Revalidate, re-run, promote | pass | SH-1 was revalidated, the agent re-ran against v2, and SH-1 was promoted |
+| `ledger/verify` | pass | the hash chain verified |
+
+Notes:
+- A Claude Sonnet run also worked, but it finished before the policy changed, so it did not exercise the stale-block. The demo uses GLM.
+- A local `wrangler dev` run of the same act passed every check, and also showed a local-only stall (an agent's Durable Object stopped answering while its container was still working). It was not seen on the deployed Worker. See [`shelter-live.md`](shelter-live.md).
+- The 64 ms figure comes from one deployed run.
+
 ## Still unverified
 
 - **A container-run contract test suite (R8).** Not built. What the loop records is the Worker's own pure check on the pushed files (`kind: "delta-run-check"`, `cell/contract-checks.ts`), which is real Delta-run evidence but narrower than a test run; sales-ops has no check. The Worker's claims check (`kind: "delta-claims-check"`) is informational and never satisfies `requires: ["contract-test"]`.
 - **A browser's WebSocket handshake** (Node's client was used, with the same subprotocol), and reconnect with `?since=`.
-- Poller failure paths against the real service (backoff, degraded notes, a baseline far ahead), alarm cadence over a long idle period, and the Queue path (not implemented).
+- Poller failure paths against the real service (backoff, degraded notes, a baseline far ahead), and alarm cadence over a long idle period.
+- **Queues: not used.** Heads are polled from a Durable Object alarm, so there is no Queue path to verify.
 - Subrequest limits and latency on a large repository. A `MERGE_CONFLICT` was hit live (see "Oct 13") and reported correctly; the `.delta/` metadata rule that fixes the demo case has only been run in tests.
 - `meta.evaluationMs` is `0` in live frames: the runtime clock only advances on I/O, so the strip should use request timings, not that field.
 

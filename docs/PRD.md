@@ -1,6 +1,6 @@
 # Delta Convergence — PRD (Cloudflare contest build)
 
-**Status:** v1.2. Adds the outcome of an independent red-team evaluation: the demo reshape, the fan-out beat, git-note receipts and three ratified decisions. v1.1 had folded in all 12 source threads and the gap register. · **Date:** 2026-10-12 · **Owner:** Andrew Miller
+**Status:** v1.2. Adds the outcome of an independent red-team evaluation: the demo reshape, the fan-out beat, git-note receipts and three ratified decisions. v1.1 had folded in all 12 source threads and the gap register. · **Date:** 2026-10-12 · **Owner:** the decision owner
 **Submission deadline:** Wed **2026-10-14, 11:59 PM PT** (Thu 02:59 ET). Target submit time: **Wed 6:00 PM PT**, which leaves a buffer.
 **Judging (scored 1–5):** **50%** originality and prototype quality · **25%** multi-agent concurrency, coordination, context preservation, review and conflict handling · **25%** ease of use and product experience. Ties break on the first criterion. **Use these weights to decide every cut:** a third of the score is how clear the console is.
 **After submission:** finalists are notified **Oct 16**. Three teams present live for 10 minutes at Moscone West, SF on **Oct 21**, and the winner must attend. Hold Oct 21.
@@ -145,17 +145,19 @@ This is the **"no LLM required" proof**, and the README should say so.
  ┌─────────────────────── Worker: Delta Convergence API (Hono) ────────────────────────────────────┐
  │ /scenarios /work-items /resolutions /promote · token minting · tree diff · claims compare        │
  └──────▲──────────────────────────┬──────────────────────────────────▲───────────────────────────┘
-        │ queue()                   │ RPC                               │ dispatch
+        │ (optional)                │ RPC                               │ dispatch
  ┌──────┴──────┐        ┌───────────▼─────────────┐          ┌──────────┴──────────────────────────┐
- │ Queue:      │        │ Durable Object:          │          │ Sandbox SDK container per agent     │
- │ artifacts   │        │ WorkspaceCell (SQLite)   │          │ Claude Code headless, git clone/push │
- │ push events │        │ state + ledger + reconcile│         │ to its own Artifacts fork            │
+ │ Queue (opt) │        │ Durable Object:          │          │ Sandbox SDK container per agent     │
+ │ NOT BUILT;  │        │ WorkspaceCell (SQLite)   │          │ Claude Code headless, git clone/push │
+ │ DO polls    │        │ state + ledger + reconcile│         │ to its own Artifacts fork            │
  └──────▲──────┘        └──────────────────────────┘          └──────────┬──────────────────────────┘
-        │ cf.artifacts.repo.pushed                                       │ git smart-HTTP
+        │ (optional) repo.pushed                                         │ git smart-HTTP
  ┌──────┴────────────────────────── Cloudflare Artifacts ─────────────────▼─────────────────────────┐
  │ <scenario>-baseline (context/, decisions/, code)  ──fork──▶  <scenario>-wi-<id> (one per agent)   │
  └──────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
+
+The Queue box is an optional upgrade that was not built. As shipped, the `WorkspaceCell` Durable Object polls each repo's `log()` from an alarm and feeds the same deduplicated events (R9).
 
 | Concern | Choice | Notes / source |
 |---|---|---|
@@ -163,7 +165,7 @@ This is the **"no LLM required" proof**, and the README should say so.
 | Control plane | **Worker** (Hono) plus **Durable Object `WorkspaceCell`** with SQLite | One DO per scenario. It holds state and the ledger, runs `reconcile`, and fans out over WebSockets (hibernation API) |
 | Events | **Poll first** (the DO polls `log({limit:1})` every 2–5 seconds per repo), then upgrade to the **Queues event subscription** on `artifacts.repo` → `pushed` once it works | The subscription flags are unverified, so this order removes a Tuesday risk. Both paths feed the same deduplicated `DeltaEvent` (R9) |
 | Worker-side git writes | `isomorphic-git` plus the **patched `memory-fs.ts`** from the author's earlier Artifacts spike | Verified against the live service. Used to seed baselines and commit context changes |
-| Agent runtime | **Sandbox SDK container per agent**, running `claude` headless (Claude models via OpenRouter's Anthropic-compatible endpoint) | Follows the CF Claude Code tutorial. Allow `*.artifacts.cloudflare.net` outbound. **Fallback:** a local runner (`apps/runner`, Node + Claude Agent SDK) on Andrew's Mac that clones and pushes to the same forks |
+| Agent runtime | **Sandbox SDK container per agent**, running `claude` headless (Claude models via OpenRouter's Anthropic-compatible endpoint) | Follows the CF Claude Code tutorial. Allow `*.artifacts.cloudflare.net` outbound. **Fallback:** a local runner (`apps/runner`, Node + Claude Agent SDK) on the maintainer's Mac that clones and pushes to the same forks |
 | Merge / promote | Real `git merge` inside a sandbox, or the local runner, then push to the baseline | Artifacts has no merge API. With one writer per repo, the DO serializes promotions |
 | Diff | Tree walk (`readCommit` → `readTree` → compare blob hashes), plus a unified text diff for the changed blobs | `readTree` returns direct children only, so walk it recursively |
 | UI | Vite + React 19 + Tailwind v4 + shadcn, React Flow + dagre | Standalone, with no local `link:` packages, so judges can `pnpm install` from a fresh clone |
@@ -218,7 +220,7 @@ The company is synthetic ("Northwind Field Services"). **Don't use real client n
 
 Mid-flight, `qualified-lead` v2 adds a "verified budget signal" requirement. WI-3 and WI-4 go Stale; WI-5 stays Fresh. One is revalidated and one gets an **accept-exception** ("Q4 forecast is grandfathered on v1 for board deck; scoped to `reports/q4-forecast.md`") to show both resolution paths. **Same engine, same UI, a different baseline.** That is the generalization proof.
 
-> **Status (Oct 12, reopened):** build B **seeded/replay-first** tonight. Its fixtures, contract check and recorded event log go through the same engine, which guarantees a 60–90 s segment in the video. **Andrew decides on Tuesday night** whether to upgrade B to live agents, once Scenario A is solid. The overnight agent runs restore the build hours that made the downgrade attractive.
+> **Status (Oct 12, reopened):** build B **seeded/replay-first** tonight. Its fixtures, contract check and recorded event log go through the same engine, which guarantees a 60–90 s segment in the video. **The decision owner decides on Tuesday night** whether to upgrade B to live agents, once Scenario A is solid. The overnight agent runs restore the build hours that made the downgrade attractive.
 
 ## 7. UX: the Convergence Console
 
@@ -281,7 +283,7 @@ Visual grammar comes from the author's earlier review-loop prototype: canonical 
 | **M2 Control loop** | Tue midday | Queue subscription → DO → reconcile → ledger; context-change endpoint; stale detection end-to-end on Scenario A | Changing a decision flips WI-2 to Stale and leaves WI-1 alone |
 | **M3 Console** | Tue PM–eve | Work graph, inspector, WebSocket live updates, actions wired | Scenario A runs fully from the UI |
 | **M4 Resolve + promote** | Tue night | Revalidate re-dispatch, accept-exception, merge/promote, decision record | Final baseline contains code plus decision; ledger is complete |
-| **M5 Scenario B** | Seeded: overnight Mon/Tue. Live upgrade: **Andrew decides Tue night** | Sales-ops fixture through the same loop, seeded/replay first | Replay segment runs end-to-end; live run if upgraded |
+| **M5 Scenario B** | Seeded: overnight Mon/Tue. Live upgrade: **the decision owner decides Tue night** | Sales-ops fixture through the same loop, seeded/replay first | Replay segment runs end-to-end; live run if upgraded |
 | **M6 Ship** | Wed midday | Replay mode, README, LICENSE, deploy, a fresh-clone run test | A clean clone follows the README to a running demo |
 | **M7 Video + submit** | Wed 1–6 PM | Record (2 takes), edit, write form copy, submit | Submitted by 6 PM PT |
 
@@ -302,7 +304,7 @@ The build lifts from the author's own prior spikes rather than rebuilding them:
 
 The source paths are in the local, untracked context file.
 
-All of this is Andrew's own prior code. Keep the contest repo's commit history entirely inside the contest window; the rules require "own original content".
+All of this is the maintainer's own prior code. Keep the contest repo's commit history entirely inside the contest window; the rules require "own original content".
 
 ## 11. Risks and mitigations
 
@@ -326,48 +328,48 @@ All of this is Andrew's own prior code. Keep the contest repo's commit history e
 
 **Video opener (human problem first, Kubernetes second):** Open with 15 seconds of the phone-number case. One agent makes the phone field optional and another makes the API require it. Both pass their tests, Git sees no conflict, and production breaks. *Optional narrative hook:* during disaster relief, two coordinators acting on stale inventory counts send supplies to the wrong place. The cost of stale shared meaning is real. Only after that comes "Kubernetes reconciles infrastructure; Delta Convergence reconciles collaborative work."
 
-**Positioning line:** Git and Radicle prove *who changed what* and *who authorized it*. Delta Convergence tracks *which work depended on which accepted meaning*, and gates that work when the meaning changes.
+**Positioning line:** Git and Radicle give signed authorship of repository data, issues and code review. Delta Convergence tracks *which work depended on which accepted meaning*, and gates that work when the meaning changes.
 
 **Vision:** Agents don't usually collide on lines of code; they collide on meaning. When a decision changes mid-flight, today's tools can't tell you which work was built on the old version. Delta Convergence gives every agent a versioned, receipted context, and keeps reconciling that accepted context against in-flight work like a Kubernetes controller. Stale work is caught before it merges, and nothing ships without a human deciding. The reconciler is deterministic. LLMs do the work; they don't get to decide what's true.
 
 **How we used Cloudflare:**
 - Every agent works in its own **Artifacts** fork of a shared baseline repo, and decisions and definitions live as versioned Markdown in that baseline.
-- **Artifacts push events** stream through a **Queue** into a **Durable Object** per workspace. The DO holds the reconciliation state, the hash-chained ledger and the live WebSocket feed.
+- **Artifacts push events** are polled by a **Durable Object** per workspace from an alarm (a Queue was the optional upgrade and was not built). The DO holds the reconciliation state, the hash-chained ledger and the live WebSocket feed.
 - A **Worker** exposes the Delta Convergence API, seeds and forks repos, and computes tree diffs from the Artifacts binding.
 - Agents run Claude Code in **Sandbox** containers and push over Git.
 
-## 13. Open decisions (need Andrew)
+## 13. Open decisions (need the decision owner)
 
-1. ~~**Cloudflare account.**~~ **Decided (Oct 12):** Andrew's personal account; he will supply an API token. Account details live in the local untracked context file. Still to verify at M0: Workers Paid and Containers access (`wrangler whoami`).
-2. ~~**Model key for agents.**~~ **Decided (Oct 12):** OpenRouter. Agents reach Claude models through OpenRouter (`OPENROUTER_API_KEY`, set by Andrew as a Worker secret and in `.dev.vars`; model pinned by config). AI Gateway is optional on top and claimed only if used.
+1. ~~**Cloudflare account.**~~ **Decided (Oct 12):** the maintainer's account; he will supply an API token. Account details live in the local untracked context file. Still to verify at M0: Workers Paid and Containers access (`wrangler whoami`).
+2. ~~**Model key for agents.**~~ **Decided (Oct 12):** OpenRouter. Agents reach Claude models through OpenRouter (`OPENROUTER_API_KEY`, set by the decision owner as a Worker secret and in `.dev.vars`; model pinned by config). AI Gateway is optional on top and claimed only if used.
 3. **Team fields.** Solo entry, or a second attendee?
 4. **Video.** Who narrates, and should it be a screen recording or have a face cam?
 5. ~~**Ratify "Delta never needs an LLM"**~~ **Decided (Oct 12):** "No LLM is required to operate Delta Convergence; models propose, rules and humans decide."
 6. ~~**Name.**~~ **Decided (Oct 12): Delta Convergence.** Still to do: a quick collision check (GitHub, npm, domain) before the repo goes public.
 7. **Try Together / What-if.** Recommendation: not built. Show it as a 20-second "where this goes" beat in the video.
 8. **Token-revocation demo beat / tokens as the gate's teeth.** Not adopted for now. Possible P1 only if time remains after M4.
-10. **Scenario B: live or seeded?** Andrew decides Tue night (see §6).
+10. **Scenario B: live or seeded?** The decision owner decides Tue night (see §6).
 9. **Hold Oct 21** for the finalist presentation in SF.
 
 ## 14. Decision log (consolidated from threads, Oct 9–12)
 
 | Decision | Status |
 |---|---|
-Status labels are strict. **Andrew-decided** means he stated or approved it. **Andrew-direction** means he pushed this way without formally deciding. **Recommended** means an assistant proposal.
+Status labels are strict. **Owner-decided** means he stated or approved it. **Owner-direction** means he pushed this way without formally deciding. **Recommended** means an assistant proposal.
 
 | Decision | Status |
 |---|---|
-| The product is a deterministic reconciliation control plane; ProofMerge/semantic drift is the *scenario* and *review view*, not the product. Framing: "both, loop-first" | Andrew-decided (Oct 12) |
-| The name is "Delta Convergence" | Andrew-decided (Oct 12) |
-| No LLM is required to operate Delta Convergence; models propose and never authorize | Andrew-decided (Oct 12) |
+| The product is a deterministic reconciliation control plane; ProofMerge/semantic drift is the *scenario* and *review view*, not the product. Framing: "both, loop-first" | Owner-decided (Oct 12) |
+| The name is "Delta Convergence" | Owner-decided (Oct 12) |
+| No LLM is required to operate Delta Convergence; models propose and never authorize | Owner-decided (Oct 12) |
 | Defining moment = governing context changes mid-flight → affected work is revalidated (not just a two-branch conflict) | Recommended (latest thread), adopted in this PRD |
-| Agents are real Claude agents; the scenario is seeded; replay is a fallback | Andrew-decided (Oct 12) |
-| Second, non-coding scenario: seeded/replay first, with live vs. seeded decided Tue night | Reopened (Oct 12); Andrew decides Tue night |
-| Smallest governed unit = a facet of an accepted ContextRecord, identified by version and hash; staleness is facet-level | Andrew-decided (Oct 12) |
-| Storage = Git/Artifacts for context and work; DO SQLite for coordination state and ledger (not D1) | Andrew-decided (Oct 12) |
-| Demo reshape: merge-clean-yet-blocked opener, fan-out beat with seeded items, receipts as git notes | Andrew-decided (Oct 12) |
-| M1 runtime: Sandbox first, local-runner fallback at Tue 11 AM PT | Andrew-decided (Oct 12) |
+| Agents are real Claude agents; the scenario is seeded; replay is a fallback | Owner-decided (Oct 12) |
+| Second, non-coding scenario: seeded/replay first, with live vs. seeded decided Tue night | Reopened (Oct 12); the decision owner decides Tue night |
+| Smallest governed unit = a facet of an accepted ContextRecord, identified by version and hash; staleness is facet-level | Owner-decided (Oct 12) |
+| Storage = Git/Artifacts for context and work; DO SQLite for coordination state and ledger (not D1) | Owner-decided (Oct 12) |
+| Demo reshape: merge-clean-yet-blocked opener, fan-out beat with seeded items, receipts as git notes | Owner-decided (Oct 12) |
+| M1 runtime: Sandbox first, local-runner fallback at Tue 11 AM PT | Owner-decided (Oct 12) |
 | The canvas is a projection, not the source of truth; no giant mandatory graph | Recommended, adopted |
 | Rejected: DAO framing, chat-first UI, Kubernetes compatibility, a broad horizontal platform | Recommended-rejected |
 | Deferred to after the contest: the authority/autonomy model (A0–A4), the Agent Council demo, Try Together / What-if, a separate context service, AI dependency inference | Deferred |
-| Raw transcripts and research stay out of the public repo, in Andrew's private knowledge vault | Andrew-decided (Oct 12) |
+| Raw transcripts and research stay out of the public repo, in a private knowledge vault | Owner-decided (Oct 12) |
