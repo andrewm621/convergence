@@ -16,7 +16,7 @@ export class BindingArtifactsPort implements ArtifactsPort {
 	async log(repo: string, options: { limit: number }): Promise<RepoCommit[]> {
 		return this.#read(repo, async (handle) => {
 			const commits = await handle.log({ ref: BRANCH, limit: options.limit });
-			return commits.map((c) => ({ sha: c.hash, message: c.message, authorName: c.author.name, parents: c.parents, committedAt: c.committedAt }));
+			return commits.map((c) => ({ sha: c.hash, message: c.message, authorName: c.author.name, committerName: c.committer.name, parents: c.parents, committedAt: c.committedAt }));
 		});
 	}
 
@@ -40,7 +40,7 @@ export class BindingArtifactsPort implements ArtifactsPort {
 		const head = (await this.log(request.repo, { limit: 1 }))[0];
 		if (head?.sha !== request.expectedHead) throw new PortError("STALE_HEAD", `${request.repo} is no longer at ${request.expectedHead}`);
 		try {
-			const result = await commitFiles(this.#env, request.repo, request.files, request.message, { author: request.author });
+			const result = await commitFiles(this.#env, request.repo, request.files, request.message, { author: request.author, committer: request.committer });
 			return { commitSha: result.oid };
 		} catch (error) {
 			// The push itself is a compare-and-swap on the branch: losing it means someone else wrote first.

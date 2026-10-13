@@ -20,7 +20,7 @@ type Identity = { name: string; email: string };
  * Merge `theirs` into `ours` (a branch) in an already-cloned repo. Fast-forwards when it can;
  * otherwise makes a merge commit. A real conflict is MERGE_CONFLICT; the repo is left untouched.
  */
-export async function mergeInto(fs: MemoryFS, dir: string, options: { ours: string; theirs: string; message: string; author: Identity }): Promise<{ oid: string; fastForward: boolean }> {
+export async function mergeInto(fs: MemoryFS, dir: string, options: { ours: string; theirs: string; message: string; author: Identity; committer?: Identity }): Promise<{ oid: string; fastForward: boolean }> {
 	try {
 		const result = await git.merge({
 			fs,
@@ -29,7 +29,7 @@ export async function mergeInto(fs: MemoryFS, dir: string, options: { ours: stri
 			theirs: options.theirs,
 			message: options.message,
 			author: options.author,
-			committer: options.author,
+			committer: options.committer ?? options.author,
 			fastForward: true,
 			abortOnConflict: true,
 		});
@@ -68,7 +68,7 @@ export async function mergeForkIntoBaseline(env: Env, request: MergeRequest): Pr
 		await git.addRemote({ fs, dir: DIR, remote: "fork", url: forkInfo.remote });
 		await git.fetch({ fs, http, dir: DIR, remote: "fork", ref: BRANCH, singleBranch: true, onAuth });
 
-		const merged = await mergeInto(fs, DIR, { ours: BRANCH, theirs: FORK_REF, message: request.message, author: request.author });
+		const merged = await mergeInto(fs, DIR, { ours: BRANCH, theirs: FORK_REF, message: request.message, author: request.author, committer: request.committer });
 		const push = await git.push({ fs, http, dir: DIR, url: baselineInfo.remote, ref: BRANCH, remoteRef: BRANCH, onAuth });
 		if (!push.ok) {
 			if (/stale ref/i.test(push.error ?? "")) throw new PortError("STALE_HEAD", "the baseline moved during the merge");

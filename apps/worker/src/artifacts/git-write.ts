@@ -92,7 +92,7 @@ export async function commitFiles(
 	repoName: string,
 	files: Record<string, string>,
 	message: string,
-	opts: { retryNotFound?: boolean; author?: { name: string; email: string } } = {},
+	opts: { retryNotFound?: boolean; author?: { name: string; email: string }; committer?: { name: string; email: string } } = {},
 ): Promise<CommitResult> {
 	for (const path of Object.keys(files)) assertSafePath(path);
 
@@ -127,7 +127,7 @@ export async function commitFiles(
 				await fs.promises.writeFile(`${DIR}/${path}`, content);
 				await git.add({ fs, dir: DIR, filepath: path });
 			}
-			const oid = await git.commit({ fs, dir: DIR, message, author: opts.author ?? AUTHOR });
+			const oid = await git.commit({ fs, dir: DIR, message, author: opts.author ?? AUTHOR, committer: opts.committer ?? opts.author ?? AUTHOR });
 			const push = await timed("push", () =>
 				git.push({ fs, http, dir: DIR, url: remote, ref: BRANCH, remoteRef: BRANCH, onAuth }),
 			);

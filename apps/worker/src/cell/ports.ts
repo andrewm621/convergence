@@ -9,6 +9,8 @@ export interface RepoCommit {
 	message: string;
 	/** Author name. For baseline commits the Worker sets it to the acting human's id. */
 	authorName: string;
+	/** Committer name. The Worker commits as itself (see WORKER_COMMITTER in observe.ts). */
+	committerName: string;
 	/** First parent first. */
 	parents: string[];
 	/** Unix seconds. */
@@ -37,6 +39,8 @@ export interface CommitFilesRequest {
 	files: Record<string, string>;
 	message: string;
 	author: { name: string; email: string };
+	/** Who the commit is committed by; the Worker passes its own identity, apart from the acting human. */
+	committer: { name: string; email: string };
 	/** The head the caller read. The write fails with STALE_HEAD if the repo moved. */
 	expectedHead: string;
 }
@@ -50,6 +54,7 @@ export interface MergeRequest {
 	forkHeadSha: string;
 	message: string;
 	author: { name: string; email: string };
+	committer: { name: string; email: string };
 }
 
 export interface ArtifactsPort {

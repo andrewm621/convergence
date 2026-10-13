@@ -18,6 +18,7 @@ const SCHEMA = [
 		last_error TEXT,
 		last_polled_at TEXT
 	)`,
+	"CREATE TABLE IF NOT EXISTS written_commits (sha TEXT PRIMARY KEY, kind TEXT NOT NULL CHECK (kind IN ('context', 'merge')), actor TEXT NOT NULL)",
 	"CREATE TABLE IF NOT EXISTS record_paths (record_id TEXT PRIMARY KEY, path TEXT NOT NULL)",
 	"CREATE TABLE IF NOT EXISTS idempotency (key TEXT PRIMARY KEY, fingerprint TEXT NOT NULL, status INTEGER NOT NULL, body TEXT NOT NULL, created_at TEXT NOT NULL)",
 ];
@@ -121,6 +122,17 @@ export class CellMeta {
 		for (const [recordId, path] of Object.entries(paths)) {
 			this.#db.all("INSERT OR REPLACE INTO record_paths (record_id, path) VALUES (?, ?)", recordId, path);
 		}
+	}
+
+	// ---------- commits the Worker pushed to the baseline ----------
+
+	markWritten(sha: string, kind: "context" | "merge", actor: string): void {
+		this.#db.all("INSERT OR REPLACE INTO written_commits (sha, kind, actor) VALUES (?, ?, ?)", sha, kind, actor);
+	}
+
+	written(sha: string): { kind: "context" | "merge"; actor: string } | null {
+		const row = this.#db.all<{ kind: "context" | "merge"; actor: string }>("SELECT kind, actor FROM written_commits WHERE sha = ?", sha)[0];
+		return row ? { kind: row.kind, actor: row.actor } : null;
 	}
 
 	// ---------- Idempotency-Key ----------

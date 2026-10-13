@@ -26,7 +26,7 @@ import { WS_PROTOCOL } from "./auth";
 import { ContextChangeRequest, planContextChange } from "./context-change";
 import { ContextReader, snapshotHashOf } from "./context-tree";
 import { CellMeta, type TrackedRow } from "./meta";
-import { observeBaselineCommit, observeForkCommit, type ObserveDeps } from "./observe";
+import { WORKER_COMMITTER, observeBaselineCommit, observeForkCommit, type ObserveDeps } from "./observe";
 import { PortError, type ArtifactsPort, type RepoCommit } from "./ports";
 import { durableObjectSql } from "./sql";
 import { SqliteCellStore, type LedgerVerdict } from "./sqlite-store";
@@ -38,6 +38,7 @@ const POLL_WINDOW = 50;
 /** After this many failed attempts at one commit the poller gives up on it (and says so) instead of retrying forever. */
 const MAX_COMMIT_FAILURES = 4;
 const DEFAULT_POLL_MS = 3000;
+const WORKER_IDENTITY = { name: WORKER_COMMITTER, email: "delta@example.invalid" };
 
 class NotInitialized extends Error {}
 
@@ -372,7 +373,9 @@ export abstract class CellBase extends DurableObject<Env> {
 			reader: this.#contextReader,
 			now: () => this.now(),
 			trees: this.#trees,
-			authorityOf: (snapshot) => authorityFor(state, policy, snapshot.recordId) ?? snapshot.authority,
+			// Never the record file's own `authority` text: that is written by whoever wrote the file.
+			authorityOf: (snapshot) => authorityFor(state, policy, snapshot.recordId),
+			written: (sha) => this.#meta.written(sha),
 		};
 		if (t.kind === "baseline") {
 			const { event, recordPaths } = await observeBaselineCommit(deps, t.repo, commit);
@@ -431,9 +434,11 @@ export abstract class CellBase extends DurableObject<Env> {
 					continue;
 				}
 				const snap = file.result.snapshot;
-				const authority = policy.authority[snap.recordId] ?? snap.authority;
-				if (snap.status !== "accepted" || snap.acceptedBy !== authority) {
-					ignored.push({ path: file.path, reason: snap.status !== "accepted" ? `status is ${snap.status}` : `accepted_by is not the authority ${authority}` });
+				// The authority is the policy's, never the file's own `authority` text: an agent can write that.
+				const authority = policy.authority[snap.recordId];
+				if (snap.status !== "accepted" || !authority || snap.acceptedBy !== authority) {
+					const reason = snap.status !== "accepted" ? `status is ${snap.status}` : !authority ? "the policy names no authority for this record" : `accepted_by is not the authority ${authority}`;
+					ignored.push({ path: file.path, reason });
 					continue;
 				}
 				records.push(snap);
@@ -468,6 +473,11 @@ export abstract class CellBase extends DurableObject<Env> {
 			if ((await this.#artifacts.log(req.forkRepo, { limit: 1 })).length === 0) return failure(404, "NOT_FOUND", `${req.forkRepo} has no commits (is it a fork of the baseline?)`);
 
 			const baseCommit = req.baseCommit ?? state.baselineCommit;
+			if (req.baseCommit) {
+				// contextPaths is measured against this commit, so it must be real baseline history, not a commit the fork made up.
+				const history = await this.#artifacts.log(this.#baselineRepo(), { limit: 1000 });
+				if (!history.some((c) => c.sha === req.baseCommit)) return failure(409, "UNKNOWN_BASE_COMMIT", `${req.baseCommit} is not a commit of the baseline`);
+			}
 			const receipt = await buildReceipt(state, { baselineCommit: state.baselineCommit, recordIds: req.dependencies.map((d) => d.recordId) });
 			const agentId = req.agent?.id ?? req.id.toLowerCase();
 			const event = {
@@ -572,8 +582,10 @@ export abstract class CellBase extends DurableObject<Env> {
 				return failure(403, "FORBIDDEN_ACTOR", `only ${authority} can change ${req.recordId}`);
 			}
 
+			// Build on the version the reconciler accepted, not on whatever file sits at the head: an
+			// unauthorised commit may have left a different file there, and it must not leak into this one.
 			const path = this.#meta.recordPath(req.recordId) ?? `context/${req.recordId}.md`;
-			const text = await this.#artifacts.readFile(baselineRepo, head.sha, path);
+			const text = sitting ? await this.#artifacts.readBlob(baselineRepo, sitting.blobHash) : null;
 			const tree = await this.#artifacts.tree(baselineRepo, head.sha);
 			const plan = planContextChange({
 				request: req,
@@ -594,8 +606,11 @@ export abstract class CellBase extends DurableObject<Env> {
 					files: plan.files,
 					message: plan.message,
 					author: { name: actor.id, email: `${actor.id}@delta.invalid` },
+					committer: WORKER_IDENTITY,
 					expectedHead: head.sha,
 				});
+				// Remember it now: only a commit recorded here can be accepted as context when the poller reads it back.
+				this.#meta.markWritten(committed.commitSha, "context", actor.id);
 			} catch (error) {
 				if (error instanceof PortError && error.code === "STALE_HEAD") return failure(409, "BASELINE_MOVED", "the baseline moved while this change was being written; reload and try again");
 				throw error;
@@ -699,7 +714,10 @@ export abstract class CellBase extends DurableObject<Env> {
 					forkHeadSha: allow.forkHeadSha,
 					message: `promote ${workItemId}\n\nPromoted-by: ${actor.id}\nIdempotency-Key: ${key}\n`,
 					author: { name: actor.id, email: `${actor.id}@delta.invalid` },
+					committer: WORKER_IDENTITY,
 				}));
+				// A promotion carries a fork's files; it is recorded so it can never be read back as a context change.
+				this.#meta.markWritten(mergeCommitSha, "merge", actor.id);
 			} catch (error) {
 				if (error instanceof PortError && error.code === "STALE_HEAD") {
 					return { status: 409, body: { error: { code: "BASELINE_MOVED", message: "the baseline or the fork moved before the merge; request promotion again" }, promoted: false } };

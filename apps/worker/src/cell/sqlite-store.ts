@@ -205,7 +205,8 @@ export class SqliteCellStore implements CellStore {
 		}
 
 		if (entry) {
-			this.#db.all("INSERT INTO ledger (seq, hash, prev_hash, json) VALUES (?, ?, ?, ?)", entry.seq, entry.hash, entry.prevHash, canonicalJson(entry));
+			// Plain JSON, in the order the line was built: the hash already covers a canonical form, and callers may compare serialisations.
+			this.#db.all("INSERT INTO ledger (seq, hash, prev_hash, json) VALUES (?, ?, ?, ?)", entry.seq, entry.hash, entry.prevHash, JSON.stringify(entry));
 			this.#db.all("INSERT OR REPLACE INTO ledger_head (id, seq, hash) VALUES (1, ?, ?)", entry.seq, entry.hash);
 		}
 	}
