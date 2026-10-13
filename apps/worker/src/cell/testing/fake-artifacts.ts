@@ -238,6 +238,7 @@ export class FakeWorld {
 			if (o === t) pick = o;
 			else if (o === b) pick = t;
 			else if (t === b) pick = o;
+			else if (path.startsWith(".delta/")) pick = t; // fork metadata: the fork being promoted wins, as in artifacts/git-merge.ts
 			else throw new PortError("MERGE_CONFLICT", `both sides changed ${path}`);
 			if (pick !== undefined) merged.set(path, pick);
 		}

@@ -9,7 +9,7 @@ set -a; . ./.env; set +a          # DEV_TOKEN
 WORKER_URL=https://<worker>.workers.dev node scripts/check-live.mjs [--keep]
 ```
 
-It seeds a baseline and two forks (`POST /api/smoke/seed?scenario=notifications`), runs the whole of Scenario A and a second, fast-forward scenario, prints PASS/FAIL per check with timings, and purges the `smoke-*` repos unless `--keep`. The last full run was 40/40.
+It seeds a baseline and two forks (`POST /api/smoke/seed?scenario=notifications`), runs the whole of Scenario A and a second, fast-forward scenario, prints PASS/FAIL per check with timings, and deletes the repos it seeded unless `--keep`. `--cell <name>` runs in a named cell (`notifications-<something>`) and keeps it; `--stop-before-revalidate` stops with v2 accepted and WI-2 stale and blocked, for recording the human revalidate in the console. The last full run before the M4 loop was 40/40; see "Oct 13: M4 loop live" for the run that includes it. Cleanup deletes exactly the repos the run created, by name (`DELETE /api/smoke` with `{"repos": [...]}`); `?all=1` is the only way to wipe every `smoke-` repo.
 
 ## Verified live
 
@@ -79,15 +79,31 @@ Findings from getting there:
 - A baseline `git clone` of a larger repo was not tried; the merge ran on repos of 4 to 10 files.
 - Context-change latency varies from 1.1 to 3.9 s between runs (Artifacts push and read-back), always well under 10 s.
 
+## Oct 13: M4 loop live
+
+The M4 revalidate loop was run on the deployed Worker (version built from `main` at `32dbd75`, `AGENT_MODE=stub`, no model spend), with `scripts/check-live.mjs` and a headless browser on the console.
+
+| Check | Result | Observed |
+|---|---|---|
+| Two concurrent stub agents, v2 context change | pass | WI-2 stale (v2 visible in `GET /state`) in **1.2 to 3.8 s** (target 10 s) |
+| Human revalidate to automatic re-dispatch | pass | the cell queued the job itself; `ReceiptIssued` is in the ledger **before** `AgentRunStarted`; the stub's push landed in about **17 s** (resolution to job done 18 to 21 s) |
+| Claims after the revalidated push | pass | they re-cite `notifications@2`, plus a `status.values` claim |
+| Contract checks run by the Worker | pass | two `delta-run-check` evidence rows at the pushed head, asserting `notifications.cadence`, `notifications.default` and `status.values` on the pushed files |
+| Claims check | pass | one informational `delta-claims-check` row (never satisfies the contract test) |
+| Gate at the new head, promote WI-2 | pass | gate passes; the promote fast-forwarded on Artifacts |
+| Receipt note on Artifacts | pass | Artifacts accepts a push to `refs/notes/delta`. `git notes --ref=delta show <sha>` returns the `delta-receipt/v1` JSON. The note is attached to the fork head at dispatch time, i.e. the head the agent started from. The Worker's binding debug routes cannot read non-branch refs, so this was read back with git over HTTPS |
+| Console on the deployed Worker | pass | the work item card shows "stub agent"; the Why tab has the two Delta Convergence contract checks plus a separate claims-check row; no console errors |
+
+Found, and fixed in the PR `fix/demo-recordable`:
+
+1. **WI-2 promote returned `409 MERGE_CONFLICT` after WI-1 was promoted.** Both stub agents appended a different `export * from "./work/<id>"` line at the same spot of `src/index.ts`, a textual add/add conflict. Delta Convergence reported it correctly; the cause was the stub and the scenario. Reproducing it with isomorphic-git showed a second collision the stub could not avoid: every fork has its own `.delta/claims.json`, which is also an add/add conflict once the first fork is in the baseline, so fixing only the barrel would not have helped. Fixes: the stub writes only `src/work/<id>.ts` and `.delta/claims.json` (no shared barrel), and the promotion merge lets the fork being promoted win a conflict when every conflicting path is under `.delta/` (control-plane metadata); a conflict on any other path is still `MERGE_CONFLICT`. Tests: `git-merge.test.ts` (real isomorphic-git, including the old barrel still conflicting) and `revalidate-loop.workerd.test.ts` (WI-1 then WI-2 both promote). The fixed path has not been run live yet.
+
 ## Still unverified
 
-- **The M4 revalidate loop on the deployed Worker** (`DISPATCH_WORK` to a dispatch job, `ReceiptIssued`, the stub re-run, the Worker's contract checks on the pushed files, promote). Built and tested in-process (`revalidate-loop.workerd.test.ts`, with the in-memory Artifacts and a scripted runtime), not deployed. `scripts/check-live.mjs` step 6 now waits for the cell to do it and promotes WI-2; it has not been run.
-- **A push to `refs/notes/delta` on real Artifacts.** The note writer is tested against a real git server, not Artifacts. If Artifacts refuses a non-branch ref the receipt has no `noteRef` and the job says why (`noteError`); the loop continues.
 - **A container-run contract test suite (R8).** Not built. What the loop records is the Worker's own pure check on the pushed files (`kind: "delta-run-check"`, `cell/contract-checks.ts`), which is real Delta-run evidence but narrower than a test run; sales-ops has no check. The Worker's claims check (`kind: "delta-claims-check"`) is informational and never satisfies `requires: ["contract-test"]`.
-- **The console on the new fields, against the deployed Worker.** The console now reads both additive fields: `AgentRunStarted.model` on the work-item cards, the inspector header and the activity stream (falling back to the actor name), and `Evidence.kind` in the Why chain and the ledger (`delta-claims-check` reads "Claims check (not an executed test)", `delta-run-check` reads "Delta Convergence contract check"). This is covered by the mock replay and the console tests, not seen against real events from a deployed Worker.
 - **A browser's WebSocket handshake** (Node's client was used, with the same subprotocol), and reconnect with `?since=`.
 - Poller failure paths against the real service (backoff, degraded notes, a baseline far ahead), alarm cadence over a long idle period, and the Queue path (not implemented).
-- Subrequest limits and latency on a large repository, and a merge conflict (`MERGE_CONFLICT`).
+- Subrequest limits and latency on a large repository. A `MERGE_CONFLICT` was hit live (see "Oct 13") and reported correctly; the `.delta/` metadata rule that fixes the demo case has only been run in tests.
 - `meta.evaluationMs` is `0` in live frames: the runtime clock only advances on I/O, so the strip should use request timings, not that field.
 
 ## Console live verification

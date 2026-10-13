@@ -98,6 +98,19 @@ describe("live client: the WebSocket contract", () => {
 		expect(messages.map((m) => m.type)).toEqual(["snapshot", ...events.map(() => "event")]);
 	});
 
+	it("a named cell scopes the socket and every route to that cell, and the token still rides in the subprotocol", async () => {
+		const { client, fetchImpl } = connect({ cell: "notifications-demo" });
+		const socket = FakeSocket.instances[0] as FakeSocket;
+		expect(socket.url).toBe("ws://delta.test/api/scenarios/notifications-demo/ws");
+		expect(socket.protocols).toEqual(["delta.v1", `bearer.${toBase64Url(SECRET)}`]);
+		expect(client.scenario).toBe("notifications"); // the scenario the cell shows, for the labels
+		fetchImpl.mockResolvedValue(new Response(JSON.stringify({ pass: true, reasonCodes: [] }), { status: 200 }));
+		await client.api.gate("WI-2");
+		const [url, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
+		expect(url).toBe("http://delta.test/api/scenarios/notifications-demo/work-items/WI-2/gate");
+		expect((init.headers as Record<string, string>).Authorization).toBe(`Bearer ${SECRET}`);
+	});
+
 	it("passes the last seq as ?since= when it reconnects", async () => {
 		const { snapshot, events } = await realisticMessagesCached();
 		const { states } = connect();

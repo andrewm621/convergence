@@ -44,7 +44,6 @@ const input = {
 		"context/notifications.md": notifications,
 		"context/status-model.md": statusModel,
 	},
-	indexTs: 'export function greet(name: string): string {\n  return "hello, " + name;\n}\n',
 };
 
 describe("parseContextRecord", () => {
@@ -118,12 +117,14 @@ describe("runStubAgent", () => {
 		expect(mod).toContain("work item wi-2");
 		expect(mod).toContain("// Task: Implement notification preferences and delivery");
 		expect(mod).toContain('export const NOTIFICATIONS_DEFAULT = "on"; // notifications@1');
-		expect(out.files["src/index.ts"]).toContain('export * from "./work/wi-2";');
+		expect(Object.keys(out.files).sort()).toEqual([".delta/claims.json", "src/work/wi-2.ts"]);
 	});
 
-	it("does not duplicate the export when re-run on its own output", () => {
-		const again = runStubAgent({ ...input, indexTs: out.files["src/index.ts"] as string });
-		expect(again.files["src/index.ts"]).toBe(out.files["src/index.ts"]);
+	it("shares no file with another work item except its own claims: no barrel to conflict on", () => {
+		const one = runStubAgent({ ...input, workItemId: "wi-1", prompt: "Add status badges" });
+		const two = runStubAgent({ ...input, workItemId: "wi-2" });
+		expect(Object.keys(one.files).filter((path) => path in two.files)).toEqual([".delta/claims.json"]);
+		expect(Object.keys(two.files)).not.toContain("src/index.ts");
 	});
 
 	it("is independent of file order", () => {
@@ -135,11 +136,6 @@ describe("runStubAgent", () => {
 		const none = runStubAgent({ ...input, contextFiles: { "context/readme.md": "# prose only" } });
 		expect(none.claims).toEqual([]);
 		expect(JSON.parse(none.files[".delta/claims.json"] as string)).toEqual([]);
-	});
-
-	it("creates src/index.ts when the fork has none", () => {
-		const fresh = runStubAgent({ ...input, indexTs: null });
-		expect(fresh.files["src/index.ts"]).toBe('export * from "./work/wi-2";\n');
 	});
 
 	it("with a receipt (deliveredIds) it covers every facet of exactly the delivered records, whatever the title says", () => {

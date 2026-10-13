@@ -33,7 +33,7 @@ const WI2_NOTIFICATIONS = ["notifications.cadence", "notifications.default"];
 /** What the stub agent pushes when handed these context files (and, as in a revalidation, told which records were delivered). */
 function stubPush(context: Record<string, string>, workItemId = "wi-2", prompt = "Notification delivery"): Record<string, string> {
 	const contextFiles = Object.fromEntries(Object.entries(context).map(([name, text]) => [`.delta/context/${name}`, text]));
-	return runStubAgent({ workItemId, prompt, contextFiles, deliveredIds: ["notifications", "status-model"].filter((id) => `${id}.md` in context), indexTs: "export {};\n" }).files;
+	return runStubAgent({ workItemId, prompt, contextFiles, deliveredIds: ["notifications", "status-model"].filter((id) => `${id}.md` in context) }).files;
 }
 
 describe("the Worker-run contract checks (R8)", () => {
@@ -64,7 +64,7 @@ describe("the Worker-run contract checks (R8)", () => {
 		// The old stub (scoped by the task title) pushed no STATUS_* constants for WI-2. That must not pass the status-model check.
 		const n = await buildNotificationsScenario();
 		const facets = n.docs.statusModelV1.snapshot.facets;
-		const titleScoped = runStubAgent({ workItemId: "wi-2", prompt: "Notification delivery", contextFiles: { ".delta/context/notifications.md": NOTIFICATIONS_V2, ".delta/context/status-model.md": STATUS_MODEL_V1 }, indexTs: "export {};\n" }).files;
+		const titleScoped = runStubAgent({ workItemId: "wi-2", prompt: "Notification delivery", contextFiles: { ".delta/context/notifications.md": NOTIFICATIONS_V2, ".delta/context/status-model.md": STATUS_MODEL_V1 } }).files;
 		expect(titleScoped["src/work/wi-2.ts"]).not.toContain("STATUS_VALUES");
 		const { port, tree } = repoOf(titleScoped);
 		const declared = await runContractCheck(port, { repo: "r", sha: SHA, tree, check: STATUS_CHECK, facets, required: ["status.values"] });

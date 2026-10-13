@@ -52,13 +52,11 @@ if (existsSync(receiptPath)) {
 	}
 }
 
-const indexPath = join(repo, "src", "index.ts");
 const result = runStubAgent({
 	workItemId,
 	prompt: process.env.AGENT_PROMPT ?? "",
 	contextFiles,
 	deliveredIds,
-	indexTs: existsSync(indexPath) ? readFileSync(indexPath, "utf8") : null,
 });
 say("plan", result.summary);
 await sleep(stepMs);

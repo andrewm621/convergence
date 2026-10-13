@@ -161,7 +161,11 @@ export function StartAgents({ onStart }: { onStart(): Promise<{ ok: boolean; mes
 	);
 }
 
-/** `N evaluated · K stale · M untouched · time`: what the last decision change did, and how fast. */
+/**
+ * `N evaluated · K stale · M untouched · time`: what the last decision change did, and how fast. When the change left
+ * alone work that was already stale from an earlier one, those are counted apart (`K newly stale · J already stale ·
+ * M untouched`), so the numbers add up to the red cards on the graph.
+ */
 export function ResultsStrip({ evaluation, ms = evaluation?.ms ?? null, measuredHere = false }: { evaluation: Evaluation | null; ms?: number | null; measuredHere?: boolean }) {
 	if (!evaluation) return null;
 	const time = ms === null ? null : formatMs(ms);
@@ -188,7 +192,20 @@ export function ResultsStrip({ evaluation, ms = evaluation?.ms ?? null, measured
 				<>
 					<span className="font-medium tabular-nums">{plural(evaluation.evaluated, "item")} evaluated</span>
 					<Dot />
-					<span className={evaluation.stale > 0 ? "font-semibold text-danger tabular-nums" : "tabular-nums"}>{evaluation.stale} stale</span>
+					<span
+						className={evaluation.stale > 0 ? "font-semibold text-danger tabular-nums" : "tabular-nums"}
+						title={evaluation.alreadyStale > 0 ? "Went stale on this change. Some may have been stale for an earlier change too." : undefined}
+					>
+						{evaluation.stale} {evaluation.alreadyStale > 0 ? "newly stale" : "stale"}
+					</span>
+					{evaluation.alreadyStale > 0 && (
+						<>
+							<Dot />
+							<span className="text-danger tabular-nums" title="Not touched by this change, but stale from an earlier one.">
+								{evaluation.alreadyStale} already stale
+							</span>
+						</>
+					)}
 					<Dot />
 					<span className="tabular-nums">{evaluation.untouched} untouched</span>
 					{time && (

@@ -136,4 +136,41 @@ describe("choosing the mock or the live client", () => {
 		expect(readRuntime("?mock=1&scenario=shelter-intake", {})).toMatchObject({ scenario: "shelter-intake" });
 		expect(readRuntime("?scenario=nope", {}).scenario).toBe("notifications");
 	});
+
+	it("live mode opens a named cell with ?cell=, and the scenario is read from its prefix", () => {
+		expect(readRuntime("?cell=notifications-demo", {})).toMatchObject({ mock: false, scenario: "notifications", cell: "notifications-demo" });
+		expect(readRuntime("?cell=shelter-intake-take-2", {})).toMatchObject({ scenario: "shelter-intake", cell: "shelter-intake-take-2" });
+		expect(readRuntime("?cell=sales-ops-1", {})).toMatchObject({ scenario: "sales-ops", cell: "sales-ops-1" });
+		// The name decides the scenario, whatever ?scenario= says.
+		expect(readRuntime("?cell=notifications-demo&scenario=sales-ops", {})).toMatchObject({ scenario: "notifications", cell: "notifications-demo" });
+		expect(readRuntime("?cell=notifications-" + "a".repeat(26), {}).cell).toHaveLength(40);
+	});
+
+	it("?cell= is checked strictly; anything else is ignored and the default cell opens", () => {
+		const rejected = [
+			"notifications", // the scenario's own name is the default, not a named cell
+			"notifications-", // nothing after the prefix
+			"demo", // no known scenario prefix
+			"my-notifications-demo",
+			"Notifications-Demo", // uppercase
+			"notifications-de_mo",
+			"notifications-de.mo",
+			"notifications-demo/../x",
+			"notifications-demo%2F..",
+			"notifications-demo?x=1",
+			" notifications-demo",
+			"notifications-" + "a".repeat(27), // 41 characters
+			"delta-convergence-build-1", // the build replay is mock only
+			"-notifications-demo",
+			"",
+		];
+		for (const cell of rejected) {
+			const runtime = readRuntime(`?cell=${encodeURIComponent(cell)}`, {});
+			expect(runtime.cell, JSON.stringify(cell)).toBeUndefined();
+			expect(runtime.scenario, JSON.stringify(cell)).toBe("notifications");
+		}
+		// The mock has no cells.
+		expect(readRuntime("?mock=1&cell=notifications-demo", {})).toMatchObject({ mock: true, scenario: "notifications" });
+		expect(readRuntime("?mock=1&cell=notifications-demo", {}).cell).toBeUndefined();
+	});
 });

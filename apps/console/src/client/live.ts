@@ -26,6 +26,8 @@ import type { ClientHandlers, CommandResult, ConnectionState, ConsoleApi, Consol
 
 export type LiveOptions = {
 	scenario: ScenarioName;
+	/** The named cell to open, when it is not the scenario's own (`notifications-demo` for `notifications`). */
+	cell?: string;
 	apiBase?: string;
 	fetchImpl?: typeof fetch;
 	WebSocketImpl?: typeof WebSocket;
@@ -103,6 +105,8 @@ class UnauthorizedError extends Error {
 }
 
 export function createLiveClient(options: LiveOptions): ConsoleClient {
+	/** The cell every route is scoped to. */
+	const cell = options.cell ?? options.scenario;
 	const base = options.apiBase ?? API_BASE;
 	const pollMs = options.pollIntervalMs ?? POLL_INTERVAL_MS;
 	const failuresBeforePolling = options.failuresBeforePolling ?? 2;
@@ -123,7 +127,7 @@ export function createLiveClient(options: LiveOptions): ConsoleClient {
 	const setConnection = (state: ConnectionState) => handlers?.onConnection(state);
 
 	function socketUrl(): string {
-		const path = endpoints.socket(options.scenario);
+		const path = endpoints.socket(cell);
 		const root = base || (typeof location === "undefined" ? "" : location.origin);
 		const url = new URL(path, root.replace(/^http/, "ws"));
 		if (lastSeq > 0) url.searchParams.set("since", String(lastSeq));
@@ -147,7 +151,7 @@ export function createLiveClient(options: LiveOptions): ConsoleClient {
 	}
 
 	async function readState(): Promise<void> {
-		const response = await doFetch(`${base}${endpoints.state(options.scenario)}`, { headers: { Accept: "application/json", ...authHeaders() } });
+		const response = await doFetch(`${base}${endpoints.state(cell)}`, { headers: { Accept: "application/json", ...authHeaders() } });
 		if (response.status === 401) throw new UnauthorizedError();
 		if (!response.ok) throw new Error(`state read failed: ${response.status}`);
 		const snapshot = CellSnapshot.parse(await response.json());
@@ -304,7 +308,7 @@ export function createLiveClient(options: LiveOptions): ConsoleClient {
 
 	const api: ConsoleApi = {
 		async gate(workItemId): Promise<GateResult> {
-			const response = await send("GET", endpoints.gate(options.scenario, workItemId));
+			const response = await send("GET", endpoints.gate(cell, workItemId));
 			if (response.status === 401) halt();
 			if (!response.ok) throw new Error(errorDetail(await response.json().catch(() => null)).message ?? `gate read failed: ${response.status}`);
 			const parsed = GateResponse.safeParse(await response.json().catch(() => null));
@@ -324,12 +328,12 @@ export function createLiveClient(options: LiveOptions): ConsoleClient {
 			return [];
 		},
 		async readRecordText(recordId) {
-			const response = await send("GET", endpoints.context(options.scenario, recordId));
+			const response = await send("GET", endpoints.context(cell, recordId));
 			return response.ok ? await response.text() : "";
 		},
-		proposeContextChange: (input, key) => command(endpoints.contextChanges(options.scenario), input, key),
-		resolve: (input, key) => command(endpoints.resolutions(options.scenario, input.workItemId), input, key),
-		promote: (input, key) => command(endpoints.promote(options.scenario, input.workItemId), input, key),
+		proposeContextChange: (input, key) => command(endpoints.contextChanges(cell), input, key),
+		resolve: (input, key) => command(endpoints.resolutions(cell, input.workItemId), input, key),
+		promote: (input, key) => command(endpoints.promote(cell, input.workItemId), input, key),
 		seedScenario: async () => unavailable(NOT_IMPLEMENTED.seed),
 		startScenario: async () => unavailable(NOT_IMPLEMENTED.start),
 	};

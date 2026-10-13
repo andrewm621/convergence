@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { NOTES_REF, parseReceiptNote, type ReconciliationEvent } from "contracts";
 import { NOTIFICATIONS_V1, STATUS_MODEL_V1, claims, dependencies, policy } from "scenario-notifications";
+import { runStubAgent } from "../../container/stub-agent-lib";
 import { startWorkerd, type Workerd } from "./testing/workerd";
 
 // M4: the demo's hero loop, in workerd (real Durable Object SQLite, alarms, WebSockets, Hono routes) with the
@@ -389,6 +390,44 @@ describe("revalidate loop (M4)", () => {
 		expect(gate.reasonCodes).toContain("TEST_FAILED");
 		const promote = await post(s, "/work-items/WI-2/promote", { expectedBaselineCommit: gate.baselineCommit, forkHeadSha: gate.forkHeadSha });
 		expect([promote.status, promote.body.error.code]).toEqual([409, "PROMOTION_BLOCKED"]);
+	}, 30_000);
+
+	it("two concurrent stub agents promote one after the other without a merge conflict (live run: WI-2 got 409 MERGE_CONFLICT after WI-1)", async () => {
+		const s = await scenario();
+		// What each stub agent pushes to its own fork from the same baseline, on the notifications v1 context.
+		const contextFiles = { "context/notifications.md": NOTIFICATIONS_V1, "context/status-model.md": STATUS_MODEL_V1 };
+		const run = (workItemId: string, prompt: string) => runStubAgent({ workItemId, prompt, contextFiles }).files;
+		await w.world(s, { op: "push", repo: WI1, files: run("wi-1", "Add status badges and the status-change API"), author: "workitem-wi-1" });
+		await w.world(s, { op: "push", repo: WI2, files: run("wi-2", "Implement notification preferences and delivery"), author: "workitem-wi-2" });
+		await w.cell(s, "pollNow");
+		const heads = { "WI-1": (await workItem(s, "WI-1")).headSha as string, "WI-2": (await workItem(s, "WI-2")).headSha as string };
+		expect(heads["WI-1"] && heads["WI-2"]).toBeTruthy();
+		// The two forks edit different source files, so nothing but fork metadata is written by both.
+		const [f1, f2] = [await w.world(s, { op: "files", repo: WI1 }), await w.world(s, { op: "files", repo: WI2 })];
+		expect(f1["src/index.ts"]).toBe("export {};\n");
+		expect(f2["src/index.ts"]).toBe("export {};\n");
+		expect(f1[".delta/claims.json"]).not.toBe(f2[".delta/claims.json"]);
+
+		for (const check of CHECKS.slice(1)) await evidence(s, WI1, "WI-1", heads["WI-1"], check);
+		for (const check of CHECKS) await evidence(s, WI2, "WI-2", heads["WI-2"], check);
+		const promote = async (id: "WI-1" | "WI-2") => {
+			const gate = await gateOf(s, id);
+			expect(gate, id).toMatchObject({ pass: true });
+			return post(s, `/work-items/${id}/promote`, { expectedBaselineCommit: gate.baselineCommit, forkHeadSha: heads[id] });
+		};
+		const first = await promote("WI-1");
+		expect([first.status, first.body.promoted]).toEqual([200, true]);
+		// The baseline moved; WI-2's gate is now evaluated against the merge commit the poller records.
+		await until(async () => ((await get(s, "/state")).body.baselineCommit === first.body.mergeCommitSha ? true : false), 8000, "the cell to see WI-1's merge");
+		const second = await promote("WI-2");
+		expect([second.status, second.body.promoted]).toEqual([200, true]);
+
+		const merged = await w.world(s, { op: "files", repo: BASELINE });
+		expect(merged["src/work/wi-1.ts"]).toContain("STATUS_VALUES");
+		expect(merged["src/work/wi-2.ts"]).toContain("NOTIFICATIONS_DEFAULT");
+		expect(merged["src/index.ts"]).toBe("export {};\n");
+		expect((await ledger(s)).filter((e) => e.type === "PromotionMerged")).toHaveLength(2);
+		expect([(await workItem(s, "WI-1")).item.status, (await workItem(s, "WI-2")).item.status]).toEqual(["promoted", "promoted"]);
 	}, 30_000);
 
 	it("R8: evidence the agent's own claims produced never satisfies the contract test, even recorded under the validation path", async () => {

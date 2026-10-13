@@ -44,13 +44,12 @@ describe("revalidation through the stub agent", () => {
 			workItemId: "wi-2",
 			prompt: "REVALIDATION: notifications changed from v1 to v2.",
 			contextFiles: { "context/notifications.md": v2 },
-			indexTs: 'export * from "./work/wi-2";\n',
 		});
 		expect(out.claims).toEqual([
 			{ subject: "notifications.cadence", value: "weekly-digest", basedOn: "notifications@2" },
 			{ subject: "notifications.default", value: "opt-in", basedOn: "notifications@2" },
 		]);
-		expect(out.files["src/index.ts"]).toBe('export * from "./work/wi-2";\n');
+		expect(Object.keys(out.files).sort()).toEqual([".delta/claims.json", "src/work/wi-2.ts"]);
 	});
 });
 

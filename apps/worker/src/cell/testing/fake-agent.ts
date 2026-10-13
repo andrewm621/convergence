@@ -103,7 +103,7 @@ export class FakeAgentRuntime implements AgentRuntimePort {
 		const contextFiles = Object.fromEntries(Object.entries(request.revalidate.context).map(([name, text]) => [`.delta/context/${name}`, text]));
 		// The dispatcher delivers exactly the receipt's records, so the delivered ids are the context's.
 		const deliveredIds = Object.values(request.revalidate.context).flatMap((text) => parseContextRecord(text)?.id ?? []);
-		const out = runStubAgent({ workItemId: request.workItemId, prompt: request.prompt, contextFiles, deliveredIds, indexTs: this.#world.filesAt(request.forkRepo)["src/index.ts"] ?? null });
+		const out = runStubAgent({ workItemId: request.workItemId, prompt: request.prompt, contextFiles, deliveredIds });
 		const files: Record<string, string> = { ...out.files, ...contextFiles };
 		// An agent that changed the code but never touched its claims leaves the old claims file in the tree.
 		if (outcome === "keep-old-claims") delete files[".delta/claims.json"];

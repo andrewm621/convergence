@@ -91,6 +91,7 @@ for (const r of results) {
 	for (const line of r.activity ?? []) console.log(`   ${line.slice(0, 160)}`);
 }
 if (process.argv.includes("--cleanup")) {
-	const purged = await call("DELETE", "/api/smoke");
+	// Only the repos this run seeded, by name: other smoke- repos (a recorded demo's) stay.
+	const purged = await call("DELETE", "/api/smoke", { repos: [seed.json.baseline.name, ...seed.json.forks.map((f) => f.name)] });
 	console.log(`\ncleanup: deleted ${purged.json?.deleted?.length ?? 0} smoke repos`);
 }

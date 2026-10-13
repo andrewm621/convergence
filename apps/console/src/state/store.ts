@@ -24,8 +24,13 @@ export type Evaluation = {
 	recordRef: string | null;
 	/** Only prose changed: nothing was evaluated against work, nobody was paged. */
 	proseOnly: boolean;
+	/** Work items the change was evaluated against. */
 	evaluated: number;
+	/** Went Stale on this change (some of these may have been stale for an earlier one as well). */
 	stale: number;
+	/** Left alone by this change, but Stale already from an earlier one. */
+	alreadyStale: number;
+	/** Left alone by this change and not stale. */
 	untouched: number;
 	/** Reconciler time for the whole evaluation. Null when the server did not report it. */
 	ms: number | null;
@@ -120,7 +125,7 @@ function fromSnapshot(state: ViewState, snapshot: CellSnapshot, meta: ConsoleMes
 		// Activity is live-only: a snapshot (poller health change, seq-gap re-read) must not wipe it. "reset" does.
 		activity: state.activity,
 		evalMs,
-		evaluation: lastBaseline ? evaluationOf(lastBaseline, evalMs[lastBaseline.seq] ?? null) : null,
+		evaluation: lastBaseline ? evaluationOf(lastBaseline, evalMs[lastBaseline.seq] ?? null, workItems) : null,
 		needsResync: false,
 		poller: meta?.poller ?? state.poller,
 		revision: state.revision + 1,
@@ -173,7 +178,7 @@ function fromEvent(state: ViewState, entry: ReconciliationEvent, touched: WorkIt
 		ledgerHead: { seq: entry.seq, hash: entry.hash },
 		evalMs,
 		// A baseline push that carries no record (the merge commit of a promotion) evaluated nothing: keep the last real result on the strip.
-		evaluation: event.type === "BaselinePushed" ? (evaluationOf(entry, evalMs[entry.seq] ?? null) ?? state.evaluation) : state.evaluation,
+		evaluation: event.type === "BaselinePushed" ? (evaluationOf(entry, evalMs[entry.seq] ?? null, state.workItems) ?? state.evaluation) : state.evaluation,
 		needsResync,
 		poller: meta?.poller ?? state.poller,
 		revision: state.revision + 1,
@@ -210,12 +215,25 @@ function isRefusal(code: string): boolean {
 	return code === "FORBIDDEN_ACTOR" || code === "IMMUTABLE_VERSION" || code === "VERSION_NOT_NEWER" || code === "RECORD_NOT_ACCEPTED";
 }
 
-export function evaluationOf(entry: ReconciliationEvent, ms: number | null): Evaluation | null {
+/**
+ * What a baseline push did. `workItems` are the work items as they stood before the push (for a snapshot, as they stand
+ * in it), which is how the items it left alone are split into the ones that were already Stale and the ones that are
+ * clean: all of them are "untouched" to delta-core, but only one kind is a card that is not red.
+ */
+export function evaluationOf(entry: ReconciliationEvent, ms: number | null, workItems: Record<string, WorkItemState>): Evaluation | null {
 	const event = entry.payload.event;
 	if (event.type !== "BaselinePushed" || event.records.length === 0) return null;
 	const summary = summarizeEffects(entry.payload.effects);
 	const proseOnly = summary.evaluated === 0 && entry.payload.effects.some((effect) => effect.reasonCodes.includes("PROSE_ONLY"));
 	const first = event.records[0];
+	const staleIds = new Set<string>();
+	const leftAlone = new Set<string>();
+	for (const effect of entry.payload.effects) {
+		if (!("workItemId" in effect) || effect.workItemId === undefined) continue;
+		if (effect.type === "RECORD_CONDITION" && effect.condition.type === "Stale") staleIds.add(effect.workItemId);
+		if (effect.type === "NO_ACTION" && effect.reasonCodes.includes("NO_DEPENDENCY_ON_CHANGED_FACETS")) leftAlone.add(effect.workItemId);
+	}
+	const alreadyStale = [...leftAlone].filter((id) => !staleIds.has(id) && workItems[id]?.conditions.some((c) => c.type === "Stale")).length;
 	return {
 		seq: entry.seq,
 		ts: entry.ts,
@@ -223,7 +241,8 @@ export function evaluationOf(entry: ReconciliationEvent, ms: number | null): Eva
 		proseOnly,
 		evaluated: summary.evaluated,
 		stale: summary.stale,
-		untouched: summary.untouched,
+		alreadyStale,
+		untouched: summary.untouched - alreadyStale,
 		ms,
 	};
 }

@@ -1,3 +1,5 @@
+import { z } from "zod";
+import { REPO_NAME_RE } from "./agents/protocol";
 import { commitFiles, errorCode, getRepo, sleep } from "./artifacts/git-write";
 import { diffCommits, type TreeDiff } from "./artifacts/tree-diff";
 import { redactDeep } from "./artifacts/tokens";
@@ -243,12 +245,17 @@ export interface SeededScenario {
 	creationTokensRevoked: boolean;
 }
 
+export const SMOKE_PREFIX = "smoke-";
+
+/** An optional name for a seeded set of repos (`smoke-<label>-<time>-...`), so a demo's repos can be told apart. */
+export const SMOKE_LABEL_RE = /^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/;
+
 /**
  * A baseline with the seed commit plus `count` ready forks, for exercising the agent runtime.
- * Names start with `smoke-` so DELETE /api/smoke can purge them.
+ * Names start with `smoke-`, which is what DELETE /api/smoke accepts. `label` replaces the default `m1` in the name.
  */
-export async function seedForks(env: Env, count: number, files: Record<string, string> = SEED_FILES): Promise<SeededScenario> {
-	const prefix = `smoke-m1-${Date.now()}`;
+export async function seedForks(env: Env, count: number, files: Record<string, string> = SEED_FILES, label = "m1"): Promise<SeededScenario> {
+	const prefix = `${SMOKE_PREFIX}${label}-${Date.now()}`;
 	const baselineName = `${prefix}-baseline`;
 	const created = await env.ARTIFACTS.create(baselineName, { setDefaultBranch: BRANCH });
 	let allRevoked = await revokeToken(env, baselineName, created.token);
@@ -270,7 +277,26 @@ export async function seedForks(env: Env, count: number, files: Record<string, s
 	return { baseline: { name: baselineName, remote: created.remote }, forks, creationTokensRevoked: allRevoked };
 }
 
-/** Delete every repo whose name starts with `smoke-`. Returns the names removed. */
+/** DELETE /api/smoke body: the repos a run created, by exact name. Each must be a `smoke-` repo. */
+export const SmokeDeleteRequest = z.strictObject({
+	repos: z
+		.array(z.string().regex(REPO_NAME_RE, "not a valid repo name").startsWith(SMOKE_PREFIX, `repo names must start with ${SMOKE_PREFIX}`))
+		.min(1)
+		.max(20),
+});
+
+/** Delete exactly these repos (`smoke-` names only). A name that does not exist is reported as failed. */
+export async function deleteSmokeRepos(env: Env, names: string[]): Promise<{ deleted: string[]; failed: string[] }> {
+	const deleted: string[] = [];
+	const failed: string[] = [];
+	for (const name of new Set(names)) {
+		if (!name.startsWith(SMOKE_PREFIX)) throw new Error(`refusing to delete ${name}: not a ${SMOKE_PREFIX} repo`);
+		((await env.ARTIFACTS.delete(name)) ? deleted : failed).push(name);
+	}
+	return { deleted, failed };
+}
+
+/** Delete every repo whose name starts with `smoke-`, a recorded demo's included. Only on request (`?all=1`). Returns the names removed. */
 export async function purgeSmokeRepos(env: Env): Promise<{ deleted: string[]; failed: string[] }> {
 	const names: string[] = [];
 	let cursor: string | undefined;
