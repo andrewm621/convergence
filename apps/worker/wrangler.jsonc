@@ -6,12 +6,39 @@
   "compatibility_date": "2026-10-12",
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
-  "vars": { "APP_VERSION": "0.0.1" },
+  "vars": {
+    "APP_VERSION": "0.0.1",
+    // Smoke endpoints create and delete real repos. Off by default; deploy with --var ENABLE_SMOKE:1 to use them.
+    "ENABLE_SMOKE": "0",
+    // stub = scripted agent (no model key needed); claude = Claude Code headless through OpenRouter.
+    "AGENT_MODE": "stub",
+    // OpenRouter model slug Claude Code is pinned to (only read when AGENT_MODE=claude).
+    "AGENT_MODEL": "anthropic/claude-sonnet-5.5",
+    // Pause between stub steps so concurrent runs visibly overlap.
+    "STUB_STEP_MS": "2500",
+    // Container size. "lite" runs the stub but is CPU-starved (about 2x slower end to end); claude needs standard-1 or larger.
+    "SANDBOX_INSTANCE": "standard-1"
+  },
   "artifacts": [{ "binding": "ARTIFACTS", "namespace": "default" }],
   "durable_objects": {
-    "bindings": [{ "name": "WORKSPACE_CELL", "class_name": "WorkspaceCell" }]
+    "bindings": [
+      { "name": "WORKSPACE_CELL", "class_name": "WorkspaceCell" },
+      { "name": "AGENT_SANDBOX", "class_name": "AgentSandbox" }
+    ]
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["WorkspaceCell"] }],
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["WorkspaceCell"] },
+    { "tag": "v2", "new_sqlite_classes": ["AgentSandbox"] }
+  ],
+  "containers": [
+    {
+      "class_name": "AgentSandbox",
+      "scheduling_policy": "durable_object",
+      "images": { "agent": { "dockerfile": "./container/Dockerfile" } }
+    }
+  ],
   "observability": { "enabled": true }
-  // DEV_TOKEN is a Worker secret (wrangler secret put DEV_TOKEN); locally it lives in .dev.vars.
+  // Secrets (wrangler secret put <NAME>; locally apps/worker/.dev.vars):
+  //   DEV_TOKEN          bearer token for /api/*
+  //   OPENROUTER_API_KEY only for AGENT_MODE=claude
 }

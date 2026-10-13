@@ -1,0 +1,4 @@
+# Copy to .dev.vars (gitignored). For the deployed Worker use: wrangler secret put <NAME>
+DEV_TOKEN=change-me
+# Only needed for AGENT_MODE=claude (Claude Code headless through OpenRouter).
+OPENROUTER_API_KEY=

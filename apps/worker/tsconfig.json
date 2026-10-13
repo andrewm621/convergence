@@ -1,4 +1,5 @@
 {
   "extends": "../../tsconfig.base.json",
-  "include": ["src", "worker-configuration.d.ts"]
+  "compilerOptions": { "allowImportingTsExtensions": true },
+  "include": ["src", "container/stub-agent-lib.ts", "worker-configuration.d.ts"]
 }

@@ -56,7 +56,8 @@ export function diffFlatTrees(from: FlatTree, to: FlatTree): TreeDiff {
 	for (const [path, before] of from) {
 		if (!to.has(path)) diff.removed.push({ path, hash: before.hash });
 	}
-	const byPath = (a: { path: string }, b: { path: string }) => a.path.localeCompare(b.path);
+	// Plain code-unit order: localeCompare depends on the runtime locale, so it is not deterministic.
+	const byPath = (a: { path: string }, b: { path: string }) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
 	diff.added.sort(byPath);
 	diff.removed.sort(byPath);
 	diff.changed.sort(byPath);

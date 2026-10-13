@@ -50,6 +50,15 @@ pnpm --filter worker exec wrangler deploy   # maintainer machine only (see Secre
 - `readTree` returns direct children only, so walk it recursively.
 - There is no local emulation. `wrangler dev` uses the real service.
 
+## Agent sandbox gotchas (verified live; details in `docs/agent-runtime.md`)
+- Cloudflare's current Sandbox model is a Durable Object that owns `ctx.container`, with `@cloudflare/sandbox` `Files` helpers and outbound handlers (`interceptOutboundHttps`). The older `getSandbox()` / `Sandbox` class API is gone from the docs.
+- The Durable Object config uses `migrations`. The newer `exports` map is mutually exclusive with `migrations`, so it can't be added to a Worker whose first class already shipped through a migration.
+- Never put a token in the container. Give the `AgentSandbox` DO an outbound handler that injects the Artifacts token for exactly one repo.
+- `enableInternet: false` plus per-host intercepts is the egress allowlist. Containers re-sign intercepted HTTPS, so point `GIT_SSL_CAINFO` / `NODE_EXTRA_CA_CERTS` at `/etc/cloudflare/certs/cloudflare-containers-ca.crt`.
+- `exec()` does not inherit env. Pass everything per call. Run long tasks detached (`setsid`, state in files) and poll or use an alarm.
+- Image size `lite` runs the stub but is about 2x slower than `standard-1`.
+- `wrangler types` needs `--strict-vars=false` (the `types` script) or var comparisons become literal-type errors.
+
 ## Secrets and public-repo hygiene (hard rules; this repo is public)
 - Never commit secrets, tokens, account IDs, `.env`, `.dev.vars` or `*.local.md`. They're gitignored, so keep it that way.
 - Never write real client names, real people's names or private file paths into tracked files. Fixtures use synthetic organizations ("Northwind Field Services").

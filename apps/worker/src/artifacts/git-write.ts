@@ -25,22 +25,31 @@ export function sleep(ms: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+export interface GetRepoOptions {
+	/** Total tries, including the first. */
+	attempts?: number;
+	/**
+	 * Treat NOT_FOUND as transient. Opt in only straight after create/fork, when the new repo can
+	 * briefly read as missing. Everywhere else NOT_FOUND is a real answer and must surface at once.
+	 */
+	retryNotFound?: boolean;
+}
+
 /** get() throws while a repo is still being created or forked; retry those with backoff. */
-export async function getRepo(env: Env, name: string, attempts = 12): Promise<ArtifactsRepo> {
+export async function getRepo(env: Env, name: string, opts: GetRepoOptions = {}): Promise<ArtifactsRepo> {
+	const { attempts = 12, retryNotFound = false } = opts;
 	const transient = new Set(["CREATE_IN_PROGRESS", "FORK_IN_PROGRESS", "IMPORT_IN_PROGRESS"]);
-	let last: unknown;
-	for (let i = 1; i <= attempts; i++) {
+	for (let attempt = 1; ; attempt++) {
 		try {
 			return await env.ARTIFACTS.get(name);
 		} catch (e) {
-			last = e;
 			const code = errorCode(e);
-			// A repo created a moment ago can briefly read as NOT_FOUND as well.
-			if (!(code && (transient.has(code) || code === "NOT_FOUND"))) throw e;
-			await sleep(250 * i);
+			const retriable = code !== undefined && (transient.has(code) || (retryNotFound && code === "NOT_FOUND"));
+			// No sleep after the final attempt: surface the error straight away.
+			if (!retriable || attempt >= attempts) throw e;
+			await sleep(250 * attempt);
 		}
 	}
-	throw last;
 }
 
 /** Reject anything that could escape the work tree or touch git internals. */
@@ -75,16 +84,18 @@ export async function withStaleRefRetry<T>(fn: (attempt: number) => Promise<T>, 
 /**
  * Commit `files` to the repo's main branch: init when empty, shallow clone otherwise, then push.
  * Each retry re-clones, re-applies and pushes so a lost race never builds on a stale head.
+ * Pass `retryNotFound` only for a repo created or forked moments ago.
  */
 export async function commitFiles(
 	env: Env,
 	repoName: string,
 	files: Record<string, string>,
 	message: string,
+	opts: { retryNotFound?: boolean } = {},
 ): Promise<CommitResult> {
 	for (const path of Object.keys(files)) assertSafePath(path);
 
-	using repo = await getRepo(env, repoName);
+	using repo = await getRepo(env, repoName, { retryNotFound: opts.retryNotFound });
 	const { remote } = await repo.info();
 	const token = await repo.createToken("write", 300);
 	const onAuth = () => ({ username: "x", password: stripExpiry(token.plaintext) });

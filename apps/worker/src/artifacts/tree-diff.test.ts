@@ -96,3 +96,17 @@ describe("diffFlatTrees", () => {
 		expect(diff.changed.map((e) => e.path)).toEqual(["run.sh"]);
 	});
 });
+
+describe("diffFlatTrees ordering", () => {
+	it("sorts by code unit, independent of locale", () => {
+		const entry = (hash: string) => ({ hash, mode: "100644" });
+		const to = new Map([
+			["b.ts", entry("1")],
+			["B.ts", entry("2")],
+			["a.ts", entry("3")],
+			["_x.ts", entry("4")],
+		]);
+		// localeCompare would interleave cases (a, b, B or similar); code-unit order puts "B" < "_" < "a" < "b".
+		expect(diffFlatTrees(new Map(), to).added.map((e) => e.path)).toEqual(["B.ts", "_x.ts", "a.ts", "b.ts"]);
+	});
+});
