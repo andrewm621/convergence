@@ -33,7 +33,7 @@ The fast-forward rows below were observed before the baseline stopped carrying a
 | Revalidate resolution for WI-2 | pass | `REVALIDATION_STARTED` plus `DISPATCH_WORK` effects |
 | Stub re-dispatch with the new context, then claims | pass (operator step) | 17 to 20 s; claims re-cite `notifications@2` with `opt-in` / `weekly-digest`; poller recorded the push 0.4 s later |
 | WebSocket with `delta.v1` + bearer subprotocol (Node client) | pass | server selected `delta.v1`; first frame is a `snapshot`; then one `event` per ledger line, plus `agent-activity` |
-| `ledger/verify` | pass | `ok: true` on every scenario, 5 to 12 lines |
+| `ledger/verify` | pass | `ok: true` on every scenario, 5 to 12 lines (the server endpoint, which re-derives the whole stored chain and compares it with the head row) |
 | Agent principal on a resolution | pass | `403 FORBIDDEN_ACTOR`, and a `NO_ACTION` line in the ledger |
 | No bearer | pass | `401` |
 | Poller health at the end | pass | healthy, no degraded repos |
@@ -111,7 +111,7 @@ The shelter act (`scripts/check-live-shelter.mjs`, described in [`shelter-live.m
 | Stale-block of the work item that relied on the changed facets | pass | SH-1 (front-desk script) went stale and was blocked within about **64 ms** of v2 being accepted |
 | Work item that did not rely on them | pass | SH-2 (supply list) stayed green and was promoted as a merge with two parents |
 | Revalidate, re-run, promote | pass | SH-1 was revalidated, the agent re-ran against v2, and SH-1 was promoted |
-| `ledger/verify` | pass | the hash chain verified |
+| `ledger/verify` | pass | the server re-derived the whole stored hash chain and it matched the head row (`GET /api/scenarios/:s/ledger/verify`, called by the script) |
 
 Notes:
 - A Claude Sonnet run also worked, but it finished before the policy changed, so it did not exercise the stale-block. The demo uses GLM.
@@ -142,7 +142,7 @@ The console (PR #4) was deployed from `main` (head `2181838`) and checked on the
 | Populate the `notifications` cell with stub agents | pass | seed 5.6 s, both runs 18 s, v2 change 1.8 s, WI-2 `conflict` and WI-1 `ready` 1.9 s after the request |
 | Token in `#token=...` is cleared from the address bar | pass | hash empty after load; token only in `sessionStorage` |
 | **Browser WebSocket with the `delta.v1` + bearer subprotocol** | pass | header reads **Live** (the client only shows it for an open socket), the first `snapshot` rendered with no REST read and no polling fallback |
-| Context timeline, work graph, inspector, ledger tail | pass | v1/v2 diff, one red `stale: v1 -> v2` edge, "Why is this blocked?" for WI-2 (`STALE_RECEIPT`, `FACET_CHANGED`, `CLAIM_CONFLICT`, `SUPERSEDED_BASIS`), "chain verified, 5 lines" |
+| Context timeline, work graph, inspector, ledger tail | pass | v1/v2 diff, one red `stale: v1 -> v2` edge, "Why is this blocked?" for WI-2 (`STALE_RECEIPT`, `FACET_CHANGED`, `CLAIM_CONFLICT`, `SUPERSEDED_BASIS`), the audit-log badge reported a pass over the 5 lines the console held (it re-derives hashes in the browser for the lines in view only; the full stored ledger is checked by the `ledger/verify` row above, which is a server endpoint the console does not call) |
 | No "Poller degraded" badge; "Acting as: Decision owner (demo identity)" | pass | |
 | Page errors and console messages | pass | none |
 | `/?mock=1` | pass | renders, header reads "Mock · replay" |

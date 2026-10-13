@@ -264,7 +264,7 @@ Visual grammar comes from the author's earlier review-loop prototype: canonical 
 
 **P1 (should)**
 - Replay mode from a recorded event log.
-- Ledger hash-chain verification shown in the UI ("chain verified ✓").
+- Ledger hash-chain verification shown in the UI ("chain verified ✓"). As built, the badge reads "verified in this browser" and covers only the lines the console holds; the whole stored ledger is checked by the server endpoint `GET /api/scenarios/:s/ledger/verify`.
 - Git notes on the forks recording the receipt (Artifacts best practice).
 - A third concurrent agent in Scenario A, to show scale.
 
