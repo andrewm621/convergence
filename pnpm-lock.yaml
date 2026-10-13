@@ -158,6 +158,9 @@ importers:
         specifier: workspace:*
         version: link:../contracts
     devDependencies:
+      scenario-delta-convergence-build:
+        specifier: workspace:*
+        version: link:../../scenarios/delta-convergence-build
       scenario-notifications:
         specifier: workspace:*
         version: link:../../scenarios/notifications
@@ -167,6 +170,12 @@ importers:
       scenario-shelter-intake:
         specifier: workspace:*
         version: link:../../scenarios/shelter-intake
+
+  scenarios/delta-convergence-build:
+    dependencies:
+      contracts:
+        specifier: workspace:*
+        version: link:../../packages/contracts
 
   scenarios/notifications:
     dependencies:
