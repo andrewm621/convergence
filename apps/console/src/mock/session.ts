@@ -12,6 +12,7 @@ import {
 } from "contracts";
 import { buildReceipt, currentSnapshot, diffFacets, evaluateGate } from "delta-core";
 import { DEMO_IDENTITY } from "@/config";
+import { CLAIMS_CHECK_NAME } from "@/lib/evidence";
 import type { CommandResult, ContextChangeInput, FileChange, GateResult, PromoteInput, ResolveInput } from "@/client/types";
 import type { MockCell, MockScenario } from "./cell";
 import { changesFor } from "./changes";
@@ -24,11 +25,25 @@ const REFUSALS: ReadonlySet<ReasonCode> = new Set<ReasonCode>([
 	"UNKNOWN_WORK_ITEM",
 	"ALREADY_PROMOTED",
 	"REVALIDATION_LIMIT",
+	"REVALIDATION_IN_PROGRESS",
 	"IDEMPOTENCY_CONFLICT",
 	"DUPLICATE_EVENT",
 ]);
 
 const PLACEHOLDER_TS = "2026-10-13T15:00:00Z";
+
+/**
+ * What the replayed agents "run on", shown on the cards. The agents in a replay are scripted, so most
+ * say "stub agent"; notifications WI-2 is the one the live run used the project's cheap model for.
+ */
+const STUB_MODEL = "stub agent";
+const REPLAY_MODELS: Record<string, Record<string, string>> = {
+	notifications: { "WI-2": "openai/gpt-6-luna" },
+};
+
+function modelOf(scenario: string, workItemId: string): string {
+	return REPLAY_MODELS[scenario]?.[workItemId] ?? STUB_MODEL;
+}
 
 export type SessionOptions = {
 	/** Pause a moment between an approved promotion and the merge, so "re-checking at current heads" is visible. */
@@ -84,6 +99,11 @@ export class MockSession {
 	async fixture(name: string): Promise<void> {
 		const event = this.scenario.events[name];
 		if (!event) throw new Error(`mock: no fixture event "${name}" in ${this.scenario.name}`);
+		// The fixtures record the scenario's contract-check results with no kind. In the replay Delta Convergence ran them, as the Worker does.
+		if (event.type === "EvidenceRecorded" && !event.evidence.kind) {
+			await this.cell.send({ ...event, evidence: { ...event.evidence, kind: "delta-run-check" } });
+			return;
+		}
 		await this.cell.send(event);
 	}
 
@@ -106,7 +126,7 @@ export class MockSession {
 		}
 		for (const key of keys) {
 			const item = this.scenario.workItems[key];
-			if (item) await this.cell.send({ type: "AgentRunStarted", ts: PLACEHOLDER_TS, workItemId: item.id, runId: `run-${item.id.toLowerCase()}` });
+			if (item) await this.cell.send({ type: "AgentRunStarted", ts: PLACEHOLDER_TS, workItemId: item.id, runId: `run-${item.id.toLowerCase()}`, model: modelOf(this.scenario.name, item.id) });
 		}
 	}
 
@@ -201,7 +221,7 @@ export class MockSession {
 			noteCommit: wi.headSha ?? state.baselineCommit,
 		});
 		await this.cell.send({ type: "ReceiptIssued", ts: PLACEHOLDER_TS, workItemId, receipt });
-		await this.cell.send({ type: "AgentRunStarted", ts: PLACEHOLDER_TS, workItemId, runId: this.#rerunId(workItemId) });
+		await this.cell.send({ type: "AgentRunStarted", ts: PLACEHOLDER_TS, workItemId, runId: this.#rerunId(workItemId), model: modelOf(this.scenario.name, workItemId) });
 		this.pendingReruns.add(workItemId);
 	}
 
@@ -218,7 +238,8 @@ export class MockSession {
 		if (!wi) return;
 		const head = this.cell.nextSha("f");
 		const claims: Claim[] = [];
-		const checks = new Set<string>();
+		// Each check asserts the facets this work item relied on for the records that name it (as the Worker's checks do).
+		const checks = new Map<string, Set<string>>();
 		for (const dep of state.dependencies) {
 			if (dep.workItemId !== workItemId || dep.status !== "accepted") continue;
 			const record = currentSnapshot(state, dep.recordId);
@@ -228,22 +249,35 @@ export class MockSession {
 				const value = record.facets[subject];
 				if (value !== undefined) claims.push({ subject, value, basedOn: `${record.recordId}@${record.version}` });
 			}
-			if (record.validation) checks.add(record.validation);
+			if (record.validation) {
+				const asserted = checks.get(record.validation) ?? new Set<string>();
+				for (const subject of keys) asserted.add(subject);
+				checks.set(record.validation, asserted);
+			}
 		}
 		const repo = wi.item.forkRepo;
 		await this.cell.send({ type: "ForkPushed", ts: PLACEHOLDER_TS, repo, commitSha: head, workItemId, claims, contextPaths: [] });
-		for (const check of [...checks].sort()) {
-			const passing = Object.values(this.scenario.evidence).filter((e) => e.check === check && e.pass);
-			const known = passing.find((e) => e.workItemId === workItemId) ?? passing[0];
+		const runId = this.#rerunId(workItemId);
+		// What the Worker records for a verified push: its own contract check per `validation:` path (this is what
+		// satisfies contract-test), then the informational claims check under its own name.
+		for (const [check, asserted] of [...checks].sort(([x], [y]) => x.localeCompare(y))) {
 			await this.cell.send({
 				type: "EvidenceRecorded",
 				ts: PLACEHOLDER_TS,
 				repo,
 				commitSha: head,
-				runId: `run-${check}-${head.slice(0, 7)}`,
-				evidence: { workItemId, headSha: head, check, pass: true, output: known?.output ?? `${check}: ok` },
+				runId,
+				evidence: { workItemId, headSha: head, check, pass: true, output: `Delta Convergence contract check ${check} at ${head.slice(0, 7)} passed, asserting ${[...asserted].sort().join(", ")}.`, kind: "delta-run-check" },
 			});
 		}
+		await this.cell.send({
+			type: "EvidenceRecorded",
+			ts: PLACEHOLDER_TS,
+			repo,
+			commitSha: head,
+			runId,
+			evidence: { workItemId, headSha: head, check: CLAIMS_CHECK_NAME, pass: true, output: "claims cite the current decision versions", kind: "delta-claims-check" },
+		});
 		await this.finishRun(workItemId, this.#rerunId(workItemId));
 	}
 
@@ -337,6 +371,8 @@ function refusalMessage(code: ReasonCode | undefined): string {
 			return "Nothing stale or conflicting is left to resolve on that record.";
 		case "REVALIDATION_LIMIT":
 			return "Revalidated too many times. A person needs to look at why this keeps failing.";
+		case "REVALIDATION_IN_PROGRESS":
+			return "A revalidation is already under way. Wait for the agent's push before revalidating again.";
 		default:
 			return "The engine refused that request.";
 	}

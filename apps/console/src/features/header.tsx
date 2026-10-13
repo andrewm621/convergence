@@ -11,7 +11,7 @@ import { SCENARIO_META, SYNTHETIC_NOTE } from "./scenario-meta";
 export function ScenarioSwitcher({ value, onChange }: { value: ScenarioName; onChange(next: ScenarioName): void }) {
 	return (
 		<div role="radiogroup" aria-label="Scenario" className="inline-flex items-center rounded-lg border bg-muted p-0.5">
-			{SCENARIOS.map((name) => {
+			{SCENARIOS.filter((name) => name === value || !SCENARIO_META[name].hidden).map((name) => {
 				const meta = SCENARIO_META[name];
 				const Icon = meta.icon;
 				const active = name === value;

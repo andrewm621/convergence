@@ -24,13 +24,13 @@ pnpm --filter console test
 | `h` | hide or show the controls |
 | numbered dots | jump to a beat |
 
-Beats, Scenario A: two agents running, typo (`PROSE_ONLY`, nothing goes red), draft the decision change, v2 lands (WI-2 stale, WI-1 untouched, one edge red), WI-2 pushes (claim conflict and a failing check), WI-1 promotes, revalidate, the re-run lands, WI-2 promotes. The same controls drive the **Larkhaven County Shelter** scenario (`scenario=shelter-intake`, knowledge work, synthetic: a policy changes under five drafting agents; three go stale, two are untouched, one takes a scoped exception, two are revalidated; the "Synthetic scenario. Not operational guidance." note stays in view), Scenario B (Northwind Sales Ops: one exception, one revalidation, one untouched) and the **fan-out** script (40 seeded items, one decision change, `N evaluated · K stale · M untouched · time`).
+Beats, Scenario A: two agents running, typo (`PROSE_ONLY`, nothing goes red), draft the decision change, v2 lands (WI-2 stale, WI-1 untouched, one edge red), WI-2 pushes (claim conflict and a failing check), WI-1 promotes, revalidate, the re-run lands, WI-2 promotes. The same controls drive the **Larkhaven County Shelter** scenario (`scenario=shelter-intake`, knowledge work, synthetic: a policy changes under five drafting agents; three go stale, two are untouched, one takes a scoped exception, two are revalidated; four drafts promote, then a last beat moves the policy to v3 before the signage is promoted: its exception card flips to **Lapsed** with `EXCEPTION_LAPSED` and the signage is blocked again; the "Synthetic scenario. Not operational guidance." note stays in view), Scenario B (Northwind Sales Ops: one exception, one revalidation, one untouched) and the **fan-out** script (40 seeded items, one decision change, `N evaluated · K stale · M untouched · time`).
 
 Every action in the UI (Propose change, Revalidate, Accept exception, Reject, Promote) also works by hand in the mock, through the same engine.
 
 | URL parameter | Does |
 |---|---|
-| `scenario=notifications`, `shelter-intake` or `sales-ops` | scenario to open |
+| `scenario=notifications`, `shelter-intake` or `sales-ops` | scenario to open (Northwind Sales Ops is not in the switcher; `?scenario=sales-ops` opens it, and it then shows) |
 | `script=fanout` | open the fan-out script (notifications only) |
 | `start=empty` | no accepted context, to show the empty state |
 | `controls=0` | start with the replay controls hidden |
@@ -56,6 +56,8 @@ pnpm --filter console dev                      # in another; open http://localho
 `VITE_API_BASE` sets the API origin (default: same origin, which is how the Worker serves the console); `VITE_API_PROXY` is the dev proxy target (default `http://localhost:8787`).
 
 The mock and the live client both implement `ConsoleClient` (`src/client/types.ts`), and `src/client/create-client.ts` is the one place that picks between them.
+
+**Model names and evidence kinds.** Cards, the inspector header and the activity stream show the model from the latest `AgentRunStarted.model` for that item ("openai/gpt-6-luna", "stub agent") and fall back to the actor name ("Agent A") when the event has none. Evidence with `kind: "delta-claims-check"` reads "Claims check (not an executed test)" in the ledger and on its own "Claims check" row of the Why chain (never in the Test row, which lists only what the engine counts as a test; with none it says "No Delta Convergence contract check at this commit yet."), with a tooltip saying the Worker checked the claims and did not run the test suite; `delta-run-check` reads "Delta Convergence contract check" (its own deterministic check on the pushed code, not the project's test suite); `executed-test` or no `kind` keeps "Check passed" / "passed". The mock replay records what the Worker does: its fixtures' contract-check results and the re-run's checks as `delta-run-check` (which satisfies contract-test), plus the informational claims check under `delta:claims-vs-receipt`.
 
 The header's "Acting as: Decision owner (demo identity)" comes from one constant, `DEMO_IDENTITY` in `src/config.ts`. The console has no real authentication and says so.
 

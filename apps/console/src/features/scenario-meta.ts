@@ -7,6 +7,8 @@ export type ScenarioMeta = {
 	icon: typeof Code2;
 	/** A line the header keeps in view for as long as the scenario is open. */
 	note?: string;
+	/** Left out of the scenario switcher unless it is the open scenario. Still reachable with `?scenario=`. */
+	hidden?: boolean;
 };
 
 /** The note that must stay visible on the shelter scenario. */
@@ -20,5 +22,5 @@ export const SCENARIO_META: Record<ScenarioName, ScenarioMeta> = {
 		icon: HeartHandshake,
 		note: `${SYNTHETIC_NOTE} Larkhaven County, its river flood and the Larkhaven Mutual Aid Network are fictional.`,
 	},
-	"sales-ops": { label: "Northwind Sales Ops", kind: "knowledge work", icon: BriefcaseBusiness },
+	"sales-ops": { label: "Northwind Sales Ops", kind: "knowledge work", icon: BriefcaseBusiness, hidden: true },
 };

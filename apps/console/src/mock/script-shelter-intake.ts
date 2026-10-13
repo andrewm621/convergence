@@ -7,7 +7,8 @@ import type { Beat, MockScript } from "./beats";
  * The shelter scenario, knowledge work with no software in it. Synthetic scenario. Not operational guidance.
  * Larkhaven County and its river flood are invented. Five agents draft volunteer materials from one
  * intake policy; the policy changes mid-flight. Three drafts go stale, two are never touched.
- * The signage takes a scoped exception, the script and the briefing are revalidated.
+ * The signage takes a scoped exception, the script and the briefing are revalidated. Four drafts
+ * promote; before the signage does, the last beat moves the policy to v3 and its exception lapses on its own.
  */
 export function shelterIntakeScript(bundle: ShelterIntakeScenario): MockScript {
 	const v2 = bundle.docs.policyV2;
@@ -146,10 +147,20 @@ export function shelterIntakeScript(bundle: ShelterIntakeScenario): MockScript {
 		},
 		{
 			id: "promote-all",
-			title: "All five promote",
-			caption: "Same gate, same ledger: two untouched drafts, one scoped exception and two revalidated drafts.",
+			title: "Four promote",
+			caption: "Same gate, same ledger: two untouched drafts and two revalidated drafts. The signage is cleared by its exception but not promoted yet.",
 			async run({ session }) {
-				for (const id of ["WI-4", "WI-5", "WI-2", "WI-1", "WI-3"]) await session.promoteNow(id);
+				for (const id of ["WI-4", "WI-5", "WI-1", "WI-3"]) await session.promoteNow(id);
+				return { select: "WI-1", tab: "actions" };
+			},
+		},
+		{
+			id: "lapse",
+			title: "Policy moves to v3: the exception lapses",
+			caption: "A new version ends the exception automatically.",
+			async run({ session }) {
+				const record = currentSnapshot(await session.cell.state(), RECORD);
+				if (record && record.version < 3) await session.fixture("v3");
 				return { select: "WI-2", tab: "actions" };
 			},
 		},

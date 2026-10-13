@@ -1,6 +1,7 @@
 import { parseRecordRef, type Claim, type Dependency, type FacetValue, type ReasonCode, type ReceiptEntry, type ReconciliationEvent, type RecordSnapshot, type Resolution, type WorkItemState } from "contracts";
 import { analyze, authorityFor, classifyExceptions, diffFacets, facetValuesEqual, findStale, type Analysis } from "delta-core";
 import { DEMO_IDENTITY } from "@/config";
+import { describeCheck } from "@/lib/evidence";
 import { toCellState, type ViewState } from "./store";
 
 /**
@@ -91,6 +92,18 @@ export function runningAgents(ledger: readonly ReconciliationEvent[]): Set<strin
 	return running;
 }
 
+/**
+ * What runs a work item: the model named on its latest `AgentRunStarted` (display only). Null when
+ * the event names none or is outside the ledger window; callers then fall back to the actor's name.
+ */
+export function agentModelOf(ledger: readonly ReconciliationEvent[], workItemId: string): string | null {
+	for (let i = ledger.length - 1; i >= 0; i--) {
+		const event = ledger[i]?.payload.event;
+		if (event?.type === "AgentRunStarted" && event.workItemId === workItemId) return event.model ?? null;
+	}
+	return null;
+}
+
 // ---------- claims vs facets (the semantic diff) ----------
 
 export type ClaimVerdict = "match" | "conflict" | "undeclared" | "ungoverned";
@@ -163,6 +176,8 @@ export type LedgerSummary = {
 	noAction: boolean;
 	/** All distinct effect types, for a tooltip. */
 	effectTypes: string[];
+	/** Tooltip for the label, where the label needs an honest qualifier. */
+	hint?: string;
 };
 
 export function summarizeLedgerLine(entry: ReconciliationEvent): LedgerSummary {
@@ -186,6 +201,11 @@ function describeLine(entry: ReconciliationEvent): Omit<LedgerSummary, "noAction
 		case "ForkPushed":
 			return { label: "Fork push", detail: event.commitSha.slice(0, 7), workItemId: event.workItemId, reasonCodes: reasons };
 		case "EvidenceRecorded":
+			const notTest = describeCheck(event.evidence);
+			if (notTest) {
+				const check = event.evidence.check.split("/").pop() ?? event.evidence.check;
+				return { label: notTest.label, hint: notTest.hint, detail: event.evidence.pass ? check : `failed: ${check}`, workItemId: event.evidence.workItemId, reasonCodes: reasons };
+			}
 			return { label: event.evidence.pass ? "Check passed" : "Check failed", detail: event.evidence.check.split("/").pop() ?? event.evidence.check, workItemId: event.evidence.workItemId, reasonCodes: reasons };
 		case "DependencyDecided":
 			return { label: `Dependency ${event.decision}`, detail: event.recordId, workItemId: event.workItemId, reasonCodes: reasons };
@@ -200,6 +220,16 @@ function describeLine(entry: ReconciliationEvent): Omit<LedgerSummary, "noAction
 		case "AgentRunStarted":
 			return { label: "Agent run started", detail: event.runId, workItemId: event.workItemId, reasonCodes: [] };
 		case "AgentRunFinished":
+			// The Worker writes this when a dispatch failed before any run existed. No agent ran, so it must not read as a run.
+			if (event.runId.startsWith("dispatch-failed:")) {
+				return {
+					label: "Agent dispatch failed before the run started",
+					hint: "No agent run was started. The Worker released the revalidation so it can be requested again.",
+					detail: "revalidation released",
+					workItemId: event.workItemId,
+					reasonCodes: [],
+				};
+			}
 			return { label: `Agent run ${event.outcome}`, detail: event.runId, workItemId: event.workItemId, reasonCodes: [] };
 	}
 }

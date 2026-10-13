@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { createContext, useContext } from "react";
 import { Badge } from "@/components/ui/badge";
+import { CLAIMS_CHECK_HINT } from "@/lib/evidence";
 import { cn } from "@/lib/utils";
 
 type Tone = "neutral" | "outline" | "primary" | "success" | "warning" | "danger" | "info" | "merged";
@@ -74,13 +75,14 @@ export function StatusChip({ status, className }: { status: WorkItemStatus; clas
 
 const ACTOR_ICON = { human: User, agent: Bot, system: Cpu } as const;
 
-export function ActorChip({ actor, className }: { actor: Pick<Actor, "kind" | "displayName">; className?: string }) {
+/** `label` replaces the display name, e.g. with the model that runs an agent. The actor kind stays in the screen-reader text. */
+export function ActorChip({ actor, label, className }: { actor: Pick<Actor, "kind" | "displayName">; label?: string; className?: string }) {
 	const Icon = ACTOR_ICON[actor.kind];
 	return (
 		<Badge tone={actor.kind === "human" ? "primary" : "outline"} data-actor={actor.kind} className={className}>
 			<Icon aria-hidden />
 			<span className="sr-only">{actor.kind}: </span>
-			{actor.displayName}
+			{label ?? actor.displayName}
 		</Badge>
 	);
 }
@@ -95,7 +97,7 @@ export function SeededBadge({ className }: { className?: string }) {
 	);
 }
 
-export type EpistemicKind = "recorded" | "asserted" | "verified" | "awaiting";
+export type EpistemicKind = "recorded" | "asserted" | "verified" | "claims-checked" | "awaiting";
 
 /**
  * How much to trust a link in the Why chain. Accepted records and Resolutions are `recorded`;
@@ -106,6 +108,7 @@ export const EPISTEMIC_META: Record<EpistemicKind, { text: string; tone: Tone; i
 	recorded: { text: "recorded", tone: "primary", icon: Lock, dashed: false, hint: "An accepted decision or a human resolution, on the ledger." },
 	asserted: { text: "agent-asserted, unverified", tone: "warning", icon: Bot, dashed: true, hint: "The agent's own word. Delta Convergence has not checked it." },
 	verified: { text: "test-verified", tone: "info", icon: FlaskConical, dashed: false, hint: "A check Delta Convergence ran itself at this head." },
+	"claims-checked": { text: "claims-checked, not tested", tone: "info", icon: ShieldCheck, dashed: true, hint: CLAIMS_CHECK_HINT },
 	awaiting: { text: "Awaiting human", tone: "neutral", icon: Hourglass, dashed: true, hint: "Nobody has decided this yet." },
 };
 
