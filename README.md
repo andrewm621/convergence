@@ -1,46 +1,85 @@
 # Delta Convergence
 
-**Git tells you when two agents changed the same lines. Delta Convergence tells you when two agents are building from different decisions, and won't let the stale one merge.**
+A decision shouldn't just be written down. The system should know what depends on it.
 
-Delta Convergence is a control plane that keeps concurrent humans and agents working from the same *meaning*. When an accepted decision changes mid-flight, it finds the work that relied on the old version, blocks that work from merging, and drives a human-approved reconciliation. The referee is deterministic rules. It makes no model calls.
+It works like a lockfile for decisions. Each agent's context is pinned to the exact version of every decision it was given, so when one changes, you know exactly whose work was built on the old version. That work gets blocked from merging, even if it sits in a different file and git merges it clean, until a named human revalidates it. Everything else stays green, and no model makes any of those calls.
 
-Built for the Cloudflare ["Build the next GitHub"](https://www.cloudflare.com/git-competition/) challenge on Workers, Durable Objects, Sandbox containers and Artifacts.
+## Try it in 60 seconds
 
-> **Delta is general, not coding-only.** The engine reconciles *accepted context* against *in-flight work*. Code is one kind of work. A sales forecast, a playbook and a glossary built on the definition of "qualified lead" are another. Both scenarios below run through the same engine with different fixtures.
+**A. Open the deployed console in replay mode.** No account, no keys:
 
-> **Status: work in progress, 2026-10-12.** The engine, contracts, Artifacts adapter and agent runtime are on `main`. The control loop, console, resolve/promote flow and replay mode are still landing. See [Implemented vs not](#implemented-vs-not) before relying on anything here.
+<https://delta-convergence.andrew-8c6.workers.dev/?mock=1>
+
+Replay plays a scripted story in your browser through the same rule code the server runs, and the header says "Mock · replay" the whole time. Use the tabs at the top: **Notifications**, **Larkhaven County Shelter**, **Our own build**. Press the right arrow key (or **Next**) to step through each story.
+
+**B. Run it locally.** Replay needs no Cloudflare account and no keys.
+
+```bash
+pnpm install
+pnpm --filter console dev     # open http://localhost:5173/?mock=1
+```
+
+To see the console served the way it ships, as static assets from the Worker:
+
+```bash
+pnpm install
+pnpm build:console
+cd apps/worker && npx wrangler dev     # open http://localhost:8787/?mock=1
+```
+
+Heads up on that second route: `wrangler dev` has no local emulator for Cloudflare Artifacts, so it contacts Cloudflare and needs a `wrangler login`, even though replay itself uses no account data. The first route needs nothing. Live mode (real repos, real agents) needs an Artifacts account and a bearer token: see [Running live](#running-live).
+
+Built for the Cloudflare ["Build the next GitHub"](https://www.cloudflare.com/git-competition/) challenge on Workers, Durable Objects, Artifacts and Sandbox containers.
+
+<!-- TODO(andrew): AI-assisted-code disclosure line. Your call on whether and how to say it. -->
 
 ## The problem
 
-Two agents work on the same codebase. One makes the signup form's phone field optional. The other makes the API require it. Each passes its own tests. Git sees no conflict, because nobody touched the same line. Production breaks. They disagreed about what the product is.
+Two agents work on the same codebase. The decision owner decides that notifications should be opt-in with a weekly digest, where the old rule was on by default and immediate. While that change lands, one agent is already building notification delivery in its own file, on the old default. The other is building status badges, which have nothing to do with notifications.
 
-The same thing happens outside code. A sales team changes what "qualified lead" means. The Q4 forecast, the SDR playbook and the dashboard were each built on the old definition. Nothing marks them as out of date.
+Git sees no conflict, because nobody touched the same line. The delivery branch merges clean and still ships the wrong behavior. The status badge branch is fine, and nothing should slow it down.
 
-Git versions files. Nothing versions the **accepted decision that governs the work**, or records which work was built on which version.
+Git versions files. Nothing versions the **accepted decision that governs the work**, or records which work was built on which version. Delta Convergence adds that record. When an agent starts, it is handed a **receipt**: a record of exactly which decision versions it was given, with a hash of each. When a decision changes, the receipts say whose work is affected.
+
+The same thing happens outside code. Take a synthetic flood shelter, in a fictional place called Larkhaven County. The intake policy changes: pets are now admitted if crated, and ID is no longer required. A front-desk script, the door signage and a volunteer briefing were each drafted from the old policy, and nothing marks them out of date. The supply list and the shift schedule never depended on those rules, and should be left alone.
 
 | Question | Git + CI + PR review | Delta Convergence |
 |---|---|---|
-| Do the two branches merge cleanly? | Yes | Not its job |
-| Do each branch's own tests pass? | Yes | Not its job |
-| Which decision version was this branch built on? | Not recorded | Receipt: record, version, hash |
-| The decision just changed. Which in-flight work is affected? | Unknown | Stale, with the changed facets named |
-| Which work is *not* affected? | Unknown | Left alone, with a reason code |
-| Can the stale branch merge? | Yes | No, until a human resolves it |
+| Do the two branches merge cleanly? | Yes | Not its job. It does not replace the merge. |
+| Does each branch pass its own checks? | Yes | Not its job. |
+| Which decision version was this work built on? | Not recorded | Recorded in the receipt: record, version, hash. |
+| The decision just changed. Which in-flight work is affected? | Unknown | The work that declared a dependency on what changed, with the changed fields named. |
+| Which work is not affected? | Unknown | Left alone, with a reason recorded. |
+| Can the stale work merge? | Yes | Not through Delta Convergence, until a human resolves it. |
+
+The last row has a catch. It only holds for work that goes through Delta Convergence. See [Honest limits](#honest-limits).
 
 ## How it works
 
-| Concept | What it is |
-|---|---|
-| **Context record** | A decision or definition: a Markdown file with YAML front-matter in the baseline repo (`context/**.md`). Versioned. Its **facets** are machine-checkable key/value claims, such as `notifications.default: opt-in`. |
-| **Receipt** | Proof of what was *delivered* to an agent: record ids, versions and hashes at dispatch. Proves delivery, not understanding. Designed to be written as a **git note** on the agent's fork (`refs/notes/delta`) so any git client can read it. |
-| **Staleness** | Facet-level. A new accepted version is diffed against each non-promoted item's receipt. Only items with an accepted dependency on a *changed facet* go stale. A prose-only edit stales nothing (`PROSE_ONLY`). |
-| **Claim** | A structured assertion an agent makes about its output (`.delta/claims.json`). Self-reported, so always labelled *agent-asserted, unverified*. |
-| **Evidence** | The result of a contract check that **Delta runs** at the fork head. Not agent-reported. A conflict does not depend on the agent being honest about its own claims. |
-| **Gate** | Promotion is allowed only if the item is fresh and every required check passes at the current heads, or a human with authority granted a bound, scoped exception. Anything unknown blocks. |
-| **Human resolution** | `revalidate` (re-dispatch the agent on new context), `accept-exception` (scoped, with a rationale), or `reject`. Agents cannot resolve. Each resolution is bound to the record version and hash, base commit and fork head. |
-| **Ledger** | Append-only and hash-chained. Every observation, effect and refusal is a line, with a reason code. |
+Terms, each in one sentence:
 
-### The agents are LLMs; the referee isn't
+| Term | Meaning |
+|---|---|
+| **Decision record** (context record) | A Markdown file with YAML front matter in the baseline repo (`context/**.md`) that states an accepted decision. It is versioned. |
+| **Facet** | One checkable key and value inside a decision record, such as `notifications.default: opt-in`. |
+| **Receipt** | The record of which decision versions and hashes an agent was handed. It proves delivery, not that the agent read or followed them. It is also written as a git note on the agent's fork (`refs/notes/delta`) when a revalidation is dispatched. |
+| **Stale** | A work item whose receipt points at a version of a facet it depends on that has since changed. Stale is not the same as wrong. |
+| **Claim** | A structured statement an agent makes about its own output (`.delta/claims.json`). It is self-reported, so the console labels it "agent-asserted, unverified". |
+| **Evidence** | The result of a check that Delta Convergence itself runs on the pushed files. It does not depend on the agent being honest. |
+| **Gate** | The test for promotion: the work is fresh and its required checks passed at the current heads, or a human holding the right authority granted a scoped exception. Anything unknown blocks. |
+| **Resolution** | A human decision on stale work: revalidate (re-run the agent on the new decision), accept an exception (scoped, with a rationale), or reject. Agents cannot resolve. |
+| **Ledger** | An append-only, hash-chained log. Every observation, effect and refusal is a line, with a reason code. |
+| **Reconcile** | The function that takes the current state and a new event and returns the new state plus a list of effects. Section below. |
+
+The flow:
+
+1. Decisions live as versioned records in a baseline repo. Each work item gets its own fork of that repo.
+2. An agent is handed a receipt and works on its fork.
+3. When someone commits a new decision version to the baseline, the system compares the changed facets with each item's receipt and declared dependencies.
+4. Work that depends on a changed facet goes stale and is blocked from promotion. Work that does not is left alone, with a reason.
+5. A named human resolves the stale work. Revalidation re-runs the agent with the old and new decision side by side. Promotion merges only if the gate passes at the current heads.
+
+### The agents are models; the referee isn't
 
 Models do the work and propose changes. They never authorize anything. Staleness, claim comparison, the gate and the ledger are plain functions of explicit state:
 
@@ -48,24 +87,24 @@ Models do the work and propose changes. They never authorize anything. Staleness
 reconcile(state, event, policy) -> { state, effects }
 ```
 
-No LLM is required to operate Delta; models propose, rules and humans decide. In this repo, `packages/delta-core` is pure: no I/O, clock, randomness, network or model SDK. `packages/delta-core/src/purity.test.ts` scans the sources for those and fails if any appear.
+No LLM is required to operate Delta Convergence. In this repo, `packages/delta-core` is pure: no I/O, clock, randomness, network or model SDK. `packages/delta-core/src/purity.test.ts` scans the sources for those and fails if any appear.
 
-### Rules
+### The rules, in plain words
 
-| Rule | Behavior |
+| Rule | What it does |
 |---|---|
-| R1 Staleness | Changed facet plus accepted dependency gives `Stale`, `BLOCK_PROMOTION`, `REQUEST_REVIEW`. Prose-only gives `NO_ACTION`. |
-| R2 Unaffected | No dependency on a changed facet: untouched, with a reason code. |
-| R3 Claim conflict | A claim that differs from the accepted facet, or was based on a superseded one, is a conflict. Missing or malformed claims fail closed (`Uncertain`). |
-| R3b Cross-claim | Two live items claiming different values for a subject nothing governs: `Uncertain`. |
-| R4 Undeclared reliance | A claim citing a record outside the receipt creates a *proposed* dependency. A human accepts or rejects it. |
-| R5 Gate | Fresh and checks passed, or a bound exception. Forks that edit `context/**` are never promotable. |
-| R6 Revalidation | New receipt at current versions, diff-aware re-dispatch, loop guard after `maxRevalidations`. |
-| R7 Binding | Resolutions are bound to versions, hashes and heads. Promotion is two-phase and re-checks the gate at merge time. |
-| R8 Evidence | Contract checks run by Delta at the fork head and again at promote. |
-| R9 Idempotency | Events are deduplicated on `(repo, commitSha)`. Commands dedupe on their `Idempotency-Key`. |
+| R1 Staleness | If a facet that an item depends on has changed, the item is stale, promotion is blocked and review is requested. A wording-only edit changes no facet and stales nothing (`PROSE_ONLY`). |
+| R2 Unaffected | An item with no dependency on a changed facet is left alone, and the ledger says why. |
+| R3 Claim conflict | A claim that disagrees with the accepted facet, or that cites a superseded version of a facet that changed, is a conflict. Missing or malformed claims fail closed (`Uncertain`). |
+| R3b Cross-claim | Two live items claiming different values for a subject no decision governs are marked `Uncertain`. |
+| R4 Undeclared reliance | A claim that cites a decision outside the item's receipt creates a proposed dependency. A human accepts or rejects it. |
+| R5 Gate | Promotion needs a fresh item with passing required checks, or a bound exception. A fork that edits `context/**` can never be promoted. |
+| R6 Revalidation | Revalidating issues a new receipt at the current versions and re-runs the agent. After `maxRevalidations` loops, it asks for review instead. |
+| R7 Binding | A resolution is bound to the decision version and hash, the base commit and the fork head. Promotion re-checks the gate at merge time. |
+| R8 Evidence | Checks are run by Delta Convergence on the pushed files, not reported by the agent. |
+| R9 Idempotency | A repeated event (same repo and commit) produces one ledger line. Mutating requests carry an `Idempotency-Key`. |
 
-Five named invariant tests (`packages/delta-core/src/testing/invariants.ts`) run against both scenarios:
+Five named invariant tests (`packages/delta-core/src/testing/invariants.ts`, run by `invariants.test.ts`) run against the fixtures:
 
 1. unaffected work never changes status
 2. prose-only edit stales nothing
@@ -73,7 +112,31 @@ Five named invariant tests (`packages/delta-core/src/testing/invariants.ts`) run
 4. agent actor cannot resolve
 5. chain breaks on any edit
 
-Design choices where the PRD left room are in [`packages/delta-core/DESIGN-NOTES.md`](packages/delta-core/DESIGN-NOTES.md).
+Design choices where the spec left room are in [`packages/delta-core/DESIGN-NOTES.md`](packages/delta-core/DESIGN-NOTES.md). The full spec is [`docs/PRD.md`](docs/PRD.md). The control loop is described in [`docs/control-loop.md`](docs/control-loop.md).
+
+## Scenarios
+
+All of these run through the same engine, with different fixtures.
+
+| | **Notifications** (coding) | **Larkhaven County shelter** (knowledge work) | **Our own build** |
+|---|---|---|---|
+| What it is | A small TypeScript status service | A fictional county's flood shelter, five drafts from one intake policy | This repo's own decisions, governed by Delta Convergence |
+| Decision that changes | `notifications` v1 (on by default, immediate) becomes v2 (opt-in, weekly digest) | `shelter-intake-policy` v1 to v2 (pets, ID), then v3 (capacity note) | Six decision records, for example what counts as a contract test, or the name of the fictional county |
+| Goes stale | WI-2 notification delivery | Front-desk script, door signage, volunteer briefing | Whatever declared a dependency on the changed facet |
+| Left alone | WI-1 status badges | Supply list, shift schedule | The rest, including a negative control |
+| Resolution | Revalidate, then promote | Script and briefing revalidated; signage gets a scoped exception that lapses when the policy moves to v3 | Humans resolve outside the console |
+| Where it runs | Console replay; live on the Worker with stub agents | Console replay and engine tests | Console replay, plus a live cell |
+| Extra beats | A typo edit stales nothing. A fan-out of 40 seeded items in one pass | Exception lapse (`EXCEPTION_LAPSED`) | Wording-only edit |
+
+**Notifications** is the main demo. Two agents run at once on separate forks, a decision changes mid-flight, delivery goes stale and badges stay green. The delivery work is blocked even though a plain git merge of both forks is clean.
+
+**Larkhaven County shelter** is a synthetic scenario, not operational guidance. The county, its flood and its volunteer network are invented, and nothing in it should be used as an alert, as eligibility guidance or as an operating instruction. The console keeps that note on screen while it is open. It is replayed in the console and walked through in engine tests; it has not been run with live agents on the Worker. Details: [`scenarios/shelter-intake/README.md`](scenarios/shelter-intake/README.md).
+
+**Our own build** is Delta Convergence governing its own build. The replay (`?mock=1&scenario=delta-convergence-build`) reconstructs our decisions from this repo's git history, and the console says it is retrofitted: nothing in it was detected at the time. A live cell has recorded real decisions since Oct 13. Its work items are pointers to real pull requests, it never dispatches an agent and never merges, and humans resolve outside the console. Details and the commands: [`docs/dogfooding.md`](docs/dogfooding.md).
+
+Seeded work items (`source: seeded`) have no model behind them and are always labelled as seeded. A fourth fixture, Northwind sales ops, is still in the repo and in the engine tests, and is hidden from the console tabs (`?scenario=sales-ops` opens it in replay).
+
+<!-- TODO(andrew): the live run command for the shelter act. A separate PR is adding it. Add it to the Larkhaven paragraph above when that PR merges. -->
 
 ## Architecture
 
@@ -82,9 +145,9 @@ flowchart LR
   human([Human]) -->|decide, resolve| console
 
   subgraph cf [Cloudflare]
-    console["Console<br/>React SPA, Worker static assets"]:::wip
-    worker["Worker: Delta API<br/>Hono"]
-    cell[("WorkspaceCell<br/>Durable Object, SQLite<br/>state + ledger + reconcile")]:::wip
+    console["Console<br/>React SPA, Worker static assets"]
+    worker["Worker: API<br/>Hono"]
+    cell[("WorkspaceCell<br/>Durable Object, SQLite<br/>state + ledger + reconcile")]
 
     subgraph art [Artifacts]
       base["baseline repo<br/>context/ decisions/ code"]
@@ -97,7 +160,7 @@ flowchart LR
       agent2["AgentSandbox DO<br/>+ container<br/>Claude Code headless"]
     end
 
-    gw["Outbound handlers<br/>ArtifactsGateway, ModelGateway<br/>inject credentials"]
+    gw["Outbound gateways<br/>ArtifactsGateway, ModelGateway<br/>inject credentials"]
   end
 
   openrouter["OpenRouter<br/>model gateway"]
@@ -107,7 +170,7 @@ flowchart LR
   worker -->|"seed, fork, read<br/>git writes over HTTPS"| base
   base -. fork .-> fork1
   base -. fork .-> fork2
-  cell -.->|"poll log, dedupe<br/>(planned)"| art
+  cell -.->|"poll log, dedupe"| art
   worker -->|dispatch| agent1
   worker -->|dispatch| agent2
   agent1 --> gw
@@ -115,153 +178,180 @@ flowchart LR
   gw -->|git push, token added| fork1
   gw -->|git push, token added| fork2
   gw -->|"model calls, key added"| openrouter
-
-  classDef wip stroke-dasharray: 5 5,stroke:#b45309;
 ```
 
-Dashed boxes and the dotted poll edge are in progress or planned and are not on `main` yet. The Worker never lets the model key or an Artifacts token into an agent container: the container has no direct internet, and the outbound handlers add credentials only for that fork's git host and the model endpoint. Details: [`docs/agent-runtime.md`](docs/agent-runtime.md).
+In words:
+
+- **Workers (Hono)** serve the API behind a bearer guard and serve the console as static assets.
+- **A `WorkspaceCell` Durable Object per scenario**, backed by SQLite, holds the state, the hash-chained ledger and the dedupe table. It runs `reconcile` one event at a time, polls the Artifacts repos on an alarm, and fans events out to consoles over hibernating WebSockets.
+- **Artifacts** holds one baseline repo per scenario and one fork per work item. The binding only reads and manages repos and tokens, so writes go over git on HTTPS with isomorphic-git and a patched in-memory filesystem. Receipts are written as git notes when a revalidation is dispatched.
+- **Sandbox containers**, one per agent, are owned by an `AgentSandbox` Durable Object. The container clones the fork, runs the agent, commits as the work item and pushes.
+- **No token is ever in the container.** The container has no direct internet. An outbound gateway adds the Artifacts token for exactly one fork's git host, and another adds the model key for the model endpoint. Everything else gets a 403. Details: [`docs/agent-runtime.md`](docs/agent-runtime.md).
+- **Polling, not event subscriptions.** The cell polls each repo's log every few seconds (3 s by default). Queues are not used.
+- **The console** is a React single-page app (Vite, Tailwind v4, shadcn, React Flow) built to `apps/console/dist` and served by the Worker.
 
 ### Where Workers and Artifacts are used
 
 | Primitive | Use | Where |
 |---|---|---|
-| **Artifacts** | One baseline repo per scenario, one fork per work item. Read through the binding (`log`, `readFile`, `fork`, `create`). | `apps/worker/src/artifacts/git-write.ts`, `apps/worker/src/smoke.ts` |
+| **Artifacts** | One baseline repo per scenario, one fork per work item. Read through the binding (`log`, `readFile`, `fork`, `create`). | `apps/worker/src/cell/artifacts-port.ts`, `apps/worker/src/smoke.ts` |
 | **Artifacts, git over HTTPS** | The binding is read-only, so writes use isomorphic-git with a patched in-memory fs. Tokens go in an auth header, are stripped of their expiry suffix, and are redacted from logs. | `apps/worker/src/artifacts/{git-write,memory-fs,tokens}.ts` |
+| **Artifacts, merge and notes** | Promotion merges in the Worker. Receipts are written as git notes on the fork. | `apps/worker/src/artifacts/{git-merge,git-note}.ts` |
 | **Artifacts, tree diff** | Recursive tree walk to compare a fork with its base. | `apps/worker/src/artifacts/tree-diff.ts` |
-| **Workers (Hono)** | Delta API, bearer auth, agent dispatch, repo log and file reads. | `apps/worker/src/index.ts` |
-| **Durable Objects** | `WorkspaceCell` (SQLite) is the home for state, ledger and reconcile. `AgentSandbox` runs one agent per work item. | `apps/worker/src/workspace-cell.ts` (skeleton), `apps/worker/src/agents/sandbox.ts` |
+| **Workers (Hono)** | API, bearer auth, agent dispatch, static console. | `apps/worker/src/index.ts`, `apps/worker/src/cell/routes.ts` |
+| **Durable Objects** | `WorkspaceCell` (SQLite) holds state, ledger, poller and WebSocket fan-out. `AgentSandbox` runs one agent per work item. | `apps/worker/src/cell/`, `apps/worker/src/agents/sandbox.ts` |
 | **Sandbox containers** | One container per agent: clone the fork, run the agent, commit as the work item, push. | `apps/worker/container/`, `apps/worker/src/agents/`, `apps/worker/wrangler.jsonc` |
-| **Queues** | Not used. Push detection is polling first. | n/a |
-| **WebSocket hibernation** | Planned for live console updates. | n/a |
-
-<!-- VERIFY: update this table when the WorkspaceCell store, poller and WebSocket fan-out merge (T-4). Do not list Queues or hibernation unless they ran in the deployed build. -->
+| **Queues** | Not used. Push detection is polling. | n/a |
 
 ### Repo layout
 
 ```
 packages/contracts/   Zod schemas: records, receipts, claims, evidence, dependencies, resolutions, events, effects
 packages/delta-core/  pure reconcile(state, event, policy); rules R1-R9; WebCrypto hash-chained ledger
-apps/worker/          Hono API, WorkspaceCell DO, Artifacts adapter, Sandbox agent runtime
-apps/console/         React SPA (placeholder on main)
-scenarios/            notifications (coding) and sales-ops (knowledge work) fixtures
-scripts/              check-overlap.mjs: proves concurrent agent runs against a deployed Worker
-docs/                 PRD, agent runtime notes, submission drafts
+apps/worker/          Hono API, WorkspaceCell DO, poller, Artifacts adapter, Sandbox agent runtime
+apps/console/         React SPA: live client and in-browser replay
+scenarios/            notifications, shelter-intake, delta-convergence-build, sales-ops fixtures
+scripts/              check-live.mjs, check-overlap.mjs, dogfood.mjs, try-models.mjs
+docs/                 spec, control loop, agent runtime, live verification, dogfooding, submission drafts
 ```
 
-## Two scenarios, one engine
+## Running live
 
-| | **Notifications** (coding) | **Sales-ops** (knowledge work) |
-|---|---|---|
-| Company | A small TypeScript project-status service | Northwind Field Services, a synthetic company |
-| Decision that changes | `notifications` v1 (default-on, immediate) becomes v2 (opt-in, weekly digest) | `qualified-lead` v1 (form fill and 50+ employees) gains a verified budget signal in v2 |
-| Affected | WI-2 notification delivery goes stale and conflicts | WI-3 Q4 forecast and WI-4 SDR priorities go stale |
-| Unaffected | WI-1 status badges stays fresh | WI-5 activity glossary stays fresh |
-| Resolution | Revalidate, then promote | One revalidated, one scoped accept-exception |
-| Extra beats | Typo edit stales nothing. 50 seeded items evaluated in one pass | Same engine, no code change |
+Live mode uses real Artifacts repos, real Durable Objects and (optionally) real agents. Replay does not need any of this.
 
-The knowledge-work domain may change before submission; the point is that it is not code. Fixtures live in `scenarios/`. The engine test [`packages/delta-core/src/scenarios.test.ts`](packages/delta-core/src/scenarios.test.ts) walks both. Seeded work items (`source: seeded`) have no model behind them and are always labelled as seeded.
-
-<!-- VERIFY: console views, live agents and replay of these scenarios depend on T-5, T-6, T-7 and T-8. Re-check this section and the video script against what ships. -->
-
-## Run it
-
-Requires Node 26+ and pnpm 10+.
-
-**Install, typecheck, test.** No network and no keys needed for typecheck and test:
+You need your own Cloudflare account on Workers Paid with Artifacts and Containers access, and Docker to build the container image. Put `CLOUDFLARE_ACCOUNT_ID` in a gitignored `.env`, not in `wrangler.jsonc`. `wrangler dev` has no Artifacts emulator, so it talks to the real service.
 
 ```bash
 pnpm install
-pnpm -r typecheck
-pnpm -r test          # vitest
-```
-
-**Worker locally.** `wrangler dev` has no Artifacts emulator, so it talks to the real service and needs a Cloudflare account with Artifacts access:
-
-```bash
-cp apps/worker/.dev.vars.example apps/worker/.dev.vars   # set DEV_TOKEN
-pnpm --filter worker dev
-```
-
-**Deploy** (maintainer machine only). Needs your own Cloudflare account on Workers Paid with Artifacts and Containers access, and Docker to build the container image. Put `CLOUDFLARE_ACCOUNT_ID` in a gitignored `.env`, not in `wrangler.jsonc`.
-
-```bash
-wrangler secret put DEV_TOKEN               # bearer token for /api/*
-wrangler secret put OPENROUTER_API_KEY      # only for AGENT_MODE=claude
+pnpm build:console
+cp apps/worker/.dev.vars.example apps/worker/.dev.vars   # set DEV_TOKEN (gitignored)
+wrangler secret put DEV_TOKEN                            # bearer token for /api/*
 pnpm --filter worker exec wrangler deploy
 ```
 
-**Agent modes.** `AGENT_MODE=stub` (default) runs a scripted agent and needs no model key. `AGENT_MODE=claude` runs Claude Code headless through OpenRouter; `AGENT_MODEL` pins the model slug. Prove concurrency against a deployed Worker (needs `ENABLE_SMOKE=1`):
+- **Bearer token.** Every `/api/*` route and the WebSocket need `DEV_TOKEN`. The console asks for it on first load and keeps it in `sessionStorage` only. Do not put it in a URL or commit it.
+- **`ENABLE_SMOKE`.** Seeding and cleanup routes create and delete real repos, so they are off by default (`ENABLE_SMOKE=0`). Deploy with `--var ENABLE_SMOKE:1` to use them, and turn them off again afterwards.
+- **Check the whole loop.** `scripts/check-live.mjs` seeds a baseline and two forks, runs the Notifications scenario end to end with stub agents, prints PASS or FAIL per check with timings, and deletes the repos it made:
+
+  ```bash
+  set -a; . ./.env; set +a          # DEV_TOKEN
+  WORKER_URL=https://<your-worker>.workers.dev node scripts/check-live.mjs
+  ```
+
+  It needs `ENABLE_SMOKE=1` and `AGENT_MODE=stub`. What it has been seen to do on a deployed Worker, and what is still unverified, is in [`docs/live-verification.md`](docs/live-verification.md).
+- **Concurrency proof.** `node scripts/check-overlap.mjs --forks 2 --cleanup` dispatches one work item per fork at once and asserts that the run windows overlap and that each fork has its own author.
+- **Real agents.** `AGENT_MODE=stub` (the default) runs a scripted agent and needs no model key. `AGENT_MODE=claude` runs Claude Code headless through OpenRouter. Set the key as a Worker secret and never commit it:
+
+  ```bash
+  wrangler secret put OPENROUTER_API_KEY
+  ```
+
+  `AGENT_MODEL` sets the default model slug, and gateway caps on requests, tokens and dollars apply to every run. See [`docs/agent-runtime.md`](docs/agent-runtime.md).
+
+Requires Node 26+ and pnpm 10+.
+
+## Tests
 
 ```bash
-WORKER_URL=https://<your-worker>.workers.dev node scripts/check-overlap.mjs --forks 2 --cleanup
+pnpm -r typecheck
+pnpm -r test          # vitest; no network and no keys
 ```
 
-Deployed demo and video: not published yet.
-<!-- VERIFY: add the deployed URL, video link and the exact fresh-clone steps after T-8 and T-12. Replay mode (run with no credentials) is planned; do not document it until it ships. -->
+Result on `main` plus this README, run 2026-10-13: typecheck clean, and all tests pass.
 
-## What Delta does not do
+| Package | Test files | Tests |
+|---|---|---|
+| `packages/contracts` | 4 | 59 |
+| `packages/delta-core` | 15 | 280 |
+| `apps/worker` | 30 | 693 |
+| `apps/console` | 17 | 146 |
+| **Total** | **66** | **1,178** |
 
-- **It only gates actions that flow through it.** An agent or person with their own repo credentials can walk around it. The Worker is meant to be the single writer to the baseline.
-- **It checks declared facets and claims only.** It does not understand arbitrary text. If a dependency is neither declared nor claimed, Delta does not know about it.
-- **A receipt proves delivery, not understanding.** It says what an agent was handed, not that it read or followed it.
-- **Stale does not mean wrong.** It means built on a superseded version. A human decides.
-- **Claims are self-reported.** Only Delta-run contract checks are verified, and only for what the check asserts.
-- **Identity is simulated.** The demo uses a bearer token and a labelled demo identity. In the solo demo one person holds both exception and promote authority.
+The `scenarios/*` packages have no test files of their own; their fixtures are exercised by the `delta-core` tests.
+
+What these tests are, plainly:
+
+- The contract and rule tests are written by us ahead of time, as fixed fixtures and assertions. No model generates or judges them when they run.
+- The Worker tests run the Durable Object in a local workerd (Miniflare) against an in-memory fake of Artifacts. They do not touch the real service. The real service was exercised separately by the live scripts above, by hand, and those runs are recorded in `docs/live-verification.md`, not in `pnpm -r test`.
+- The "contract check" that Delta Convergence runs on an agent's pushed files is a plain-text match that the code declares each governed facet with the accepted value (for example `export const NOTIFICATIONS_DEFAULT = "opt-in";`). It is not a test suite and it does not run the project's code. A commented-out declaration with the right literal also matches. The product says "Delta Convergence contract check", never "tests passed".
+
+## Honest limits
+
+- **Stale is not wrong.** Stale means the work was built on a version that has since been replaced, and the work may well still be right, which is why a human decides.
+- **Approval needs a basis, not just a status.** A resolution is only meaningful if it is bound to the exact decision version, base commit and fork head it was made against, so a bare "approved" flag would not be enough.
+- **A receipt is not proof of complete dependency coverage.** It says what an agent was handed and what was declared, not that every decision the work really relied on was listed.
+
+And the limits of the system itself:
+
+- **Dependencies are declared, not inferred.** If a dependency is neither declared nor claimed, Delta Convergence does not know about it, and nothing goes stale. It does not read arbitrary text.
+- **It only gates actions that flow through it.** Someone with their own repo credentials can walk around it. The Worker is meant to be the only writer to the baseline.
+- **Claims are self-reported.** Only the checks that Delta Convergence runs are verified, and only for what the check asserts. See [Tests](#tests) for how narrow that is.
+- **One Durable Object per workspace.** Events for a scenario are applied one at a time, which keeps the ledger consistent and caps throughput for that scenario. Scale beyond that has not been tested.
+- **Polling latency.** Pushes are noticed on a poll (3 s by default) rather than pushed to the Worker. On the deployed Worker, a decision change showed up as stale in 1.2 to 4 seconds in recorded runs. That timing includes the commit push itself.
+- **Identity is simulated.** The demo uses one shared bearer token and a labelled "Decision owner (demo identity)". In the solo demo, one person holds both exception and promote authority. Real per-user auth is not built.
+- **A merge can still conflict.** If a fork's text conflicts with the baseline at promotion, the promote is refused with `MERGE_CONFLICT`. Delta Convergence reports it and does not resolve it.
+- **Replay is replay.** The console's replay mode runs the real rule code on scripted events. The agents, git and the clock are scripted, and the header says so. The shelter scenario, the fan-out strip and the build history are replay or seeded, not live agents.
 - **It does not auto-resolve consequential conflicts**, replace Git or Artifacts, or build a knowledge graph.
+- **Artifacts is in open beta**, and the behavior described here is what we observed on it.
 
 ## Implemented vs not
 
-As of 2026-10-12. "Built" means code on `main` with the named tests passing. Nothing here is "verified" beyond what the Notes column states.
+As of 2026-10-13, checked against `main`. "Built" means code on `main` with tests, and "observed live" means we saw it on a deployed Worker (see `docs/live-verification.md`). Anything we have not seen is marked "not yet".
 
-| Item | Status | Backed by / notes |
+| Item | Status | Notes |
 |---|---|---|
-| Zod contracts, record parser (fail closed) | Built | `packages/contracts` tests |
-| `reconcile`, rules R1-R9 and R3b, dry-run gate | Built | `packages/delta-core` tests, five named invariants, both scenarios |
+| Zod contracts, record parser (fails closed) | Built | `packages/contracts` tests |
+| `reconcile`, rules R1 to R9 and R3b, dry-run gate | Built | `packages/delta-core` tests, five named invariants |
 | Purity: no I/O, clock, randomness, network or model SDK in `delta-core` | Built | `purity.test.ts` |
-| Hash-chained ledger (WebCrypto) | Built | `ledger.test.ts`, "chain breaks on any edit" |
-| Both scenario fixtures and engine walk-throughs | Built | `scenarios.test.ts` |
-| Fan-out over seeded items (engine level) | Built | `fanout.test.ts` (50 items; 300-item timing test). No console strip yet |
-| Worker, Artifacts seed and fork, git writes over HTTPS | Built | `apps/worker` tests. Live smoke test against Artifacts on 2026-10-12 per commit history |
-| Sandbox agent runtime, stub agent, credential isolation | Built | `apps/worker/src/agents/*` tests. Two- and four-way concurrent runs reported live on 2026-10-12 per commit history |
-| Claude agents via OpenRouter (`AGENT_MODE=claude`) | Wired, not yet shown in a recorded run | Config and gateway in place <!-- VERIFY: confirm a real Claude run completed against a fork before claiming this --> |
-| Receipts as git notes | Serializer built; not yet written to forks | `receipt-note.ts` and tests <!-- VERIFY: update when the note is pushed and readable with `git notes --ref=delta show` --> |
-| `WorkspaceCell` store: state, ledger persistence, reconcile in the DO | In progress | Skeleton only on `main` <!-- VERIFY: control loop (T-4) --> |
-| Push detection: poller, dedupe, event pipeline | In progress | Polling first <!-- VERIFY: control loop (T-4) --> |
-| Queues push events | Not built | Optional upgrade over polling |
-| Live console updates over WebSocket | In progress | <!-- VERIFY: console and WebSocket (T-5) --> |
-| Convergence Console (work graph, inspector, why panel) | In progress | Placeholder package on `main` <!-- VERIFY: console (T-5) --> |
-| Delta-run contract check runner (R8) at fork head | In progress | Core consumes `Evidence`; the runner is not wired <!-- VERIFY: T-4 or T-6 --> |
-| Resolve, revalidate re-dispatch, promote and merge via the Worker | In progress | Gate and binding logic are in `delta-core`; HTTP endpoints and merge are not <!-- VERIFY: resolve/promote (T-6) --> |
-| Scenario B (sales-ops) end to end | Seeded or replay first | Fixtures built; live agents undecided |
-| Replay mode | In progress | <!-- VERIFY: replay mode (T-8). Replay segments must be labelled replay --> |
-| Local agent runner fallback (`apps/runner`) | Not built | Only if Sandbox fails |
-| Deployed URL, demo video | Not yet | |
-| Authority and approvals as first-class objects, MCP server, AI dependency inference | Not built | After the contest |
+| Hash-chained ledger (WebCrypto) and verification | Built | `ledger.test.ts`; chain verified on every scenario in live runs |
+| `WorkspaceCell` store: state, ledger, dedupe in Durable Object SQLite | Built, observed live | Same conformance suites run on Node SQLite and real Durable Object SQLite in workerd |
+| Poller, dedupe and event pipeline | Built, observed live | Polling only |
+| WebSocket live updates (hibernation API) | Built, observed live | Browser socket with the `delta.v1` and bearer subprotocol connected on the deployed Worker |
+| Worker, Artifacts seed and fork, git writes over HTTPS | Built, observed live | |
+| Resolve (revalidate, accept exception, reject) and promote with a real merge | Built, observed live | With stub agents. Promote fast-forward and a true merge were both seen on Artifacts |
+| Revalidate re-dispatch: new receipt, agent re-run, new claims | Built, observed live | With the stub agent. The agent run is dispatched by the cell itself |
+| Sandbox agent runtime, concurrent runs, credential isolation | Built, observed live | Concurrent stub runs on separate forks were seen overlapping. Gateways enforce request, token and dollar caps |
+| Claude agents through OpenRouter (`AGENT_MODE=claude`) | Observed live on three models; default deploy is stub | `openai/gpt-6-luna`, `z-ai/glm-5.3-flash` and `minimax/minimax-m3` each completed the notifications task on a fork with a verified push. Anthropic-hosted models have not yet been shown to complete a run. |
+| Receipts as git notes | Partly | Written by the Worker when a revalidation is dispatched and read back with `git notes --ref=delta show` on Artifacts. The first receipt a fork gets is not yet written as a note. |
+| Checks run by Delta Convergence (R8) at the pushed head | Built, narrow | Plain-text match for Notifications and the shelter scenario. No project test suite is run. Sales ops has no check. |
+| Convergence Console: work graph, inspector, "Why is this blocked?", actions | Built | Live client and replay. Live mode was checked in a headless browser on the deployed Worker |
+| Replay mode (`?mock=1`) | Built | Deployed URL above returns 200. Replay is labelled as replay in the header |
+| Fan-out over seeded items | Built | Engine test with 50 items, plus a 300-item timing test. The console script shows 40 seeded items, labelled as seeded |
+| Larkhaven County shelter scenario | Replay and engine tests | Not seeded on the Worker and not run with live agents |
+| Our own build, live cell | Built (code and tests) | Pointer work items and humans resolving outside the console, per `docs/dogfooding.md`. Its cell needs the bearer token, so the public link shows the replay only |
+| Queues push events | Not built | Polling is used instead |
+| Local agent runner fallback (`apps/runner`) | Not built | Sandbox worked, so it was not needed |
+| Container-run project test suite as evidence | Not built | Only the plain-text contract check exists |
+| Real per-user auth, authority and approvals as first-class objects | Not built | After the contest |
+| MCP server, AI dependency inference, claim extraction | Not built | After the contest |
+| Demo video | Not yet | Link to be added |
 
 Try Together / what-if (see what would go stale under a proposed decision before accepting it) was considered and cut.
 
+<!-- TODO(andrew): add the demo video link once it is recorded and uploaded. -->
+
 ## Why not X?
 
-These were compared from each tool's published documentation, not tested hands-on. Corrections welcome.
+These were compared from each tool's published documentation, not tested hands-on. Each does its own job well, and this table is about the one thing Delta Convergence adds. Corrections welcome.
 
-| Alternative | What it does well | What it appears not to track |
+| Alternative | What it is for | What Delta Convergence adds |
 |---|---|---|
-| **Git + CI + PR review** | Line-level conflicts, per-branch tests, review history. | Which decision version a branch was built on. Two branches can merge clean, pass their tests, and contradict a changed decision. |
-| **Spec tools + CI** (for example [Spec Kit](https://github.com/github/spec-kit)) | Turn a spec into a plan and tasks; CI checks code against it at one moment. | Which in-flight work was built on which spec version, and what to do when the spec changes mid-flight. |
-| **Parallel-agent tools + PRs** | Run many agents on isolated branches or worktrees, then review diffs. | Whether the agents were building from the same decision. Merging is the gate, not meaning. |
-| **Broadcast notifications** | Tell everyone something changed. | Who is affected, who is not, and no blocking. Delta leaves unaffected work alone and gates the affected work. |
-| **[AGENTS.md](https://agents.md)** | A convention for giving agents project instructions. | It is read at start, with no receipt of what was delivered, no staleness, no gate. Delta uses it as the carrier for the agent protocol. |
+| **Git + CI + PR review** | Line-level conflicts, per-branch checks, review history. | A record of which decision version a branch was built on, so two branches that merge clean and pass can still be caught when a decision moves. |
+| **Spec tools + CI** (for example [Spec Kit](https://github.com/github/spec-kit)) | Turn a spec into a plan and tasks, and check code against it at one moment. | Tracking of which in-flight work was built on which version of the spec, and a gate when the spec changes mid-flight. |
+| **Parallel-agent tools + PRs** | Run many agents on isolated branches or worktrees, then review the diffs. | A check that the agents were building from the same decisions. In these tools the merge is the gate. Here the decision version is. |
+| **Broadcast notifications** | Tell everyone something changed. | Who is affected, who is not, and a block on the affected work. |
+| **[AGENTS.md](https://agents.md)** | A convention for giving agents project instructions. | A receipt of what was delivered, staleness and a gate. Delta Convergence uses the same convention to hand instructions to an agent. |
 
 ## Prior art and credit
 
-- **Kubernetes controllers.** The reconcile-desired-against-actual shape. Delta compares accepted context with in-flight work instead of infrastructure.
-- **Git and [Radicle](https://radicle.xyz).** Provenance of who changed what and who authorized it, as described in their public docs. Delta tracks a different thing: which work depended on which accepted meaning. <!-- VERIFY: Radicle description against its docs before submission -->
+- **Kubernetes controllers.** The shape of comparing desired state against actual state. Delta Convergence compares accepted decisions with in-flight work instead of infrastructure.
+- **Git and [Radicle](https://radicle.xyz).** Provenance of who changed what and who authorized it, as described in their public docs. Delta Convergence tracks a different thing: which work depended on which accepted decision. <!-- VERIFY: Radicle description against its docs before submission -->
 - **Requirements traceability and "suspect links".** Traceability tools flag downstream items when an upstream requirement changes. <!-- TODO(prior-art): credit and comparison pending the prior-art research run. Fill in tools and wording; do not claim novelty over this line of work. -->
-- **Own earlier spikes.** The Artifacts in-memory fs for isomorphic-git, ledger hash chain and graph layout patterns are the author's own prior code, reused. The commit history of this repo stays inside the contest window.
+- **Our own earlier spikes.** The Artifacts in-memory fs for isomorphic-git, the ledger hash chain and the graph layout patterns are the author's own prior code, reused. The commit history of this repo stays inside the contest window.
 
-## Beyond the contest
+## Where this goes
 
-Not built: authority and approvals as first-class objects, cross-org authority boundaries, an MCP server so any agent can fetch its receipt and post claims, AI adapters for dependency inference and claim extraction, a what-if canvas.
+<!-- TODO(andrew): "Where this goes" section. Your call on what to say, if anything. Not built and not promised in this README: authority and approvals as first-class objects, an MCP server so any agent can fetch its receipt and post claims, AI adapters for dependency inference, a what-if view. -->
 
 ## License
 
