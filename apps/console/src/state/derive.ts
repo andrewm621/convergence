@@ -214,9 +214,9 @@ function describeLine(entry: ReconciliationEvent): Omit<LedgerSummary, "noAction
 		case "ResolutionRecorded":
 			return { label: `Resolution: ${event.resolution.kind}`, detail: event.resolution.rationale, workItemId: event.resolution.workItemId, reasonCodes: reasons };
 		case "PromotionRequested":
-			return { label: "Promotion requested", detail: event.forkHeadSha.slice(0, 7), workItemId: event.workItemId, reasonCodes: reasons };
+			return { label: "Merge requested", detail: event.forkHeadSha.slice(0, 7), workItemId: event.workItemId, reasonCodes: reasons };
 		case "PromotionMerged":
-			return { label: "Promotion merged", detail: event.mergeCommitSha.slice(0, 7), workItemId: event.workItemId, reasonCodes: reasons };
+			return { label: "Merge completed", detail: event.mergeCommitSha.slice(0, 7), workItemId: event.workItemId, reasonCodes: reasons };
 		case "AgentRunStarted":
 			return { label: "Agent run started", detail: event.runId, workItemId: event.workItemId, reasonCodes: [] };
 		case "AgentRunFinished":
@@ -756,4 +756,89 @@ export function impactSentence(impact: Impact): string {
 export function impactSummary(impact: Impact): string {
 	if (impact.saves === "nothing") return "Nothing changed yet.";
 	return `Blocks ${impact.blocked.length}, leaves ${impact.leftAlone.length} alone.`;
+}
+
+// ---------- merging: what the confirm sheet and the chips say ----------
+
+/** The accepted exceptions the gate lets this work through on, with who granted each and its scope. Empty unless the gate passes only because of them. */
+export function gateWaivers(view: ViewState, wi: WorkItemState): { recordId: string; scope: string | null; signer: string }[] {
+	if (!view.policy) return [];
+	const verdict = evaluateGate(toCellState(view), wi.item.id, view.policy);
+	if (!verdict.promotable) return [];
+	return verdict.waivedBy.map((r) => ({ recordId: r.binding.recordId, scope: r.scope ?? null, signer: actorLabel(view, r.actor.id) }));
+}
+
+/** Ready to merge, but only because an accepted exception lifts what would block it (rule R5). Not the same as clean. */
+export function readyByException(view: ViewState, wi: WorkItemState): boolean {
+	return wi.item.status === "ready" && gateWaivers(view, wi).length > 0;
+}
+
+export type MergeCheck = { key: "decisions" | "check" | "claims"; ok: boolean; text: string };
+
+/**
+ * What the gate looked at, worded for the confirm sheet: one phrase per thing it checks, taken from the same analysis the
+ * gate runs. A phrase only says "passed" or "match" when that is what the facts say; when no check exists it says so.
+ */
+export function mergeChecks(view: ViewState, wi: WorkItemState): MergeCheck[] | null {
+	const analysis = analysisOf(view, wi.item.id);
+	if (!analysis) return null;
+	const claims = semanticDiff(view, wi, analysis);
+	const decisions: MergeCheck = analysis.stale.length === 0 ? { key: "decisions", ok: true, text: "built on current decisions" } : { key: "decisions", ok: false, text: "built on an older decision" };
+	const check: MergeCheck =
+		analysis.failedChecks.length > 0
+			? { key: "check", ok: false, text: "check failing" }
+			: analysis.testsPassed
+				? { key: "check", ok: true, text: "check passed" }
+				: analysis.requiredChecks.length === 0 && analysis.testEvidence.length === 0
+					? { key: "check", ok: true, text: "no check for this work" }
+					: { key: "check", ok: false, text: "check not run at this head" };
+	// A row reads "match" for a claim no decision governs (ungoverned) and for one a human said does not count (a rejected reliance):
+	// neither was compared against anything. Only a claim held against a governing decision counts as matched.
+	const compared = claims.rows.filter((row) => {
+		if (row.verdict !== "match") return false;
+		const ref = parseRecordRef(row.claim.basedOn);
+		const dep = ref ? view.dependencies.find((d) => d.workItemId === wi.item.id && d.recordId === ref.recordId) : undefined;
+		return !(dep?.status === "rejected" && !wi.receipt.accepted.some((e) => e.recordId === ref?.recordId));
+	});
+	const matching: MergeCheck =
+		analysis.conflicts.length > 0
+			? { key: "claims", ok: false, text: "claims conflict with the current decision" }
+			: analysis.uncertain.length > 0
+				? { key: "claims", ok: false, text: "claims could not be fully read" }
+				: compared.length === 0
+					? { key: "claims", ok: true, text: "no claims to compare" }
+					: compared.length === claims.rows.length
+						? { key: "claims", ok: true, text: "claims match" }
+						: { key: "claims", ok: true, text: "claims match where a decision governs them" };
+	return [decisions, check, matching];
+}
+
+/**
+ * When a work item was merged and by whom. The name is the actor on the merge line if it carries one, else the actor who
+ * requested that promotion (the line just before it); null when neither is on the ledger. `PromotionMerged` has no actor field today.
+ */
+export function mergeRecord(view: ViewState, workItemId: string): { ts: string; by: string | null } | null {
+	const merged = [...view.ledger].reverse().find((e) => e.payload.event.type === "PromotionMerged" && e.payload.event.workItemId === workItemId);
+	if (!merged) return null;
+	let actor: { id: string; displayName: string } | undefined;
+	if ("actor" in merged.payload.event) actor = (merged.payload.event as { actor: { id: string; displayName: string } }).actor;
+	else {
+		// The request the gate allowed, not a refused one that came before it.
+		for (const entry of [...view.ledger].reverse()) {
+			const event = entry.payload.event;
+			if (entry.seq < merged.seq && event.type === "PromotionRequested" && event.workItemId === workItemId && entry.payload.effects.some((effect) => effect.type === "ALLOW_PROMOTION")) {
+				actor = event.actor;
+				break;
+			}
+		}
+	}
+	if (!actor) return { ts: merged.ts, by: null };
+	const label = actorLabel(view, actor.id);
+	return { ts: merged.ts, by: label === actor.id ? actor.displayName : label };
+}
+
+/** A record id read as a name: `shelter-intake-policy` is "Shelter intake policy". */
+export function recordName(recordId: string): string {
+	const words = recordId.replace(/[-_]+/g, " ").trim();
+	return words.charAt(0).toUpperCase() + words.slice(1);
 }

@@ -147,8 +147,8 @@ export function shelterIntakeScript(bundle: ShelterIntakeScenario): MockScript {
 		},
 		{
 			id: "promote-all",
-			title: "Four promote",
-			caption: "Same gate, same ledger: two untouched drafts and two revalidated drafts. The signage is cleared by its exception but not promoted yet.",
+			title: "Four go through",
+			caption: "Same gate, same ledger: two untouched drafts and two revalidated drafts. The signage is cleared by its exception but has not gone through yet.",
 			async run({ session }) {
 				for (const id of ["WI-4", "WI-5", "WI-1", "WI-3"]) await session.promoteNow(id);
 				return { select: "WI-1", tab: "actions" };

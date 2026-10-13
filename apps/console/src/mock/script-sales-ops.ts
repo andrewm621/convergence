@@ -138,7 +138,7 @@ export function salesOpsScript(bundle: SalesOpsScenario): MockScript {
 		},
 		{
 			id: "promote-all",
-			title: "All three promote",
+			title: "All three merge",
 			caption: "Same gate, same ledger: glossary, excepted forecast and revalidated playbook.",
 			async run({ session }) {
 				for (const id of ["WI-5", "WI-3", "WI-4"]) await session.promoteNow(id);

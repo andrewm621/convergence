@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { ActorChip, SeededBadge, statusMeta, StatusChip, useDegraded } from "@/components/status";
 import { shortHash } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { agentModelOf, analysisOf, builtOnStamps, quietOf, reasonSentences } from "@/state/derive";
+import { agentModelOf, analysisOf, builtOnStamps, quietOf, readyByException, reasonSentences } from "@/state/derive";
 import { useConsole } from "@/state/console-context";
 import { scenarioMeta } from "./scenario-meta";
 import { FIT, NODE_SIZE, TILE, type BaselineData, type ClusterData, type DependencyEdgeData, type ItemData, type RecordData } from "./graph-layout";
@@ -21,7 +21,7 @@ export function BaselineNode({ data }: NodeProps & { data: BaselineData }) {
 			<p className="mt-1 text-[13px] text-muted-foreground">{data.scenario} · shared baseline</p>
 			<p className="mt-1.5 font-mono text-[13px] text-muted-foreground">@ {shortHash(data.commit)}</p>
 			<p className="text-[13px] text-muted-foreground">
-				{data.promoted} of {data.total} promoted
+				{data.promoted} of {data.total} merged
 			</p>
 		</div>
 	);
@@ -70,6 +70,8 @@ export function WorkItemNode({ data }: NodeProps & { data: ItemData }) {
 	const degraded = useDegraded();
 	const found = useMemo(() => quietOf(view, wi), [view, wi]);
 	const quiet = degraded ? null : found;
+	// Ready only because an accepted exception lifts a block: amber, not the green of cleanly ready work. Not while degraded (shown as unconfirmed).
+	const excepted = useMemo(() => !degraded && readyByException(view, wi), [degraded, view, wi]);
 	const receipt = wi.receipt.accepted.map((entry) => `${entry.recordId}@${entry.version}`).join(" · ");
 	// Blocked on a changed decision: the card says which version it was built on and which is current, in words.
 	const blockedBy = useMemo(() => {
@@ -85,7 +87,7 @@ export function WorkItemNode({ data }: NodeProps & { data: ItemData }) {
 			data-status={wi.item.status}
 			role="button"
 			tabIndex={0}
-			aria-label={`${wi.item.id} ${wi.item.title}, ${wi.item.status}`}
+			aria-label={`${wi.item.id} ${wi.item.title}, ${wi.item.status}${excepted ? " with an accepted exception" : ""}`}
 			aria-pressed={selected}
 			onKeyDown={(event) => {
 				if (event.key === "Enter" || event.key === " ") {
@@ -104,7 +106,7 @@ export function WorkItemNode({ data }: NodeProps & { data: ItemData }) {
 				<span className="font-mono text-[13px] font-semibold">{wi.item.id}</span>
 				{running && <Loader className="size-3.5 shrink-0 text-info motion-safe:animate-spin" aria-hidden />}
 				<ActorChip actor={wi.item.actor} label={scenarioMeta(client.scenario, client.kind === "live").agentLabel ?? agentModelOf(view.ledger, wi.item.id) ?? undefined} className="min-w-0 text-[13px]" />
-				<StatusChip status={wi.item.status} leftAlone={quiet !== null} className="ml-auto text-[13px]" />
+				<StatusChip status={wi.item.status} leftAlone={quiet !== null} excepted={excepted} className="ml-auto text-[13px]" />
 			</div>
 			<p className="truncate leading-tight font-semibold" style={{ fontSize: FIT.itemTitlePx }} title={wi.item.title}>
 				{wi.item.title}
@@ -128,10 +130,10 @@ export function WorkItemNode({ data }: NodeProps & { data: ItemData }) {
 
 /** The fan-out: many synthetic work items in one compact grid, each tile clickable and labelled. */
 export function ClusterNode({ data }: NodeProps & { data: ClusterData }) {
-	const { select } = useConsole();
+	const { select, view } = useConsole();
 	const degraded = useDegraded();
 	const counts = data.items.reduce<Record<string, number>>((acc, wi) => {
-		const label = statusMeta(wi.item.status, degraded).label.toLowerCase();
+		const label = statusMeta(wi.item.status, degraded, false, readyByException(view, wi)).label.toLowerCase();
 		return { ...acc, [label]: (acc[label] ?? 0) + 1 };
 	}, {});
 	return (
@@ -149,7 +151,7 @@ export function ClusterNode({ data }: NodeProps & { data: ClusterData }) {
 			</p>
 			<div className="nodrag nopan grid px-3 pb-3" style={{ gridTemplateColumns: `repeat(${data.columns}, ${TILE.width}px)`, gap: TILE.gap }}>
 				{data.items.map((wi) => {
-					const meta = statusMeta(wi.item.status, degraded);
+					const meta = statusMeta(wi.item.status, degraded, false, readyByException(view, wi));
 					const Icon = meta.icon;
 					return (
 						<button

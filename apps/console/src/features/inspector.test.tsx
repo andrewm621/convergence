@@ -12,7 +12,7 @@ function Selected({ children }: { children: (id: string) => React.ReactNode }) {
 	return selectedId ? children(selectedId) : null;
 }
 
-describe("gate preview: the Promote button and its tooltip", () => {
+describe("gate preview: the Merge button and its tooltip", () => {
 	it("is disabled for stale work, and the tooltip lists the reason codes the gate returned", async () => {
 		const user = userEvent.setup();
 		const mock = await renderWithMock(<PromoteButton workItemId="WI-2" />, { beats: 5 });
@@ -26,7 +26,7 @@ describe("gate preview: the Promote button and its tooltip", () => {
 		await user.hover(screen.getByTestId("promote-trigger"));
 		const tooltip = await screen.findByRole("tooltip");
 		for (const code of gate.reasonCodes) expect(within(tooltip).getByText(code)).toBeInTheDocument();
-		expect(tooltip).toHaveTextContent("Promote is blocked");
+		expect(tooltip).toHaveTextContent("Merge is blocked");
 	});
 
 	it("is enabled for unaffected work that passes the gate, and says so", async () => {
@@ -50,7 +50,8 @@ describe("gate preview: the Promote button and its tooltip", () => {
 		await waitFor(() => expect(screen.getByTestId("promote-button")).toBeEnabled());
 
 		await user.click(screen.getByTestId("promote-button"));
-		await waitFor(() => expect(screen.getByTestId("promote-button")).toHaveTextContent("Promoted"));
+		await user.click(await screen.findByTestId("merge-confirm"));
+		await waitFor(() => expect(screen.getByTestId("promote-button")).toHaveTextContent("Merged"));
 		expect(screen.getByTestId("promote-button")).toBeDisabled();
 	});
 
@@ -95,7 +96,7 @@ describe("the Why tab: epistemic chips", () => {
 	it("a promoted item reads recorded on its condition, not awaiting", async () => {
 		await renderWithMock(<Inspector />, { beats: 9, select: "WI-2" });
 		const decided = await screen.findByTestId("decided");
-		expect(decided).toHaveTextContent("Promoted into the baseline");
+		expect(decided).toHaveTextContent("Merged into the baseline");
 		expect(screen.queryByTestId("awaiting-human")).toBeNull();
 		const chain = screen.getByRole("list", { name: "Why chain" });
 		const last = within(chain).getAllByRole("listitem").find((li) => li.getAttribute("data-chain-step") === "5") as HTMLElement;
@@ -150,6 +151,7 @@ describe("actions: accept exception needs a scope and a rationale", () => {
 		const mock = await renderWithMock(<Inspector />, { beats: 6, select: "WI-2" });
 		await user.click(await screen.findByRole("tab", { name: "Actions" }));
 		await user.click(await screen.findByRole("button", { name: "Revalidate" }));
+		await user.click(await screen.findByTestId("revalidate-confirm"));
 		await waitFor(() => expect(screen.getAllByText("revalidating").length).toBeGreaterThan(0));
 		expect(mock.client.controls.getState().position).toBe(6);
 	});
@@ -159,7 +161,7 @@ describe("actions: accept exception needs a scope and a rationale", () => {
 		const user = userEvent.setup();
 		await user.click(await screen.findByRole("tab", { name: "Actions" }));
 		const preview = await screen.findByTestId("gate-preview");
-		await waitFor(() => expect(within(preview).getByText("Promote would be blocked")).toBeInTheDocument());
+		await waitFor(() => expect(within(preview).getByText("Merge would be blocked")).toBeInTheDocument());
 		expect(within(preview).getByText("CLAIM_CONFLICT")).toBeInTheDocument();
 	});
 });

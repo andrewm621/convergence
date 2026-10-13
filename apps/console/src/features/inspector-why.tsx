@@ -65,7 +65,7 @@ export function WhyTab({ wi }: { wi: WorkItemState }) {
 	const summary = promoted
 		? "It cleared the gate at the current heads and was merged into the baseline."
 		: rerunning
-			? `Revalidating: ${wi.item.actor.displayName} is re-running on the current decisions (${wi.receipt.accepted.map((e) => `${e.recordId}@${e.version}`).join(", ")}). Promote stays closed until its next push.`
+			? `Revalidating: ${wi.item.actor.displayName} is re-running on the current decisions (${wi.receipt.accepted.map((e) => `${e.recordId}@${e.version}`).join(", ")}). Merge stays closed until its next push.`
 			: blocked
 			? [
 					...analysis.stale.map((f) => `Built on ${f.recordId}@${f.fromVersion}, but ${f.recordId} is now v${f.toVersion}${f.facetKeys.length ? ` (${f.facetKeys.join(", ")} changed)` : ""}.`),
@@ -74,7 +74,7 @@ export function WhyTab({ wi }: { wi: WorkItemState }) {
 				]
 					.slice(0, 4)
 					.join(" ") || (gate?.blockers.join(" ") ?? "The gate is closed.")
-			: "Nothing stands in the way. It still needs a human to promote it.";
+			: "Nothing stands in the way. It still needs a human to merge it.";
 
 	return (
 		<div className="space-y-4 p-4" data-testid="why-tab">
@@ -304,7 +304,7 @@ export function WhyTab({ wi }: { wi: WorkItemState }) {
 					<ConditionList conditions={wi.conditions} />
 					{promoted ? (
 						<p className="mt-2 text-[13px]" data-testid="decided">
-							Promoted into the baseline{mergeEntry ? ` at ${formatDateTime(mergeEntry.ts)}` : ""}. This is on the ledger.
+							Merged into the baseline{mergeEntry ? ` at ${formatDateTime(mergeEntry.ts)}` : ""}. This is on the ledger.
 						</p>
 					) : (
 						<div className="mt-2.5 rounded-lg border border-dashed p-2.5" data-testid="awaiting-human">
@@ -313,7 +313,7 @@ export function WhyTab({ wi }: { wi: WorkItemState }) {
 								Awaiting human
 							</p>
 							<p className="mt-1 text-xs text-muted-foreground">
-								{problem ? "Nobody has decided what to do about this. Revalidate it, accept a scoped exception, or reject it." : blocked ? "Nothing is wrong with it so far, but it is not ready: it still needs to push its work." : "Nothing is wrong, but nothing is merged until a person promotes it."}
+								{problem ? "Nobody has decided what to do about this. Revalidate it, accept a scoped exception, or reject it." : blocked ? "Nothing is wrong with it so far, but it is not ready: it still needs to push its work." : "Nothing is wrong, but it stays unmerged until a person merges it."}
 							</p>
 							<Button variant="outline" size="xs" className="mt-2" onClick={() => setTab("actions")}>
 								<CircleAlert aria-hidden /> Open actions

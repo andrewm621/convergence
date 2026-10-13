@@ -118,6 +118,7 @@ describe("when the re-runs are used up", () => {
 		expect(await screen.findByTestId("resolve-actions")).toHaveTextContent("Uses 1 of 1 re-runs.");
 
 		await user.click(await screen.findByTestId("revalidate-button"));
+		await user.click(await screen.findByTestId("revalidate-confirm"));
 		await waitFor(() => expect(screen.getByTestId("resolve-actions")).toHaveTextContent("All 1 re-runs are used. A reviewer has to decide what happens to this work (REVALIDATION_LIMIT)."));
 		expect(screen.getByTestId("resolve-actions")).not.toHaveTextContent("Sends the agent back");
 	});

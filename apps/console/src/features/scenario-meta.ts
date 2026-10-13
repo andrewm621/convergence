@@ -15,7 +15,7 @@ export type ScenarioMeta = {
 	agentLabel?: string;
 	/** The work is in this repo's real git history: shas link to GitHub and an all-zero sha reads "not in git". */
 	realHistory?: boolean;
-	/** Why Revalidate, Accept exception, Reject, Promote and Propose change are disabled. Set for recordings only. */
+	/** Why Revalidate, Accept exception, Reject, Merge and Propose change are disabled. Set for recordings only. */
 	readOnlyReason?: string;
 };
 

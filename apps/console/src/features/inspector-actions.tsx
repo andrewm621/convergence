@@ -1,6 +1,6 @@
 import type { ResolutionBinding, WorkItemState } from "contracts";
 import { CircleAlert, CircleCheck, Gavel, Loader, RefreshCw, ShieldAlert, ShieldCheck, ThumbsDown, TriangleAlert } from "lucide-react";
-import { useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { newIdempotencyKey, type ResolveInput } from "@/client/types";
 import { CommitSha } from "@/components/commit-sha";
 import { UnavailableHint } from "@/components/unavailable-hint";
@@ -8,10 +8,11 @@ import { ActorChip, ReasonChip } from "@/components/status";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input, Label, NativeSelect, Textarea } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { formatDateTime, formatTime, shortHash } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useConsole } from "@/state/console-context";
-import { analysisOf, currentRecord, exceptionStatus, exceptionWaiver, type ExceptionWaiver } from "@/state/derive";
+import { analysisOf, currentRecord, exceptionStatus, exceptionWaiver, recordName, type ExceptionWaiver } from "@/state/derive";
 import { useGate } from "@/state/use-gate";
 import { PromoteButton } from "./promote-button";
 import { scenarioMeta } from "./scenario-meta";
@@ -21,8 +22,8 @@ export function ActionsTab({ wi }: { wi: WorkItemState }) {
 	return (
 		<div className="space-y-5 p-4" data-testid="actions-tab">
 			<GatePreview workItemId={id} />
-			<section aria-label="Promote" className="space-y-2">
-				<h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Promote</h3>
+			<section aria-label="Merge" className="space-y-2">
+				<h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Merge</h3>
 				<PromoteButton workItemId={id} showReasons />
 			</section>
 			<Resolutions wi={wi} />
@@ -31,7 +32,7 @@ export function ActionsTab({ wi }: { wi: WorkItemState }) {
 	);
 }
 
-/** The dry run: what Promote would do right now, and why. It re-runs whenever anything it depends on changes. */
+/** The dry run: what Merge would do right now, and why. It re-runs whenever anything it depends on changes. */
 export function GatePreview({ workItemId }: { workItemId: string }) {
 	const { view } = useConsole();
 	const { gate, loading, error } = useGate(workItemId);
@@ -59,7 +60,7 @@ export function GatePreview({ workItemId }: { workItemId: string }) {
 				<div className="mt-2 space-y-2.5">
 					<p className={cn("flex items-center gap-2 text-sm font-semibold", gate.pass ? "text-foreground" : "text-danger")}>
 						{gate.pass ? <CircleCheck className="size-4" aria-hidden /> : <ShieldAlert className="size-4" aria-hidden />}
-						{gate.pass ? "Promote would pass the gate" : "Promote would be blocked"}
+						{gate.pass ? "Merge would pass the gate" : "Merge would be blocked"}
 					</p>
 					{!gate.pass && (
 						<ul className="flex flex-wrap gap-1.5" aria-label="Reason codes">
@@ -86,7 +87,7 @@ export function GatePreview({ workItemId }: { workItemId: string }) {
 							{gate.waivedBy.some((w) => w.scope) ? `: ${gate.waivedBy.map((w) => w.scope).filter(Boolean).join("; ")}` : ""}.
 						</p>
 					)}
-					{gate.pass && <p className="text-[13px] text-muted-foreground">A human still decides. Promote re-checks every rule at the current heads before it merges.</p>}
+					{gate.pass && <p className="text-[13px] text-muted-foreground">A human still decides. Merge re-checks every rule at the current heads before it merges.</p>}
 				</div>
 			)}
 		</section>
@@ -113,6 +114,9 @@ export function Resolutions({ wi }: { wi: WorkItemState }) {
 	const { view, client, notify } = useConsole();
 	const [open, setOpen] = useState<Open>(null);
 	const [busy, setBusy] = useState<string | null>(null);
+	const [confirmRerun, setConfirmRerun] = useState(false);
+	const rerunCancelRef = useRef<HTMLButtonElement>(null);
+	const rerunTitleId = useId();
 	const analysis = useMemo(() => analysisOf(view, wi.item.id), [view, wi.item.id]);
 
 	// The records worth deciding about: stale or in conflict first, else everything it relies on.
@@ -134,7 +138,7 @@ export function Resolutions({ wi }: { wi: WorkItemState }) {
 	const noPush = wi.headSha === null;
 	const defaultRecord = candidates[0] ?? null;
 	const readOnly = scenarioMeta(client.scenario, client.kind === "live").readOnlyReason;
-	const reason = readOnly ?? (promoted ? "Already promoted." : noPush ? "Waiting for the agent's first push: a resolution binds to a specific head." : null);
+	const reason = readOnly ?? (promoted ? "Already merged." : noPush ? "Waiting for the agent's first push: a resolution binds to a specific head." : null);
 
 	async function submit(input: Omit<ResolveInput, "binding" | "workItemId">, recordId: string | null, label: string): Promise<boolean> {
 		const binding = recordId ? bindingFor(view, wi, recordId) : null;
@@ -152,12 +156,21 @@ export function Resolutions({ wi }: { wi: WorkItemState }) {
 	const staleNote = analysis?.stale.map((f) => `${f.recordId} v${f.fromVersion} to v${f.toVersion}`).join(", ");
 	const maxRuns = view.policy?.maxRevalidations;
 	const runsUsedUp = maxRuns !== undefined && wi.revalidations >= maxRuns;
+	// What a re-run would be on: the version of the decision the agent would be sent back to.
+	const rerunVersion = defaultRecord ? currentRecord(view, defaultRecord)?.version : undefined;
+	const rerunTarget = defaultRecord && rerunVersion !== undefined ? `${recordName(defaultRecord)} v${rerunVersion}` : "the current decisions";
 	const revalidateNote = runsUsedUp
 		? `All ${maxRuns} re-runs are used. A reviewer has to decide what happens to this work (REVALIDATION_LIMIT).`
 		: `Sends the agent back to redo this on the current decisions.${maxRuns === undefined ? "" : ` Uses ${wi.revalidations + 1} of ${maxRuns} re-runs.`}`;
 
 	// Work that is ready to merge has nothing to lift or redo, whether it is clean or passes under an exception. Rejecting it stays possible.
 	const ready = wi.item.status === "ready";
+
+	// If the agent is already re-running (or the choice has gone away) while the confirm is open, there is nothing left to confirm.
+	const rerunClosed = wi.revalidating || runsUsedUp || ready || Boolean(reason);
+	useEffect(() => {
+		if (rerunClosed) setConfirmRerun(false);
+	}, [rerunClosed]);
 
 	return (
 		<section aria-label="Resolve" className="space-y-3" data-testid="resolve-actions">
@@ -168,17 +181,43 @@ export function Resolutions({ wi }: { wi: WorkItemState }) {
 						note={revalidateNote}
 						button={
 							<UnavailableHint available={!readOnly} reason={readOnly ?? ""}>
-								<Button
-									size="sm"
-									variant="outline"
-									className="w-full justify-start"
-									data-testid="revalidate-button"
-									disabled={Boolean(reason) || wi.revalidating || busy !== null}
-									onClick={() => void submit({ kind: "revalidate", rationale: staleNote ? `Decision changed under this work: ${staleNote}.` : "Re-run on the current decisions." }, defaultRecord, "Revalidate")}
-								>
-									{busy === "Revalidate" ? <Loader className="animate-spin" aria-hidden /> : <RefreshCw aria-hidden />}
-									Revalidate
-								</Button>
+								<Popover open={confirmRerun} onOpenChange={setConfirmRerun}>
+									<PopoverTrigger asChild>
+										<Button size="sm" variant="outline" className="w-full justify-start" data-testid="revalidate-button" disabled={Boolean(reason) || wi.revalidating || busy !== null || runsUsedUp}>
+											{busy === "Revalidate" ? <Loader className="animate-spin" aria-hidden /> : <RefreshCw aria-hidden />}
+											Revalidate
+										</Button>
+									</PopoverTrigger>
+									<PopoverContent
+										role="dialog"
+										aria-labelledby={rerunTitleId}
+										data-testid="revalidate-sheet"
+										onOpenAutoFocus={(event) => {
+											event.preventDefault();
+											rerunCancelRef.current?.focus();
+										}}
+									>
+										<p id={rerunTitleId} className="text-[13px] leading-relaxed">
+											<span className="font-semibold">Re-run the agent on {rerunTarget}?</span>
+											{maxRuns !== undefined && ` Uses ${wi.revalidations + 1} of ${maxRuns} re-runs.`}
+										</p>
+										<div className="mt-3 flex gap-2">
+											<Button
+												size="sm"
+												data-testid="revalidate-confirm"
+												onClick={() => {
+													setConfirmRerun(false);
+													void submit({ kind: "revalidate", rationale: staleNote ? `Decision changed under this work: ${staleNote}.` : "Re-run on the current decisions." }, defaultRecord, "Revalidate");
+												}}
+											>
+												<RefreshCw aria-hidden /> Re-run
+											</Button>
+											<Button ref={rerunCancelRef} size="sm" variant="ghost" data-testid="revalidate-cancel" onClick={() => setConfirmRerun(false)}>
+												Cancel
+											</Button>
+										</div>
+									</PopoverContent>
+								</Popover>
 							</UnavailableHint>
 						}
 					/>
