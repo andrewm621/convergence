@@ -257,7 +257,7 @@ describe("prepareModelBody: the model and its output budget are enforced in the 
 		expect(r.ok).toBe(true);
 		if (!r.ok) return;
 		expect(r.body).toContain("\\ud800"); // the lone surrogate is escaped, not forwarded raw
-		expect(() => new TextDecoder("utf-8", { fatal: true }).decode(new TextEncoder().encode(r.body))).not.toThrow();
+		expect(() => new TextDecoder("utf-8", { fatal: true, ignoreBOM: false }).decode(new TextEncoder().encode(r.body))).not.toThrow();
 		expect(r.worstInputTokens).toBeGreaterThanOrEqual(bytes.byteLength);
 		expect(r.worstInputTokens).toBeGreaterThanOrEqual(new TextEncoder().encode(r.body).byteLength);
 	});
