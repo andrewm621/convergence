@@ -55,7 +55,7 @@ Every mutating route requires an `Idempotency-Key` header (`[A-Za-z0-9._:~-]{1,1
 | `GET  /api/scenarios/:s/ledger?afterSeq=&limit=` | `{ entries: ReconciliationEvent[], head }` |
 | `GET  /api/scenarios/:s/ledger/verify` | `{ ok: true, length, head }` or `{ ok: false, brokenAt, reason }` |
 | `GET  /api/scenarios/:s/context/:recordId` | The prose of the record's accepted version, as `text/markdown` (prefills the Propose change editor) |
-| `GET  /api/scenarios/:s/poller` | Poll interval, `health` (`healthy` and the failing repos) and per repo: cursor, failing commit and its failure count, backoff, last error, degraded note, last poll time |
+| `GET  /api/scenarios/:s/poller` | Poll interval, `health` (`healthy` and the failing repos) and per repo: cursor, failing commit and its failure count, backoff, last error, degraded note, last poll time; `written` lists the last 20 baseline commits the Worker pushed (`sha`, `kind` context or merge, `actor`) |
 | `POST /api/scenarios/:s/context-changes` | The Worker commits a context change to the baseline as the authority. Returns `{ commitSha, version, kind, path, decisionPath, observed }` |
 | `GET  /api/scenarios/:s/work-items/:id/gate` | Dry-run promotion gate: `{ pass, reasonCodes, blockers, waivedBy, baselineCommit, snapshotHash, forkHeadSha }` |
 | `POST /api/scenarios/:s/work-items/:id/resolutions` | `revalidate`, `accept-exception` (needs `scope`) or `reject`, each with `rationale` and the `binding` the human was looking at. `workItemId` may be repeated in the body; it must match the path |
