@@ -124,6 +124,14 @@ async function stateOf() {
 // A dropped /state reads as "not yet", so a polling loop goes round again instead of throwing.
 const wiOf = async (id) => (await stateOf())?.workItems.find((w) => w.item.id === id);
 const statusOf = async (id) => (await wiOf(id))?.item.status;
+/** The cell state for a step that cannot go on without it: a /state that never answers is a failed check, not a TypeError. */
+async function stateFor(what) {
+	const st = await stateOf();
+	if (st) return st;
+	check(`read the cell state before ${what}`, false, "/state did not answer after 5 tries");
+	await finish();
+	process.exit(1);
+}
 const conditionsOf = (wi) => (wi?.conditions ?? []).map((c) => c.type);
 /** The runtime's id for a cell work item (agents/work-item-ids.ts): lowercase. */
 const runtimeId = (id) => id.toLowerCase();
@@ -296,9 +304,9 @@ if (stopBeforeRevalidate) {
 // 6. Promote SH-2 (the baseline moved since the fork: a real merge, not a fast-forward)
 // ---------------------------------------------------------------------------------------------------------
 {
-	const st = await stateOf();
+	const st = await stateFor("promoting SH-2");
 	t = performance.now();
-	const prom = await post("/work-items/SH-2/promote", { expectedBaselineCommit: st.baselineCommit, forkHeadSha: (await wiOf("SH-2")).headSha }, "prom-wi2");
+	const prom = await post("/work-items/SH-2/promote", { expectedBaselineCommit: st.baselineCommit, forkHeadSha: st.workItems.find((w) => w.item.id === "SH-2")?.headSha }, "prom-wi2");
 	const ms = Math.round(performance.now() - t);
 	check("promote SH-2 (baseline moved since the fork: a real merge)", prom.status === 200 && prom.json?.promoted === true, `${prom.status} ${ms} ms ${j(prom.json).slice(0, 300)}`);
 	results.timings.promoteWI2Ms = ms;
@@ -312,11 +320,11 @@ if (stopBeforeRevalidate) {
 // ---------------------------------------------------------------------------------------------------------
 let revalidated = false;
 for (let attempt = 1; attempt <= 2 && !revalidated; attempt++) {
-	const st = await stateOf();
-	const wi = await wiOf("SH-1");
+	const st = await stateFor("revalidating SH-1");
+	const wi = st.workItems.find((w) => w.item.id === "SH-1");
 	const hist = st.records[POLICY_ID];
 	const rec = hist.versions[String(hist.current)];
-	const binding = { recordId: POLICY_ID, version: rec.version, blobHash: rec.blobHash, baseSha: st.baselineCommit, forkHeadSha: wi.headSha, contextSnapshotHash: st.snapshotHash };
+	const binding = { recordId: POLICY_ID, version: rec.version, blobHash: rec.blobHash, baseSha: st.baselineCommit, forkHeadSha: wi?.headSha, contextSnapshotHash: st.snapshotHash };
 	const res = await post("/work-items/SH-1/resolutions", { kind: "revalidate", rationale: "Rework the front-desk script to the current intake policy.", binding }, `reval${attempt}`);
 	check(`revalidate resolution for SH-1 recorded (attempt ${attempt})`, res.status === 200 || res.status === 201, `${res.status} ${res.status < 300 ? "" : j(res.json).slice(0, 400)}`);
 	if (res.status >= 300) break;
@@ -356,9 +364,9 @@ for (let attempt = 1; attempt <= 2 && !revalidated; attempt++) {
 }
 
 if (revalidated) {
-	const st = await stateOf();
+	const st = await stateFor("promoting SH-1");
 	t = performance.now();
-	const prom = await post("/work-items/SH-1/promote", { expectedBaselineCommit: st.baselineCommit, forkHeadSha: (await wiOf("SH-1")).headSha }, "prom-wi1");
+	const prom = await post("/work-items/SH-1/promote", { expectedBaselineCommit: st.baselineCommit, forkHeadSha: st.workItems.find((w) => w.item.id === "SH-1")?.headSha }, "prom-wi1");
 	const ms = Math.round(performance.now() - t);
 	check("promote SH-1 after the revalidation merges", prom.status === 200 && prom.json?.promoted === true, `${prom.status} ${ms} ms ${j(prom.json).slice(0, 300)}`);
 	results.timings.promoteWI1Ms = ms;

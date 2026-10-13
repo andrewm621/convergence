@@ -169,6 +169,8 @@ export interface RunRecord {
 	usage: RunUsage | null;
 	/** Agent-reported activity: display only, never evidence. */
 	activity: ActivityLine[];
+	/** Set on a read of a `running` record when the container could not be read lately (a timeout or an error). Not persisted. */
+	refreshError?: string;
 }
 
 export interface RunUsage {
@@ -190,12 +192,20 @@ interface IdempotencyEntry {
 	fingerprint: string;
 }
 
+/** One launch attempt: set when it is given up on, with the signal that stops the container work it started. */
+interface Launching {
+	abandoned: boolean;
+	signal: AbortSignal;
+}
+
 export class AgentSandbox extends DurableObject<Env> {
 	private readonly container: Container;
 	private readonly files: Files;
 	private setup: Promise<void> | undefined;
 	private refreshing: Promise<RunRecord | null> | undefined;
 	private readonly finishing = new Map<string, Promise<RunRecord>>();
+	/** Why the last refresh could not read the run's container (a timeout or an error); cleared by the next that can. Never persisted. */
+	private refreshProblem: string | undefined;
 	/** Set synchronously on entry to startRun, so two overlapping dispatches can't both launch. */
 	private starting = false;
 
@@ -301,10 +311,12 @@ export class AgentSandbox extends DurableObject<Env> {
 
 	/** Usage reports can land just after a run ends (they are sent after the response streams); show the latest meter. */
 	private withLiveUsage(run: RunRecord | null): RunRecord | null {
+		// A run that still reads as running while its container cannot be read says so, instead of looking healthy for 30 minutes.
+		const flagged = run && run.state === "running" && this.refreshProblem ? { ...run, refreshError: this.refreshProblem } : run;
 		const meter = this.storedMeter();
-		if (!run || !meter || meter.runId !== run.runId) return run;
+		if (!flagged || !meter || meter.runId !== flagged.runId) return flagged;
 		return {
-			...run,
+			...flagged,
 			usage: {
 				modelRequests: meter.modelRequests,
 				gitRequests: meter.gitRequests,
@@ -350,13 +362,17 @@ export class AgentSandbox extends DurableObject<Env> {
 		this.ctx.storage.kv.put(RUN_KEY, provisional);
 		this.ctx.storage.kv.put(METER_KEY, newMeter(runId, input.limits));
 		this.rememberKey({ key: input.idempotencyKey, fingerprint: input.fingerprint });
+		this.refreshProblem = undefined;
 
-		const launching = { abandoned: false };
+		const abort = new AbortController();
+		const launching: Launching = { abandoned: false, signal: abort.signal };
 		try {
 			// Bounded as a whole: every container call in here (start, intercepts, file writes, the agent exec) can wait on the container.
 			return await withTimeout(this.launchSteps(input, provisional, host, path, launching), LAUNCH_TIMEOUT_MS, "launching the run");
 		} catch (e) {
+			// Give up on the steps still running: they check this after every await, and the signal stops the container work they started.
 			launching.abandoned = true;
+			abort.abort();
 			// The run never launched: close the record, free the key so the caller can retry, and let the caller revoke the token.
 			this.forgetKey(input.idempotencyKey);
 			this.deactivateMeter();
@@ -377,11 +393,18 @@ export class AgentSandbox extends DurableObject<Env> {
 		provisional: RunRecord,
 		host: string,
 		path: string,
-		launching: { abandoned: boolean },
+		launching: Launching,
 	): Promise<RunRecord> {
 		const author = authorFor(input.workItemId);
 		const runId = provisional.runId;
+		// This launch may have been given up on (it timed out) and the cell may have started a retry on the same container since.
+		// After every await it must therefore stop without a side effect: no intercept, no file write, no exec, no destroy.
+		const guard = () => {
+			if (launching.abandoned) throw new Error("the launch was given up on");
+		};
+		const { signal } = launching;
 		const baseHead = await this.readForkHead(input.forkRepo);
+		guard();
 		// Verification needs a known starting point; a fork with no history can't be verified, so don't run.
 		if (!baseHead) throw new Error("the fork has no commits to start from");
 		const expectedReceipt = input.revalidate
@@ -392,15 +415,22 @@ export class AgentSandbox extends DurableObject<Env> {
 					contextFiles: input.revalidate.context,
 				})
 			: null;
-		await this.startContainer(input, runId, host, path);
-		await this.files.remove(REPO_DIR, { recursive: true, force: true });
-		await this.files.remove(TASK_DIR, { recursive: true, force: true });
-		await this.files.mkdir(INBOX_DIR, { recursive: true });
+		guard();
+		await this.startContainer(input, runId, host, path, launching);
+		guard();
+		await this.files.remove(REPO_DIR, { recursive: true, force: true, signal });
+		guard();
+		await this.files.remove(TASK_DIR, { recursive: true, force: true, signal });
+		guard();
+		await this.files.mkdir(INBOX_DIR, { recursive: true, signal });
+		guard();
 		if (input.revalidate) {
 			for (const [name, text] of Object.entries(input.revalidate.context)) {
-				await this.files.writeFile(`${INBOX_DIR}/${name}`, text);
+				await this.files.writeFile(`${INBOX_DIR}/${name}`, text, { signal });
+				guard();
 			}
-			await this.files.writeFile(`${TASK_DIR}/revalidate.json`, JSON.stringify(input.revalidate.changes));
+			await this.files.writeFile(`${TASK_DIR}/revalidate.json`, JSON.stringify(input.revalidate.changes), { signal });
+			guard();
 		}
 
 		const taskPrompt = input.revalidate
@@ -435,17 +465,19 @@ export class AgentSandbox extends DurableObject<Env> {
 		};
 
 		const clockSkewMs = await this.measureClockSkew();
-		if (launching.abandoned) throw new Error("the launch was given up on");
+		guard();
 		const startedAt = new Date().toISOString();
 		await this.container.exec(["/bin/sh", "-c", TASK_SCRIPT, "agent", TASK_DIR, "/opt/delta/run-agent.sh"], {
 			cwd: "/workspace",
 			env,
 			stdout: "ignore",
 			stderr: "ignore",
+			signal,
 		});
 
 		if (launching.abandoned) {
-			this.container.destroy().catch(() => undefined);
+			// Only the run that owns the container may stop it: a retry has replaced this run's record, and its container is not ours to kill.
+			if (this.storedRun()?.runId === runId) await withTimeout(this.container.destroy(), TEARDOWN_TIMEOUT_MS, "stopping the container").catch(() => undefined);
 			throw new Error("the launch was given up on");
 		}
 		const run: RunRecord = { ...provisional, startedAt, baseHead, clockSkewMs, expectedReceipt };
@@ -483,20 +515,32 @@ export class AgentSandbox extends DurableObject<Env> {
 	 * (it is bounded by REFRESH_TIMEOUT_MS), so `refreshing` is always cleared and the next call starts a fresh refresh.
 	 */
 	private refresh(): Promise<RunRecord | null> {
-		this.refreshing ??= withTimeout(this.doRefresh(), REFRESH_TIMEOUT_MS, "refreshing the run").finally(() => {
-			this.refreshing = undefined;
-		});
+		this.refreshing ??= withTimeout(this.doRefresh(), REFRESH_TIMEOUT_MS, "refreshing the run")
+			.then(
+				(run) => run,
+				(e) => {
+					this.noteRefreshProblem(e);
+					throw e;
+				},
+			)
+			.finally(() => {
+				this.refreshing = undefined;
+			});
 		return this.refreshing;
 	}
 
-	/** A refresh, or the stored record when the refresh failed or timed out (the failure is logged, not thrown). */
+	/** A refresh, or the stored record when the refresh failed or timed out (the failure is logged and flagged, not thrown). */
 	private async refreshOrStored(): Promise<RunRecord | null> {
 		try {
 			return await this.refresh();
-		} catch (e) {
-			console.error(`run refresh failed: ${redactText(e instanceof Error ? e.message : String(e)).slice(0, 200)}`);
+		} catch {
 			return this.storedRun();
 		}
+	}
+
+	private noteRefreshProblem(e: unknown): void {
+		this.refreshProblem = redactText(e instanceof Error ? e.message : String(e)).slice(0, 200);
+		console.error(`run refresh failed: ${this.refreshProblem}`);
 	}
 
 	private async doRefresh(): Promise<RunRecord | null> {
@@ -530,6 +574,7 @@ export class AgentSandbox extends DurableObject<Env> {
 					const live = { ...run, activity: await this.readActivity(run) };
 					const now = this.storedRun();
 					if (now?.runId === run.runId && now.state === "running") this.ctx.storage.kv.put(RUN_KEY, live);
+					this.refreshProblem = undefined;
 					return live;
 				}
 				// It may have exited between the two reads.
@@ -538,11 +583,12 @@ export class AgentSandbox extends DurableObject<Env> {
 		} catch (e) {
 			// The container did not answer. That says nothing about the run: leave it running and ask again on the next poll.
 			if (e instanceof ContainerTimeoutError) {
-				console.error(`container probe gave no answer: ${e.message}`);
+				this.noteRefreshProblem(e);
 				return run;
 			}
 			throw e;
 		}
+		this.refreshProblem = undefined;
 		if (exitCode === null) {
 			return this.finish(run, { state: "lost", exitCode: null, error: "runner exited without a valid exit code" });
 		}
@@ -634,11 +680,15 @@ export class AgentSandbox extends DurableObject<Env> {
 
 	private async readActivitySafely(run: RunRecord): Promise<ActivityLine[]> {
 		if (!this.container.running) return run.activity;
-		try {
-			return await this.readActivity(run);
-		} catch {
-			return run.activity;
+		// The container is destroyed right after this, so a slow or failed read gets a second try or the last lines are lost.
+		for (let attempt = 0; attempt < 2; attempt++) {
+			try {
+				return await this.readActivity(run);
+			} catch {
+				// try again once
+			}
 		}
+		return run.activity;
 	}
 
 	/**
@@ -698,21 +748,29 @@ export class AgentSandbox extends DurableObject<Env> {
 
 	// ---- container plumbing ----
 
-	private async startContainer(input: StartRunInput, runId: string, host: string, repoPath: string): Promise<void> {
+	private async startContainer(input: StartRunInput, runId: string, host: string, repoPath: string, launching: Launching): Promise<void> {
 		if (this.setup === undefined || !this.container.running) {
-			this.setup = this.setUp(input).catch((error) => {
-				this.setup = undefined;
+			const setup: Promise<void> = this.setUp(input, launching).catch((error) => {
+				// Only the setup that is still the current one clears the slot: a late failure of an abandoned one must not erase a retry's.
+				if (this.setup === setup) this.setup = undefined;
 				throw error;
 			});
+			this.setup = setup;
 		}
 		await this.setup;
-		// Credentials differ per run, so the intercepts are registered again (each replaces the earlier one).
+		// Credentials differ per run, so the intercepts are registered again (each replaces the earlier one). An abandoned launch
+		// must not register one: it would replace the retry's gateway with a revoked token and a dead run id.
+		if (launching.abandoned) throw new Error("the launch was given up on");
+		// interceptOutboundHttps takes no signal, so a registration already in flight when the launch is abandoned cannot be
+		// cancelled. The worst case is that it lands after the retry's and the retry's git calls fail with 403 (this run's meter
+		// is gone, so the gateway refuses it); it can never admit a request, so it is a failed retry and not an auth bypass.
 		await this.container.interceptOutboundHttps(
 			host,
 			this.ctx.exports.ArtifactsGateway({
 				props: { host, repoPath, secret: input.token, workItemId: input.workItemId, runId },
 			}),
 		);
+		if (launching.abandoned) throw new Error("the launch was given up on");
 		if (input.mode === "claude") {
 			await this.container.interceptOutboundHttps("openrouter.ai", this.ctx.exports.ModelGateway({
 					props: { model: input.model, workItemId: input.workItemId, runId, maxOutputTokens: input.limits.maxOutputTokens },
@@ -720,7 +778,7 @@ export class AgentSandbox extends DurableObject<Env> {
 		}
 	}
 
-	private async setUp(input: StartRunInput): Promise<void> {
+	private async setUp(input: StartRunInput, launching: Launching): Promise<void> {
 		if (!this.container.running) {
 			this.container.start({
 				image: this.container.images.agent,
@@ -732,7 +790,8 @@ export class AgentSandbox extends DurableObject<Env> {
 		try {
 			await this.container.setInactivityTimeout(INACTIVITY_TIMEOUT_MS);
 		} catch (error) {
-			await this.container.destroy();
+			// An abandoned launch's late failure must not stop the container a retry is now using.
+			if (!launching.abandoned) await this.container.destroy();
 			throw error;
 		}
 	}
