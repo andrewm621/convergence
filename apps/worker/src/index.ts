@@ -4,7 +4,7 @@ import { redactDeep, redactText } from "./artifacts/tokens";
 import { DispatchError, dispatchAgent, presentRun } from "./agents/dispatch";
 import { DispatchRequest, IdempotencyKey, REPO_NAME_RE, RefName, WORK_ITEM_ID_RE } from "./agents/protocol";
 import { POINTER_SCENARIO } from "./cell/pointer-scenario";
-import { NOTIFICATIONS_SCENARIO_FILES, PointerForkRequest, PointerPushRequest, SMOKE_LABEL_RE, SmokeDeleteRequest, deleteSmokeRepos, forkPointer, purgeSmokeRepos, pushPointer, runSmoke, seedForks } from "./smoke";
+import { NOTIFICATIONS_SCENARIO_FILES, PointerForkRequest, PointerPushRequest, SMOKE_LABEL_RE, SmokeDeleteRequest, seedLabelAllowed, deleteSmokeRepos, forkPointer, purgeSmokeRepos, pushPointer, runSmoke, seedForks } from "./smoke";
 import { buildPointerSeed } from "./smoke-build";
 import { bearerGuard } from "./cell/auth";
 import { cellApi } from "./cell/routes";
@@ -76,6 +76,9 @@ app.post("/api/smoke/seed", async (c) => {
 	}
 	if (scenario !== undefined && scenario !== "notifications" && scenario !== POINTER_SCENARIO) {
 		return c.json({ error: { code: "INVALID_INPUT", message: `scenario must be notifications or ${POINTER_SCENARIO}` } }, 400);
+	}
+	if (!seedLabelAllowed(scenario, label)) {
+		return c.json({ error: { code: "INVALID_INPUT", message: `label must not start with ${POINTER_SCENARIO} unless scenario=${POINTER_SCENARIO}` } }, 400);
 	}
 	if (scenario === POINTER_SCENARIO) {
 		const seed = buildPointerSeed();

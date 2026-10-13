@@ -100,6 +100,17 @@ function openSocket() {
 }
 
 const results = { timings: {} };
+/** The run's WebSocket, once opened. finish() can run before it exists (a failed seed), so it must not touch a later const. */
+let socket = null;
+let finishing = false;
+// An unexpected error must not leave this run's repos behind.
+for (const event of ["uncaughtException", "unhandledRejection"]) {
+	process.on(event, async (error) => {
+		console.error(`FAIL  unexpected error: ${error instanceof Error ? error.message : String(error)}`);
+		checks.push({ name: "no unexpected error", ok: false });
+		await finish();
+	});
+}
 
 // ---------------------------------------------------------------------------------------------------------
 // 0. Seed
@@ -142,6 +153,7 @@ check("register WI-1 and WI-2", reg1.status === 201 && reg2.status === 201, `${r
 
 // Open the socket before anything happens, to see snapshot and then live events.
 const { ws, opened } = openSocket();
+socket = ws;
 let wsOk = true;
 try {
 	await opened;
@@ -426,11 +438,13 @@ await finish();
 
 /** Print the summary, delete this run's repos unless they are kept, and exit non-zero if any check failed. */
 async function finish() {
+	if (finishing) return;
+	finishing = true;
 	console.log("\n" + "-".repeat(60));
 	const failed = checks.filter((c) => !c.ok);
 	console.log(`${checks.length - failed.length}/${checks.length} checks passed`);
 	console.log(j(results.timings));
-	ws?.close();
+	socket?.close();
 	if (!keep) {
 		// Only the repos this run seeded, by name. A bare DELETE is refused, and ?all=1 would take a demo's repos too.
 		const purge = await call("DELETE", "/api/smoke", { repos: created });
@@ -439,11 +453,3 @@ async function finish() {
 	process.exit(failed.length ? 1 : 0);
 }
 
-// An unexpected error must not leave this run's repos behind.
-for (const event of ["uncaughtException", "unhandledRejection"]) {
-	process.on(event, async (error) => {
-		console.error(`FAIL  unexpected error: ${error instanceof Error ? error.message : String(error)}`);
-		checks.push({ name: "no unexpected error", ok: false });
-		await finish();
-	});
-}

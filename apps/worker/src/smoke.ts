@@ -253,6 +253,11 @@ export const SMOKE_PREFIX = "smoke-";
 /** An optional name for a seeded set of repos (`smoke-<label>-<time>-...`), so a demo's repos can be told apart. */
 export const SMOKE_LABEL_RE = /^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/;
 
+/** Repos named after the build cell are reachable by the pointer routes, so only the build seed may use that label. */
+export function seedLabelAllowed(scenario: string | undefined, label: string | undefined): boolean {
+	return label === undefined || scenario === POINTER_SCENARIO || !label.startsWith(POINTER_SCENARIO);
+}
+
 /**
  * A baseline with the seed commit plus `count` ready forks, for exercising the agent runtime.
  * Names start with `smoke-`, which is what DELETE /api/smoke accepts. `label` replaces the default `m1` in the name.
