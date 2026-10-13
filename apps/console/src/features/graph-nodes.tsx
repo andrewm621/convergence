@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { ActorChip, SeededBadge, statusMeta, StatusChip, useDegraded } from "@/components/status";
 import { shortHash } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { agentModelOf, analysisOf, builtOnStamps, leftAlone, reasonSentences } from "@/state/derive";
+import { agentModelOf, analysisOf, builtOnStamps, quietOf, reasonSentences } from "@/state/derive";
 import { useConsole } from "@/state/console-context";
 import { scenarioMeta } from "./scenario-meta";
 import { FIT, NODE_SIZE, TILE, type BaselineData, type ClusterData, type DependencyEdgeData, type ItemData, type RecordData } from "./graph-layout";
@@ -65,9 +65,11 @@ export function RecordNode({ data }: NodeProps & { data: RecordData }) {
 export function WorkItemNode({ data }: NodeProps & { data: ItemData }) {
 	const { wi, running, selected } = data;
 	const { select, view, client } = useConsole();
-	// Work that a change deliberately did not touch says so on the node, with the reason code.
-	const touched = ["promoted", "stale", "conflict", "revalidating"].includes(wi.item.status);
-	const quiet = touched ? null : leftAlone(view, wi.item.id, { sticky: true });
+	// Work that a change deliberately did not touch says so on the node, with the reason code. Not while the poller is degraded
+	// (unknown is not unaffected), and not once the rules find something wrong with it.
+	const degraded = useDegraded();
+	const found = useMemo(() => quietOf(view, wi), [view, wi]);
+	const quiet = degraded ? null : found;
 	const receipt = wi.receipt.accepted.map((entry) => `${entry.recordId}@${entry.version}`).join(" · ");
 	// Blocked on a changed decision: the card says which version it was built on and which is current, in words.
 	const blockedBy = useMemo(() => {
@@ -109,7 +111,7 @@ export function WorkItemNode({ data }: NodeProps & { data: ItemData }) {
 			</p>
 			{quiet ? (
 				<p data-testid={`left-alone-${wi.item.id}`} className="truncate text-[13px] font-medium text-success" title={`${quiet.message} (${quiet.reasonCodes.join(", ")})`}>
-					Left alone: doesn&apos;t use what changed
+					Left alone: no recorded dependency on what changed
 				</p>
 			) : blockedBy ? (
 				<p data-testid={`built-on-${wi.item.id}`} className="truncate text-[13px] font-medium text-danger" title={blockedBy.reasons}>

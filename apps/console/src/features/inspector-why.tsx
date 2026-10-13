@@ -9,7 +9,7 @@ import { describeCheck } from "@/lib/evidence";
 import { formatDateTime, formatFacet, plural } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useConsole } from "@/state/console-context";
-import { actorLabel, analysisOf, builtOnStamps, currentRecord, leftAlone, reasonSentences, reliedFacets, semanticDiff, signerFor, signerRecordId } from "@/state/derive";
+import { actorLabel, analysisOf, builtOnStamps, currentRecord, leftAlone, reasonSentences, reliedFacets, semanticDiff, signOffFor, validExceptions } from "@/state/derive";
 import { useGate } from "@/state/use-gate";
 import { Resolutions } from "./inspector-actions";
 import { ReceiptFacetList } from "./receipt-facets";
@@ -50,13 +50,16 @@ export function WhyTab({ wi }: { wi: WorkItemState }) {
 	const rerunning = wi.revalidating;
 	const staleIds = new Set(analysis.stale.map((f) => f.recordId));
 	const problem = analysis.stale.length > 0 || analysis.conflicts.length > 0 || analysis.failedChecks.length > 0 || analysis.uncertain.length > 0;
-	const alone = leftAlone(view, wi.item.id);
+	const degraded = useDegraded();
+	const alone = problem || degraded ? null : leftAlone(view, wi.item.id);
 	// The one reason, in plain words, with who signs off. The reason codes and the engine's own sentence sit behind "Technical details".
-	const showReason = problem && !promoted && !rerunning;
+	// Only while the gate is closed: work that is ready to merge under an accepted exception has nothing left to resolve.
+	const gateOpen = wi.item.status === "ready" && (gate ? gate.pass : true);
+	const showReason = problem && !promoted && !rerunning && !gateOpen;
+	const excepted = gateOpen && problem ? validExceptions(view, wi) : [];
 	const sentences = reasonSentences(view, analysis);
 	const stamps = builtOnStamps(analysis);
-	const signerRecord = signerRecordId(view, wi.item.id, analysis);
-	const signer = signerRecord ? signerFor(view, signerRecord) : null;
+	const signers = signOffFor(view, analysis);
 	// The Worker's claims check has its own row: the engine does not count it as a test, so the Test row does not list it.
 	const claimsChecks = analysis.headEvidence.filter((e) => !analysis.testEvidence.includes(e));
 	const summary = promoted
@@ -111,13 +114,23 @@ export function WhyTab({ wi }: { wi: WorkItemState }) {
 						<p className="mt-1.5 flex items-center gap-1.5 text-[13px]" data-testid="signoff">
 							<Gavel className="size-3.5 text-muted-foreground" aria-hidden />
 							<span>
-								Sign-off: <span className="font-semibold">{signer ?? "no authority is named for this decision"}</span>
+								{signers.length > 0 ? (
+									<>
+										Sign-off: <span className="font-semibold">{signers.join(" and ")}</span>
+									</>
+								) : (
+									"No exception can lift this block. It needs a revalidation or a new push from the agent."
+								)}
 							</span>
 						</p>
 						<div className="mt-3 border-t border-danger/25 pt-3">
 							<Resolutions wi={wi} />
 						</div>
 					</>
+				) : excepted.length > 0 ? (
+					<p className="mt-1.5 text-[13px] leading-relaxed" data-testid="passes-with-exception">
+						{excepted.map((e) => `Passes with an accepted exception from ${e.signer}${e.scope ? `: ${e.scope}` : ""}.`).join(" ")} A human still decides whether to merge.
+					</p>
 				) : (
 					<p className="mt-1.5 text-[13px] leading-relaxed">{summary}</p>
 				)}
@@ -149,7 +162,9 @@ export function WhyTab({ wi }: { wi: WorkItemState }) {
 						<ShieldCheck className="size-4" aria-hidden />
 						Left alone{alone.recordRef ? ` by ${alone.recordRef}` : ""}
 					</p>
-					<p className="mt-1 text-xs text-muted-foreground">{alone.message}</p>
+					<p className="mt-1 text-xs text-muted-foreground" title={alone.message}>
+						No recorded dependency on what changed.
+					</p>
 					<ul className="mt-2 flex flex-wrap gap-1.5" aria-label="Reason codes for leaving it alone">
 						{alone.reasonCodes.map((code) => (
 							<li key={code}>

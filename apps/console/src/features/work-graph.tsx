@@ -142,8 +142,11 @@ export function StartAgents({ onStart }: { onStart(): Promise<{ ok: boolean; mes
 	const [busy, setBusy] = useState(false);
 	return (
 		<div className="pointer-events-auto max-w-sm rounded-xl border bg-card/95 p-5 text-center shadow-md" data-testid="start-agents">
-			<p className="text-sm font-semibold">Agents are working. Then a decision changes.</p>
-			<p className="mt-1 text-xs text-muted-foreground">Git won&apos;t notice: the files don&apos;t conflict. Start to see what Delta Convergence catches.</p>
+			<p className="text-sm font-semibold">Agents work in parallel. Then a decision changes.</p>
+			<p className="mt-1 text-xs text-muted-foreground">
+				Git won&apos;t notice: the files don&apos;t conflict.{" "}
+				{client.capabilities.start ? "Start to see what Delta Convergence catches." : "Delta Convergence catches the work that was built on the old decision."}
+			</p>
 			<UnavailableHint available={client.capabilities.start} reason="Starting is not available against the live Worker yet. Register the work items with POST /api/scenarios/:s/work-items; the agents start from there.">
 				<Button
 					className="mt-4"

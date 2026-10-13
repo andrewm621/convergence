@@ -11,7 +11,7 @@ import { Input, Label, NativeSelect, Textarea } from "@/components/ui/input";
 import { formatDateTime, formatTime, shortHash } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useConsole } from "@/state/console-context";
-import { analysisOf, currentRecord, exceptionStatus, exceptionWaiver, hasProblem, type ExceptionWaiver } from "@/state/derive";
+import { analysisOf, currentRecord, exceptionStatus, exceptionWaiver, type ExceptionWaiver } from "@/state/derive";
 import { useGate } from "@/state/use-gate";
 import { PromoteButton } from "./promote-button";
 import { scenarioMeta } from "./scenario-meta";
@@ -126,9 +126,9 @@ export function Resolutions({ wi }: { wi: WorkItemState }) {
 	// What an exception on each candidate would waive, named from the same facts the gate uses.
 	const waivers = useMemo(() => {
 		const out: Record<string, ExceptionWaiver> = {};
-		if (analysis) for (const id of candidates) out[id] = exceptionWaiver(view, analysis, id);
+		if (analysis) for (const id of candidates) out[id] = exceptionWaiver(view, wi, analysis, id);
 		return out;
-	}, [analysis, candidates, view]);
+	}, [analysis, candidates, view, wi]);
 
 	const promoted = wi.item.status === "promoted";
 	const noPush = wi.headSha === null;
@@ -151,43 +151,50 @@ export function Resolutions({ wi }: { wi: WorkItemState }) {
 
 	const staleNote = analysis?.stale.map((f) => `${f.recordId} v${f.fromVersion} to v${f.toVersion}`).join(", ");
 	const maxRuns = view.policy?.maxRevalidations;
-	const runsLine = maxRuns === undefined ? "" : wi.revalidations >= maxRuns ? ` All ${maxRuns} re-runs are used.` : ` Uses ${wi.revalidations + 1} of ${maxRuns} re-runs.`;
+	const runsUsedUp = maxRuns !== undefined && wi.revalidations >= maxRuns;
+	const revalidateNote = runsUsedUp
+		? `All ${maxRuns} re-runs are used. A reviewer has to decide what happens to this work (REVALIDATION_LIMIT).`
+		: `Sends the agent back to redo this on the current decisions.${maxRuns === undefined ? "" : ` Uses ${wi.revalidations + 1} of ${maxRuns} re-runs.`}`;
 
-	// Nothing to resolve on work that is simply ready: Revalidate, an exception and Reject have no job there.
-	if (analysis && wi.item.status === "ready" && !hasProblem(analysis)) return null;
+	// Work that is ready to merge has nothing to lift or redo, whether it is clean or passes under an exception. Rejecting it stays possible.
+	const ready = wi.item.status === "ready";
 
 	return (
 		<section aria-label="Resolve" className="space-y-3" data-testid="resolve-actions">
 			<h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Resolve</h3>
 			<div className="space-y-2.5">
-				<ResolveRow
-					note={`Sends the agent back to redo this on the current decisions.${runsLine}`}
-					button={
-						<UnavailableHint available={!readOnly} reason={readOnly ?? ""}>
-							<Button
-								size="sm"
-								variant="outline"
-								className="w-full justify-start"
-								data-testid="revalidate-button"
-								disabled={Boolean(reason) || wi.revalidating || busy !== null}
-								onClick={() => void submit({ kind: "revalidate", rationale: staleNote ? `Decision changed under this work: ${staleNote}.` : "Re-run on the current decisions." }, defaultRecord, "Revalidate")}
-							>
-								{busy === "Revalidate" ? <Loader className="animate-spin" aria-hidden /> : <RefreshCw aria-hidden />}
-								Revalidate
-							</Button>
-						</UnavailableHint>
-					}
-				/>
-				<ResolveRow
-					note="Lets it merge anyway, for a scope you name. Ends at the next version of the decision or the agent's next push."
-					button={
-						<UnavailableHint available={!readOnly} reason={readOnly ?? ""}>
-							<Button size="sm" variant="outline" className="w-full justify-start" disabled={Boolean(reason) || busy !== null} aria-expanded={open === "exception"} onClick={() => setOpen(open === "exception" ? null : "exception")}>
-								<Gavel aria-hidden /> Accept exception
-							</Button>
-						</UnavailableHint>
-					}
-				/>
+				{!ready && (
+					<ResolveRow
+						note={revalidateNote}
+						button={
+							<UnavailableHint available={!readOnly} reason={readOnly ?? ""}>
+								<Button
+									size="sm"
+									variant="outline"
+									className="w-full justify-start"
+									data-testid="revalidate-button"
+									disabled={Boolean(reason) || wi.revalidating || busy !== null}
+									onClick={() => void submit({ kind: "revalidate", rationale: staleNote ? `Decision changed under this work: ${staleNote}.` : "Re-run on the current decisions." }, defaultRecord, "Revalidate")}
+								>
+									{busy === "Revalidate" ? <Loader className="animate-spin" aria-hidden /> : <RefreshCw aria-hidden />}
+									Revalidate
+								</Button>
+							</UnavailableHint>
+						}
+					/>
+				)}
+				{!ready && (
+					<ResolveRow
+						note="Lifts the block from this decision, for a scope you name. Other blocks stay. Ends at its next version or the agent's next push."
+						button={
+							<UnavailableHint available={!readOnly} reason={readOnly ?? ""}>
+								<Button size="sm" variant="outline" className="w-full justify-start" disabled={Boolean(reason) || busy !== null} aria-expanded={open === "exception"} onClick={() => setOpen(open === "exception" ? null : "exception")}>
+									<Gavel aria-hidden /> Accept exception
+								</Button>
+							</UnavailableHint>
+						}
+					/>
+				)}
 				<ResolveRow
 					note="Ends this work. The reason goes in the audit log."
 					button={
@@ -202,7 +209,7 @@ export function Resolutions({ wi }: { wi: WorkItemState }) {
 			{reason && <p className="text-xs text-muted-foreground">{reason}</p>}
 			{!reason && wi.revalidating && <p className="text-xs text-muted-foreground">Revalidation is running. The agent will push again on the current decisions.</p>}
 
-			{open === "exception" && (
+			{open === "exception" && !ready && (
 				<ExceptionForm
 					candidates={candidates}
 					waivers={waivers}
@@ -326,29 +333,52 @@ export function ExceptionForm({
 }
 
 /**
- * What an exception does, in full (rule R5): it waives staleness, claim conflicts and the excepted record's own failing
- * check, for that record only, and never an unknown. Says when it ends and where it is recorded.
+ * What an exception does, in full (rule R5): it lifts the block from one record, waiving staleness, claim conflicts and that
+ * record's own failing check, and nothing else. Every other block stays, and the form says which. Says when it ends and
+ * where it is recorded.
  */
 function ExceptionTerms({ recordId, waiver }: { recordId: string | null; waiver: ExceptionWaiver | undefined }) {
 	const name = recordId ?? "the decision";
+	const checkName = waiver?.check?.split("/").pop();
 	return (
 		<div className="space-y-2 text-[13px]" data-testid="exception-terms">
 			<p>
-				Lets this work merge even though <span className="font-semibold">{name}</span> changed. For {name} only, it waives:
+				Lifts the block from <span className="font-semibold">{name}</span> only.
+				{waiver && !waiver.lifts ? ` This work is not stale or in conflict against ${name}, so an exception on it lifts nothing.` : " It waives:"}
 			</p>
-			<ul className="list-disc space-y-0.5 pl-5 text-muted-foreground">
-				<li>staleness: being built on the old version</li>
-				<li>claim conflicts with the new version</li>
-				{waiver?.check ? (
-					<li data-testid="exception-waived-check" className={cn(waiver.failing && "font-semibold text-danger")}>
-						this decision&apos;s own check: {waiver.check.split("/").pop()}
-						{waiver.failing ? ", currently failing" : ", passing now"}
-					</li>
-				) : (
-					<li>this decision&apos;s own check, if it names one and that check is failing</li>
-				)}
-			</ul>
-			<p className="text-muted-foreground">It never waives unknowns (missing or malformed claims, undeclared dependencies) or any other record&apos;s checks.</p>
+			{(!waiver || waiver.lifts) && (
+				<ul className="list-disc space-y-0.5 pl-5 text-muted-foreground">
+					<li>staleness: being built on the old version</li>
+					<li>claim conflicts with the new version</li>
+					{!waiver ? (
+						<li>this decision&apos;s own check, if it names one and that check is failing</li>
+					) : (
+						waiver.check &&
+						waiver.checkState && (
+							<li data-testid="exception-waived-check" data-check-state={waiver.checkState} className={cn(waiver.checkState === "failing" && "font-semibold text-danger")}>
+								this decision&apos;s own check: {checkName},{" "}
+								{waiver.checkState === "failing" ? "currently failing" : waiver.checkState === "passing" ? "passing now" : "not run at this head yet"}
+							</li>
+						)
+					)}
+				</ul>
+			)}
+			{waiver && waiver.otherBlocks.length > 0 && (
+				<div data-testid="exception-other-blocks">
+					<p className="font-semibold">Other blocks stay:</p>
+					<ul className="list-disc space-y-0.5 pl-5 text-muted-foreground">
+						{waiver.otherBlocks.map((line) => (
+							<li key={line}>{line}</li>
+						))}
+					</ul>
+				</div>
+			)}
+			{waiver && waiver.wouldPass !== null && (
+				<p data-testid="exception-dry-run" className={cn("font-medium", !waiver.wouldPass && "text-danger")}>
+					{waiver.wouldPass ? "With this exception the gate would pass. A human still decides whether to merge." : "With this exception the gate would still be closed."}
+				</p>
+			)}
+			<p className="text-muted-foreground">It never waives unknowns (missing or malformed claims, undeclared dependencies), other records&apos; checks, or edits to accepted context.</p>
 			<p>
 				<span className="font-semibold">Ends when</span> {name} gets a new version or the agent pushes again. <span className="font-semibold">Recorded in the audit log</span>
 				{waiver?.signer ? `, and only ${waiver.signer} can grant it` : ""}.

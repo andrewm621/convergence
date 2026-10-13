@@ -59,9 +59,10 @@ export function statusMeta(status: WorkItemStatus, degraded: boolean, leftAlone 
 	if (degraded && (status === "fresh" || status === "ready")) {
 		return { label: "unconfirmed", tone: "warning", icon: HelpCircle, description: "The poller is degraded, so Delta Convergence cannot confirm that no decision it depends on has changed." };
 	}
-	// Work the last decision change deliberately did not touch stays green, even while its agent is still working.
-	if (status === "running" && leftAlone) {
-		return { label: "Left alone", tone: "success", icon: ShieldCheck, description: "The last decision change does not touch anything this work uses. Its agent is still working." };
+	// Work with no recorded dependency on what changed stays green, even while its agent is still working. Never while the
+	// poller is degraded: a baseline change may be sitting unread, and unknown is not unaffected.
+	if (status === "running" && leftAlone && !degraded) {
+		return { label: "Left alone", tone: "success", icon: ShieldCheck, description: "No recorded dependency on what the last decision change touched. Its agent is still working." };
 	}
 	return STATUS_META[status];
 }

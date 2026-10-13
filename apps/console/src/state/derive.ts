@@ -1,5 +1,5 @@
 import { parseRecordRef, type Claim, type Dependency, type FacetValue, type ReasonCode, type ReceiptEntry, type ReconciliationEvent, type RecordSnapshot, type Resolution, type WorkItemState } from "contracts";
-import { analyze, authorityFor, classifyExceptions, diffFacets, facetValuesEqual, findStale, type Analysis } from "delta-core";
+import { analyze, authorityFor, classifyExceptions, diffFacets, evaluateGate, facetValuesEqual, findStale, type Analysis } from "delta-core";
 import { DEMO_IDENTITY } from "@/config";
 import { describeCheck } from "@/lib/evidence";
 import { toCellState, type Evaluation, type ViewState } from "./store";
@@ -282,10 +282,23 @@ export function leftAlone(view: ViewState, workItemId: string, options: { sticky
 			const rec = event.records[0];
 			return { seq: entry.seq, ts: entry.ts, recordRef: rec ? `${rec.recordId}@${rec.version}` : null, reasonCodes: quiet.reasonCodes, message: quiet.message ?? "Left alone." };
 		}
+		// Work that went stale or conflicting afterwards is not "left alone" any more, however long the note is kept.
+		if (about.some((effect) => effect.type === "RECORD_CONDITION" && ["Stale", "ClaimConflict", "TestFailed", "Uncertain"].includes(effect.condition.type))) return null;
 		// A later effect on this item (a push, a check, a resolution) supersedes the old note.
 		if (!options.sticky && about.some((effect) => effect.type !== "NO_ACTION" || !effect.reasonCodes.includes("OBSERVATION_ONLY"))) return null;
 	}
 	return null;
+}
+
+/**
+ * The green "Left alone" note for a work item, or null. Only work that is still running, up to date or ready qualifies, and
+ * only while the rules find nothing wrong with it: a note from an earlier change never survives a later block.
+ */
+export function quietOf(view: ViewState, wi: WorkItemState): LeftAlone | null {
+	if (!["running", "fresh", "ready"].includes(wi.item.status)) return null;
+	const analysis = analysisOf(view, wi.item.id);
+	if (!analysis || hasProblem(analysis)) return null;
+	return leftAlone(view, wi.item.id, { sticky: true });
 }
 
 /** Facet keys a work item relies on for one record (empty means "the whole record"). */
@@ -450,9 +463,23 @@ export function reasonSentences(view: ViewState, analysis: Analysis): string[] {
 	for (const finding of analysis.stale) {
 		if (!covered.has(finding.recordId)) sentences.push(`Built on ${finding.recordId} v${finding.fromVersion}. ${finding.recordId} is now v${finding.toVersion}.`);
 	}
+	// A claim that contradicts the decision gets its own sentence, unless the changed setting above already says it.
+	const described = new Set(changedSettings(view, analysis).map((setting) => setting.key));
+	for (const conflict of analysis.conflicts) {
+		if (!described.has(conflict.subject)) sentences.push(conflict.message);
+	}
 	if (analysis.failedChecks.length > 0) sentences.push(`A check on this work is failing: ${analysis.failedChecks.map((c) => c.split("/").pop() ?? c).join(", ")}.`);
 	for (const finding of analysis.uncertain.slice(0, 2)) sentences.push(finding.message);
 	return sentences;
+}
+
+/**
+ * Who signs off: the authority of every record this work is stale or in conflict against (two records can have two authorities).
+ * Empty when no exception can lift what blocks it (a missing or malformed claim, an unknown, a failing check on its own).
+ */
+export function signOffFor(view: ViewState, analysis: Analysis): string[] {
+	const ids = [...new Set([...analysis.stale.map((f) => f.recordId), ...analysis.conflicts.map((f) => f.recordId)])];
+	return [...new Set(ids.map((id) => signerFor(view, id)).filter((name): name is string => name !== null))];
 }
 
 /** "Built on notifications v1 · now v2": one stamp per record this work is stale against. */
@@ -474,19 +501,57 @@ export function hasProblem(analysis: Analysis): boolean {
 
 // ---------- what an exception waives ----------
 
+export type CheckState = "failing" | "passing" | "not-run";
+
 export type ExceptionWaiver = {
 	recordId: string;
-	/** The record's own validation check, which an exception on it waives (R5). Null when the record names none. */
+	/** This work is stale or in conflict against the record, so an exception on it lifts something (rule R5's `waivable`). */
+	lifts: boolean;
+	/** The record's own validation check. Named only when the exception lifts something, because only then does it waive that check. */
 	check: string | null;
-	/** That check is failing at the work's current head, so the waiver actually lets a failure through. */
-	failing: boolean;
+	/** Whether that check is failing, passing at the current head, or has not run there yet. */
+	checkState: CheckState | null;
 	signer: string | null;
+	/** What would still block the work with this exception in place, from a dry run of the gate. Empty when nothing would. */
+	otherBlocks: string[];
+	/** Whether the gate would pass with this exception. Null when it cannot be told (nothing pushed yet, no authority named). */
+	wouldPass: boolean | null;
 };
 
-/** What `accept-exception` on one record would waive for this work item, from the same facts the gate uses. */
-export function exceptionWaiver(view: ViewState, analysis: Analysis, recordId: string): ExceptionWaiver {
-	const check = currentRecord(view, recordId)?.validation ?? null;
-	return { recordId, check, failing: check !== null && analysis.failedChecks.includes(check), signer: signerFor(view, recordId) };
+/** The gate, dry-run as if the record's authority had granted an exception on it now. Null when that cannot be built. */
+function gateWithException(view: ViewState, wi: WorkItemState, recordId: string) {
+	const record = currentRecord(view, recordId);
+	if (!view.policy || !record || wi.headSha === null) return null;
+	const state = toCellState(view);
+	const authority = authorityFor(state, view.policy, recordId);
+	if (!authority) return null;
+	const hypothetical: Resolution = {
+		kind: "accept-exception",
+		workItemId: wi.item.id,
+		actor: { kind: "human", id: authority, displayName: actorLabel(view, authority) },
+		rationale: "preview",
+		scope: "preview",
+		binding: { recordId, version: record.version, blobHash: record.blobHash, baseSha: view.baselineCommit, forkHeadSha: wi.headSha, contextSnapshotHash: view.snapshotHash },
+		ts: "1970-01-01T00:00:00.000Z",
+	};
+	const next = { ...state, workItems: { ...state.workItems, [wi.item.id]: { ...wi, resolutions: [...wi.resolutions, hypothetical] } } };
+	return evaluateGate(next, wi.item.id, view.policy);
+}
+
+/** What `accept-exception` on one record would waive for this work item, and what it would leave blocked, from the same facts the gate uses. */
+export function exceptionWaiver(view: ViewState, wi: WorkItemState, analysis: Analysis, recordId: string): ExceptionWaiver {
+	const lifts = analysis.stale.some((f) => f.recordId === recordId) || analysis.conflicts.some((f) => f.recordId === recordId);
+	const check = lifts ? (currentRecord(view, recordId)?.validation ?? null) : null;
+	const checkState: CheckState | null = check === null ? null : analysis.failedChecks.includes(check) ? "failing" : analysis.testEvidence.some((e) => e.check === check && e.pass) ? "passing" : "not-run";
+	const dry = gateWithException(view, wi, recordId);
+	return { recordId, lifts, check, checkState, signer: signerFor(view, recordId), otherBlocks: dry ? dry.blockers : [], wouldPass: dry ? dry.promotable : null };
+}
+
+/** The accepted exceptions that still hold for this work item (not lapsed), with who granted them and their scope. */
+export function validExceptions(view: ViewState, wi: WorkItemState): { recordId: string; scope: string | null; signer: string }[] {
+	return wi.resolutions
+		.filter((r) => r.kind === "accept-exception" && exceptionStatus(view, wi, r)?.lapsed === false)
+		.map((r) => ({ recordId: r.binding.recordId, scope: r.scope ?? null, signer: actorLabel(view, r.actor.id) }));
 }
 
 // ---------- the results strip, kept current ----------

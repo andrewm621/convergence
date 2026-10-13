@@ -195,6 +195,7 @@ describe("live mode disables what the Worker does not have", () => {
 		);
 		expect(await screen.findByRole("button", { name: /Start the scenario/ })).toBeEnabled();
 		expect(screen.queryByTestId("unavailable-action")).toBeNull();
+		expect(screen.getByTestId("start-agents")).toHaveTextContent("Start to see what Delta Convergence catches.");
 		view.unmount();
 
 		render(
@@ -206,6 +207,9 @@ describe("live mode disables what the Worker does not have", () => {
 		);
 		const button = await screen.findByRole("button", { name: /Start the scenario/ });
 		expect(button).toBeDisabled();
+		// Where Start is not available the card must not tell the viewer to start.
+		expect(screen.getByTestId("start-agents")).not.toHaveTextContent("Start to see");
+		expect(screen.getByTestId("start-agents")).toHaveTextContent("Agents work in parallel. Then a decision changes.");
 		await user.hover(screen.getByTestId("unavailable-action"));
 		expect(await screen.findByRole("tooltip")).toHaveTextContent(/not available against the live Worker/);
 		expect(onStart).not.toHaveBeenCalled();

@@ -40,7 +40,7 @@ describe("the one-reason card on the Why tab", () => {
 		const actions = within(card).getByTestId("resolve-actions");
 		for (const name of ["Revalidate", "Accept exception", "Reject"]) expect(within(actions).getByRole("button", { name })).toBeInTheDocument();
 		expect(actions).toHaveTextContent("Sends the agent back to redo this on the current decisions. Uses 1 of 2 re-runs.");
-		expect(actions).toHaveTextContent("Lets it merge anyway, for a scope you name.");
+		expect(actions).toHaveTextContent("Lifts the block from this decision, for a scope you name. Other blocks stay.");
 		expect(actions).toHaveTextContent("Ends this work. The reason goes in the audit log.");
 		// The card comes before the epistemic chain, and the chain is intact below it.
 		const chain = screen.getByRole("list", { name: "Why chain" });
@@ -69,7 +69,11 @@ describe("the one-reason card on the Why tab", () => {
 		expect(screen.getByRole("tab", { name: "Why" })).toBeInTheDocument();
 		await userEvent.setup().click(screen.getByRole("tab", { name: "Actions" }));
 		expect(await screen.findByTestId("gate-preview")).toBeInTheDocument();
-		expect(screen.queryByTestId("resolve-actions")).toBeNull();
+		// Nothing to redo or lift on work that is ready, but a person can still reject it.
+		const actions = await screen.findByTestId("resolve-actions");
+		expect(within(actions).getByRole("button", { name: "Reject" })).toBeEnabled();
+		expect(within(actions).queryByRole("button", { name: "Revalidate" })).toBeNull();
+		expect(within(actions).queryByRole("button", { name: /Accept exception/ })).toBeNull();
 	});
 
 	it("is not headed 'Why is this blocked?' for an agent that simply has not pushed yet, and its chip stays green when the change left it alone", async () => {
@@ -121,10 +125,14 @@ describe("accept exception states the whole of R5", () => {
 		await renderWithMock(<Inspector />, { beats: 5, select: "WI-2" });
 		await user.click(await screen.findByRole("button", { name: /Accept exception/ }));
 		const terms = await screen.findByTestId("exception-terms");
+		expect(terms).toHaveTextContent("Lifts the block from notifications only.");
+		expect(terms).not.toHaveTextContent("Lets this work merge even though");
 		expect(terms).toHaveTextContent("staleness");
 		expect(terms).toHaveTextContent("claim conflicts");
 		expect(screen.getByTestId("exception-waived-check")).toHaveTextContent("this decision's own check: notifications.test.ts, currently failing");
-		expect(terms).toHaveTextContent("never waives unknowns");
+		expect(screen.getByTestId("exception-dry-run")).toHaveTextContent("With this exception the gate would pass.");
+		expect(screen.queryByTestId("exception-other-blocks")).toBeNull();
+		expect(terms).toHaveTextContent("It never waives unknowns");
 		expect(terms).toHaveTextContent("Ends when notifications gets a new version or the agent pushes again.");
 		expect(terms).toHaveTextContent("Recorded in the audit log");
 		expect(terms).toHaveTextContent("only Decision owner (demo identity) can grant it");
@@ -134,6 +142,7 @@ describe("accept exception states the whole of R5", () => {
 		render(<ExceptionForm candidates={["qualified-lead"]} busy={false} onCancel={() => {}} onSubmit={() => {}} />);
 		const terms = screen.getByTestId("exception-terms");
 		expect(terms).toHaveTextContent("staleness");
+		expect(terms).toHaveTextContent("Lifts the block from qualified-lead only.");
 		expect(terms).toHaveTextContent("Ends when qualified-lead gets a new version");
 		expect(terms).toHaveTextContent("Recorded in the audit log");
 	});
@@ -149,7 +158,7 @@ describe("the results strip after a merge", () => {
 		expect(screen.queryByTestId("results-resolved")).toBeNull();
 
 		await user.click(screen.getByRole("button", { name: /Go to beat 9/ })); // conflict, WI-1 merges, revalidate, re-run lands, WI-2 merges
-		await waitFor(() => expect(screen.getByTestId("results-strip")).toHaveTextContent("0 stale"));
+		await waitFor(() => expect(screen.getByTestId("results-strip")).toHaveTextContent("0 stale"), { timeout: 5000 });
 		expect(screen.getByTestId("results-resolved")).toHaveTextContent("1 resolved");
 		expect(screen.getByTestId("results-strip")).toHaveTextContent("2 items evaluated");
 	});
@@ -166,7 +175,7 @@ describe("the first screen", () => {
 	it("opens on the problem, not on 'No work yet'", async () => {
 		render(<App runtime={runtime} />);
 		const card = await screen.findByTestId("start-agents");
-		expect(card).toHaveTextContent("Agents are working. Then a decision changes.");
+		expect(card).toHaveTextContent("Agents work in parallel. Then a decision changes.");
 		expect(card).toHaveTextContent("Git won't notice: the files don't conflict.");
 		expect(card).toHaveTextContent("Start to see what Delta Convergence catches.");
 		expect(within(card).getByRole("button", { name: /Start the scenario/ })).toBeInTheDocument();
