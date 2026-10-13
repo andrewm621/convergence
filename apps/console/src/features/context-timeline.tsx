@@ -11,7 +11,7 @@ import { formatDateTime, formatFacet, parseFacetInput, plural, shortHash } from 
 import { cn } from "@/lib/utils";
 import { UnavailableHint } from "@/components/unavailable-hint";
 import { useConsole } from "@/state/console-context";
-import { SCENARIO_META } from "./scenario-meta";
+import { scenarioMeta } from "./scenario-meta";
 import { actorLabel, proseEdits, recordIds } from "@/state/derive";
 
 export function ContextTimeline() {
@@ -77,7 +77,7 @@ export function EmptyContext() {
 			</div>
 			<p className="text-sm font-semibold">No accepted context yet. Declare the first decision.</p>
 			<p className="mt-1.5 text-xs text-muted-foreground">
-				Work is only ever judged against accepted decisions. Seed the {SCENARIO_META[client.scenario].label} scenario to start from its first ones.
+				Work is only ever judged against accepted decisions. Seed the {scenarioMeta(client.scenario, client.kind === "live").label} scenario to start from its first ones.
 			</p>
 			<UnavailableHint available={client.capabilities.seed} reason="Seeding is not available against the live Worker yet. Create it with POST /api/scenarios/:s/init and /work-items, then reload.">
 				<Button
@@ -109,7 +109,7 @@ function versionRows(history: RecordHistory): VersionRow[] {
 
 function RecordCard({ recordId, history, editing, onEdit, onClose }: { recordId: string; history: RecordHistory; editing: boolean; onEdit(): void; onClose(): void }) {
 	const { view, editorRequest, client } = useConsole();
-	const readOnly = SCENARIO_META[client.scenario].readOnlyReason;
+	const readOnly = scenarioMeta(client.scenario, client.kind === "live").readOnlyReason;
 	const rows = useMemo(() => versionRows(history), [history]);
 	const head = rows.find((row) => row.current);
 	const edits = useMemo(() => proseEdits(view, recordId), [view, recordId]);

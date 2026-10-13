@@ -44,7 +44,7 @@ function Shell({ scenario, onScenario, controls }: { scenario: ScenarioName; onS
 	const { client, connection, view } = useConsole();
 	return (
 		<div className="flex h-full flex-col bg-background">
-			<Header scenario={scenario} onScenario={onScenario} connection={connection} poller={view.poller} />
+			<Header scenario={scenario} onScenario={onScenario} connection={connection} poller={view.poller} live={client.kind === "live"} />
 			<main className="grid min-h-0 flex-1 grid-cols-[minmax(280px,320px)_minmax(0,1fr)_minmax(400px,480px)] divide-x">
 				<div className="flex min-h-0 flex-col bg-card/40">
 					<ContextTimeline />

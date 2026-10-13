@@ -7,7 +7,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useConsole } from "@/state/console-context";
 import { isDegraded } from "@/state/store";
 import { useGate } from "@/state/use-gate";
-import { SCENARIO_META } from "./scenario-meta";
+import { scenarioMeta } from "./scenario-meta";
 
 /**
  * Promote, gated. The button is disabled unless `GET /work-items/:id/gate` says the dry run
@@ -25,7 +25,7 @@ export function PromoteButton({ workItemId, className, showReasons = false }: { 
 	const promoted = wi.item.status === "promoted";
 	const degraded = isDegraded(view);
 	// While the poller is degraded a baseline change could be unread, so even a passing gate is not trusted.
-	const readOnly = SCENARIO_META[client.scenario].readOnlyReason;
+	const readOnly = scenarioMeta(client.scenario, client.kind === "live").readOnlyReason;
 	const canPromote = Boolean(gate?.pass) && !promoted && !promoting && wi.headSha !== null && !degraded && !readOnly;
 
 	async function promote() {

@@ -123,6 +123,9 @@ importers:
       isomorphic-git:
         specifier: 1.43.2
         version: 1.43.2
+      scenario-delta-convergence-build:
+        specifier: workspace:*
+        version: link:../../scenarios/delta-convergence-build
       scenario-notifications:
         specifier: workspace:*
         version: link:../../scenarios/notifications

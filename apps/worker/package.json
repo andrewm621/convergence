@@ -16,6 +16,7 @@
     "delta-core": "workspace:*",
     "hono": "^4.13.13",
     "isomorphic-git": "1.43.2",
+    "scenario-delta-convergence-build": "workspace:*",
     "scenario-notifications": "workspace:*",
     "scenario-shelter-intake": "workspace:*",
     "zod": "^4.6.7"

@@ -6,7 +6,7 @@ import { shortHash } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { agentModelOf, leftAlone } from "@/state/derive";
 import { useConsole } from "@/state/console-context";
-import { SCENARIO_META } from "./scenario-meta";
+import { scenarioMeta } from "./scenario-meta";
 import { FIT, NODE_SIZE, TILE, type BaselineData, type ClusterData, type DependencyEdgeData, type ItemData, type RecordData } from "./graph-layout";
 
 export function BaselineNode({ data }: NodeProps & { data: BaselineData }) {
@@ -93,7 +93,7 @@ export function WorkItemNode({ data }: NodeProps & { data: ItemData }) {
 			<div className="flex items-center gap-2">
 				<span className="font-mono text-[13px] font-semibold">{wi.item.id}</span>
 				{running && <Loader className="size-3.5 shrink-0 text-info motion-safe:animate-spin" aria-hidden />}
-				<ActorChip actor={wi.item.actor} label={SCENARIO_META[client.scenario].agentLabel ?? agentModelOf(view.ledger, wi.item.id) ?? undefined} className="min-w-0 text-[13px]" />
+				<ActorChip actor={wi.item.actor} label={scenarioMeta(client.scenario, client.kind === "live").agentLabel ?? agentModelOf(view.ledger, wi.item.id) ?? undefined} className="min-w-0 text-[13px]" />
 				<StatusChip status={wi.item.status} className="ml-auto text-[13px]" />
 			</div>
 			<p className="truncate leading-tight font-semibold" style={{ fontSize: FIT.itemTitlePx }} title={wi.item.title}>

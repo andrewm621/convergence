@@ -3,7 +3,9 @@ import { assertSafePath, errorCode, getRepo } from "./artifacts/git-write";
 import { redactDeep, redactText } from "./artifacts/tokens";
 import { DispatchError, dispatchAgent, presentRun } from "./agents/dispatch";
 import { DispatchRequest, IdempotencyKey, REPO_NAME_RE, RefName, WORK_ITEM_ID_RE } from "./agents/protocol";
-import { NOTIFICATIONS_SCENARIO_FILES, SMOKE_LABEL_RE, SmokeDeleteRequest, deleteSmokeRepos, purgeSmokeRepos, runSmoke, seedForks } from "./smoke";
+import { POINTER_SCENARIO } from "./cell/pointer-scenario";
+import { NOTIFICATIONS_SCENARIO_FILES, PointerForkRequest, PointerPushRequest, SMOKE_LABEL_RE, SmokeDeleteRequest, deleteSmokeRepos, forkPointer, purgeSmokeRepos, pushPointer, runSmoke, seedForks } from "./smoke";
+import { buildPointerSeed } from "./smoke-build";
 import { bearerGuard } from "./cell/auth";
 import { cellApi } from "./cell/routes";
 import { jsonNotFound } from "./not-found";
@@ -62,15 +64,49 @@ app.delete("/api/smoke", async (c) => {
 
 // A baseline plus N ready forks, for trying the agent runtime. Delete them with DELETE /api/smoke and their names.
 // ?scenario=notifications seeds the baseline with Scenario A's accepted records, for the control loop.
+// ?scenario=delta-convergence-build seeds our own build at the replay's end state (docs/dogfooding.md): the six records at
+// their latest versions and seven pointer forks (the forks count is fixed), and answers with what to init and register.
 // ?label=<name> puts the name in the repo names (smoke-<name>-<time>-baseline), to tell a demo's repos apart.
 app.post("/api/smoke/seed", async (c) => {
-	const count = Math.min(Math.max(Number(c.req.query("forks") ?? 2) || 2, 1), 6);
-	const files = c.req.query("scenario") === "notifications" ? NOTIFICATIONS_SCENARIO_FILES : undefined;
+	const count = Math.min(Math.max(Number(c.req.query("forks") ?? 2) || 2, 1), 10);
+	const scenario = c.req.query("scenario");
 	const label = c.req.query("label");
 	if (label !== undefined && !SMOKE_LABEL_RE.test(label)) {
 		return c.json({ error: { code: "INVALID_INPUT", message: "label must be 1-40 lowercase letters, digits or hyphens" } }, 400);
 	}
+	if (scenario !== undefined && scenario !== "notifications" && scenario !== POINTER_SCENARIO) {
+		return c.json({ error: { code: "INVALID_INPUT", message: `scenario must be notifications or ${POINTER_SCENARIO}` } }, 400);
+	}
+	if (scenario === POINTER_SCENARIO) {
+		const seed = buildPointerSeed();
+		const seeded = await seedForks(c.env, seed.workItems.length, seed.baselineFiles, label ?? POINTER_SCENARIO, seed.workItems.map((w) => ({ files: w.forkFiles, message: w.commitMessage })));
+		return c.json(
+			redactDeep({
+				...seeded,
+				scenario: POINTER_SCENARIO,
+				policy: seed.policy,
+				workItems: seed.workItems.map(({ forkFiles: _files, commitMessage: _message, ...item }, i) => ({ ...item, forkRepo: seeded.forks[i]?.name })),
+			}),
+		);
+	}
+	const files = scenario === "notifications" ? NOTIFICATIONS_SCENARIO_FILES : undefined;
 	return c.json(redactDeep(await seedForks(c.env, count, files, label)));
+});
+
+const issuesOf = (error: { issues: Array<{ path: PropertyKey[]; message: string }> }) => error.issues.map((i) => ({ path: i.path.join("."), message: i.message }));
+
+// A pointer work item for the live build cell: a fork of the baseline holding only a pointer and its claims.
+app.post("/api/smoke/pointer-fork", async (c) => {
+	const parsed = PointerForkRequest.safeParse(await c.req.json().catch(() => null));
+	if (!parsed.success) return c.json({ error: { code: "INVALID_INPUT", message: "invalid pointer fork request", issues: issuesOf(parsed.error) } }, 400);
+	return c.json(redactDeep(await forkPointer(c.env, parsed.data)));
+});
+
+// New claims and a new pointer for an existing pointer work item: the fork's next commit, which the cell reads as a push.
+app.post("/api/smoke/pointer-push", async (c) => {
+	const parsed = PointerPushRequest.safeParse(await c.req.json().catch(() => null));
+	if (!parsed.success) return c.json({ error: { code: "INVALID_INPUT", message: "invalid pointer push request", issues: issuesOf(parsed.error) } }, 400);
+	return c.json(redactDeep(await pushPointer(c.env, parsed.data)));
 });
 
 app.post("/api/agents/dispatch", async (c) => {

@@ -1,6 +1,6 @@
 import { ExternalLink } from "lucide-react";
 import { shortHash } from "@/lib/format";
-import { REPO_URL, SCENARIO_META } from "@/features/scenario-meta";
+import { REPO_URL, scenarioMeta } from "@/features/scenario-meta";
 import { useConsole } from "@/state/console-context";
 
 const ZERO_SHA = /^0+$/;
@@ -18,7 +18,7 @@ export function isNotInGit(sha: string | null | undefined): boolean {
 export function CommitSha({ sha, length = 7, className }: { sha: string | null | undefined; length?: number; className?: string }) {
 	const { client } = useConsole();
 	if (!sha) return <span className={className}>{shortHash(sha, length)}</span>;
-	if (!SCENARIO_META[client.scenario].realHistory) return <span className={className}>{shortHash(sha, length)}</span>;
+	if (!scenarioMeta(client.scenario, client.kind === "live").realHistory) return <span className={className}>{shortHash(sha, length)}</span>;
 	if (isNotInGit(sha)) {
 		return (
 			<span className={className} title="This is not a commit: it has no place in git." data-testid="not-in-git">
