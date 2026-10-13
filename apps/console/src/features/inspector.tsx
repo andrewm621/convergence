@@ -27,6 +27,7 @@ export function Inspector() {
 
 function NothingSelected() {
 	const { view, select } = useConsole();
+	const degraded = useDegraded();
 	const items = workItemsSorted(view).filter((wi) => wi.item.source !== "seeded");
 	return (
 		<div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
@@ -41,7 +42,7 @@ function NothingSelected() {
 						<li key={wi.item.id}>
 							<button type="button" onClick={() => select(wi.item.id)} className="flex items-center gap-2 rounded-lg border bg-card px-2.5 py-1.5 text-xs outline-none hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50">
 								<span className="font-mono font-semibold">{wi.item.id}</span>
-								<StatusChip status={wi.item.status} />
+								<StatusChip status={wi.item.status} excepted={!degraded && readyByException(view, wi)} />
 							</button>
 						</li>
 					))}

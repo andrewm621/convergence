@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { StatusChip } from "@/components/status";
@@ -86,7 +86,33 @@ describe("Merge opens a sheet; only the sheet's Merge promotes", () => {
 	});
 });
 
+describe("the tooltip stays down after the sheet closes", () => {
+	it("does not pop back up on the Merge button after Escape", async () => {
+		const user = userEvent.setup();
+		await renderWithMock(<PromoteButton workItemId="WI-1" />, { beats: 5 });
+		await waitFor(() => expect(screen.getByTestId("promote-button")).toBeEnabled());
+		// By keyboard: focus alone opens the tooltip, and closing the sheet hands focus straight back.
+		await user.tab();
+		expect(screen.getByTestId("promote-button")).toHaveFocus();
+		await user.keyboard("{Enter}");
+		await screen.findByTestId("merge-sheet");
+		expect(screen.queryByRole("tooltip")).toBeNull();
+		await user.keyboard("{Escape}");
+		await waitFor(() => expect(screen.queryByTestId("merge-sheet")).toBeNull());
+		expect(screen.getByTestId("promote-button")).toHaveFocus();
+		await new Promise((resolve) => setTimeout(resolve, 150));
+		expect(screen.queryByRole("tooltip")).toBeNull();
+	});
+});
+
 describe("ready under an exception looks different from ready", () => {
+	it("carries into the pick-a-work-item list", async () => {
+		await renderWithMock(<Inspector />, { scenario: "shelter-intake", beats: 6 });
+		const list = await screen.findByRole("list", { name: "Work items" });
+		const chip = list.querySelector('[data-status="ready"][data-excepted]') as HTMLElement;
+		expect(chip).toHaveTextContent("Ready · exception");
+	});
+
 	it("is an amber Ready · exception chip with data-status still ready, in the inspector and on the graph card", async () => {
 		await renderWithMock(
 			<>
@@ -170,6 +196,41 @@ describe("the sheet's checked line follows the facts", () => {
 	});
 });
 
+describe("claims match only when something was compared", () => {
+	async function ready() {
+		const mock = await startMock({ scenario: "notifications" });
+		await mock.jump(5);
+		const wi = mock.view.workItems["WI-1"]!;
+		return { mock, wi, claims: wi.claims! };
+	}
+	const claimsLine = (view: Parameters<typeof mergeChecks>[0], wi: Parameters<typeof mergeChecks>[1]) => mergeChecks(view, wi)!.find((c) => c.key === "claims")!;
+
+	it("says claims match when every claim was held against a governing decision", async () => {
+		const { mock, wi } = await ready();
+		expect(claimsLine(mock.view, wi).text).toBe("claims match");
+		mock.stop();
+	});
+
+	it("says so plainly when a claim has no decision governing it", async () => {
+		const { mock, wi, claims } = await ready();
+		const extra = { subject: "nothing.governs.this", value: true, basedOn: claims.claims[0]!.basedOn };
+		const mixed = { ...wi, claims: { ...claims, claims: [...claims.claims, extra] } };
+		expect(claimsLine(mock.view, mixed).text).toBe("claims match where a decision governs them");
+		const onlyUngoverned = { ...wi, claims: { ...claims, claims: [extra] } };
+		expect(claimsLine(mock.view, onlyUngoverned).text).toBe("no claims to compare");
+		mock.stop();
+	});
+
+	it("does not count a claim built on a reliance a human rejected", async () => {
+		const { mock, wi, claims } = await ready();
+		const recordId = claims.claims[0]!.basedOn.split("@")[0]!;
+		const view = { ...mock.view, dependencies: mock.view.dependencies.map((d) => (d.workItemId === "WI-1" && d.recordId === recordId ? { ...d, status: "rejected" as const } : d)) };
+		const unreceipted = { ...wi, receipt: { ...wi.receipt, accepted: wi.receipt.accepted.filter((e) => e.recordId !== recordId) } };
+		expect(claimsLine(view, unreceipted).text).toBe("no claims to compare");
+		mock.stop();
+	});
+});
+
 describe("Merged by", () => {
 	it("falls back to Merged at when the ledger names nobody", async () => {
 		const mock = await startMock({ scenario: "notifications" });
@@ -180,6 +241,13 @@ describe("Merged by", () => {
 		const fallback = mergeRecord(withoutRequests, "WI-2");
 		expect(fallback).toEqual({ ts: merged?.ts, by: null });
 		expect(mergeRecord(mock.view, "WI-404")).toBeNull(); // never merged
+
+		// A refused request sitting after the allowed one is not who merged it.
+		const allowed = mock.view.ledger.findIndex((e) => e.payload.event.type === "PromotionRequested" && e.payload.event.workItemId === "WI-2" && e.payload.effects.some((x) => x.type === "ALLOW_PROMOTION"));
+		const entry = mock.view.ledger[allowed]!;
+		const refused = { ...entry, payload: { event: { ...entry.payload.event, actor: { kind: "human" as const, id: "someone-else", displayName: "Someone Else" } }, effects: [] } } as typeof entry;
+		const ledger = [...mock.view.ledger.slice(0, allowed + 1), refused, ...mock.view.ledger.slice(allowed + 1)];
+		expect(mergeRecord({ ...mock.view, ledger }, "WI-2")?.by).toBe("Decision owner (demo identity)");
 		mock.stop();
 	});
 });
@@ -191,7 +259,7 @@ describe("Revalidate asks first, with the real counts", () => {
 		await user.click(await screen.findByRole("tab", { name: "Actions" }));
 		await user.click(await screen.findByTestId("revalidate-button"));
 		const sheet = await screen.findByTestId("revalidate-sheet");
-		expect(sheet).toHaveTextContent("Re-run the agent on v2? Uses 1 of 2 re-runs.");
+		expect(sheet).toHaveTextContent("Re-run the agent on Notifications v2? Uses 1 of 2 re-runs.");
 		await waitFor(() => expect(within(sheet).getByTestId("revalidate-cancel")).toHaveFocus());
 
 		await user.click(within(sheet).getByTestId("revalidate-cancel"));
@@ -199,6 +267,18 @@ describe("Revalidate asks first, with the real counts", () => {
 		expect(screen.getByTestId("revalidate-button")).toHaveFocus();
 		expect(screen.queryAllByText("revalidating")).toHaveLength(0);
 		expect(mock.client.controls.getState().position).toBe(6);
+	});
+
+	it("closes if the agent starts re-running while it is open", async () => {
+		const user = userEvent.setup();
+		const mock = await renderWithMock(<Inspector />, { beats: 6, select: "WI-2" });
+		await user.click(await screen.findByRole("tab", { name: "Actions" }));
+		await user.click(await screen.findByTestId("revalidate-button"));
+		await screen.findByTestId("revalidate-sheet");
+		await act(async () => {
+			await mock.client.controls.jump(7); // the beat where Revalidate is clicked
+		});
+		await waitFor(() => expect(screen.queryByTestId("revalidate-sheet")).toBeNull());
 	});
 
 	it("Re-run in the sheet sends the agent back", async () => {

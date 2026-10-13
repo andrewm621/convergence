@@ -1,6 +1,6 @@
 import type { ResolutionBinding, WorkItemState } from "contracts";
 import { CircleAlert, CircleCheck, Gavel, Loader, RefreshCw, ShieldAlert, ShieldCheck, ThumbsDown, TriangleAlert } from "lucide-react";
-import { useId, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { newIdempotencyKey, type ResolveInput } from "@/client/types";
 import { CommitSha } from "@/components/commit-sha";
 import { UnavailableHint } from "@/components/unavailable-hint";
@@ -12,7 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { formatDateTime, formatTime, shortHash } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useConsole } from "@/state/console-context";
-import { analysisOf, currentRecord, exceptionStatus, exceptionWaiver, type ExceptionWaiver } from "@/state/derive";
+import { analysisOf, currentRecord, exceptionStatus, exceptionWaiver, recordName, type ExceptionWaiver } from "@/state/derive";
 import { useGate } from "@/state/use-gate";
 import { PromoteButton } from "./promote-button";
 import { scenarioMeta } from "./scenario-meta";
@@ -138,7 +138,7 @@ export function Resolutions({ wi }: { wi: WorkItemState }) {
 	const noPush = wi.headSha === null;
 	const defaultRecord = candidates[0] ?? null;
 	const readOnly = scenarioMeta(client.scenario, client.kind === "live").readOnlyReason;
-	const reason = readOnly ?? (promoted ? "Already promoted." : noPush ? "Waiting for the agent's first push: a resolution binds to a specific head." : null);
+	const reason = readOnly ?? (promoted ? "Already merged." : noPush ? "Waiting for the agent's first push: a resolution binds to a specific head." : null);
 
 	async function submit(input: Omit<ResolveInput, "binding" | "workItemId">, recordId: string | null, label: string): Promise<boolean> {
 		const binding = recordId ? bindingFor(view, wi, recordId) : null;
@@ -158,12 +158,19 @@ export function Resolutions({ wi }: { wi: WorkItemState }) {
 	const runsUsedUp = maxRuns !== undefined && wi.revalidations >= maxRuns;
 	// What a re-run would be on: the version of the decision the agent would be sent back to.
 	const rerunVersion = defaultRecord ? currentRecord(view, defaultRecord)?.version : undefined;
+	const rerunTarget = defaultRecord && rerunVersion !== undefined ? `${recordName(defaultRecord)} v${rerunVersion}` : "the current decisions";
 	const revalidateNote = runsUsedUp
 		? `All ${maxRuns} re-runs are used. A reviewer has to decide what happens to this work (REVALIDATION_LIMIT).`
 		: `Sends the agent back to redo this on the current decisions.${maxRuns === undefined ? "" : ` Uses ${wi.revalidations + 1} of ${maxRuns} re-runs.`}`;
 
 	// Work that is ready to merge has nothing to lift or redo, whether it is clean or passes under an exception. Rejecting it stays possible.
 	const ready = wi.item.status === "ready";
+
+	// If the agent is already re-running (or the choice has gone away) while the confirm is open, there is nothing left to confirm.
+	const rerunClosed = wi.revalidating || runsUsedUp || ready || Boolean(reason);
+	useEffect(() => {
+		if (rerunClosed) setConfirmRerun(false);
+	}, [rerunClosed]);
 
 	return (
 		<section aria-label="Resolve" className="space-y-3" data-testid="resolve-actions">
@@ -191,7 +198,7 @@ export function Resolutions({ wi }: { wi: WorkItemState }) {
 										}}
 									>
 										<p id={rerunTitleId} className="text-[13px] leading-relaxed">
-											<span className="font-semibold">Re-run the agent on {rerunVersion !== undefined ? `v${rerunVersion}` : "the current decisions"}?</span>
+											<span className="font-semibold">Re-run the agent on {rerunTarget}?</span>
 											{maxRuns !== undefined && ` Uses ${wi.revalidations + 1} of ${maxRuns} re-runs.`}
 										</p>
 										<div className="mt-3 flex gap-2">

@@ -69,6 +69,12 @@ describe("the console, mock-driven end to end", () => {
 			const status = chip.getAttribute("data-status") as keyof typeof STATUS_META;
 			const text = (chip.textContent ?? "").trim();
 			// "Left alone" is only ever on a running item.
+			// "Ready · exception" is only ever on a ready item, marked data-excepted.
+			if (chip.hasAttribute("data-excepted")) {
+				expect(status).toBe("ready");
+				expect(text).toBe("Ready · exception");
+				continue;
+			}
 			expect(text === "Left alone" ? status : text).toBe(text === "Left alone" ? "running" : STATUS_META[status].label);
 		}
 	});

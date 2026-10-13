@@ -214,9 +214,9 @@ function describeLine(entry: ReconciliationEvent): Omit<LedgerSummary, "noAction
 		case "ResolutionRecorded":
 			return { label: `Resolution: ${event.resolution.kind}`, detail: event.resolution.rationale, workItemId: event.resolution.workItemId, reasonCodes: reasons };
 		case "PromotionRequested":
-			return { label: "Promotion requested", detail: event.forkHeadSha.slice(0, 7), workItemId: event.workItemId, reasonCodes: reasons };
+			return { label: "Merge requested", detail: event.forkHeadSha.slice(0, 7), workItemId: event.workItemId, reasonCodes: reasons };
 		case "PromotionMerged":
-			return { label: "Promotion merged", detail: event.mergeCommitSha.slice(0, 7), workItemId: event.workItemId, reasonCodes: reasons };
+			return { label: "Merge completed", detail: event.mergeCommitSha.slice(0, 7), workItemId: event.workItemId, reasonCodes: reasons };
 		case "AgentRunStarted":
 			return { label: "Agent run started", detail: event.runId, workItemId: event.workItemId, reasonCodes: [] };
 		case "AgentRunFinished":
@@ -613,14 +613,24 @@ export function mergeChecks(view: ViewState, wi: WorkItemState): MergeCheck[] | 
 				: analysis.requiredChecks.length === 0 && analysis.testEvidence.length === 0
 					? { key: "check", ok: true, text: "no check for this work" }
 					: { key: "check", ok: false, text: "check not run at this head" };
+	// A row reads "match" for a claim no decision governs (ungoverned) and for one a human said does not count (a rejected reliance):
+	// neither was compared against anything. Only a claim held against a governing decision counts as matched.
+	const compared = claims.rows.filter((row) => {
+		if (row.verdict !== "match") return false;
+		const ref = parseRecordRef(row.claim.basedOn);
+		const dep = ref ? view.dependencies.find((d) => d.workItemId === wi.item.id && d.recordId === ref.recordId) : undefined;
+		return !(dep?.status === "rejected" && !wi.receipt.accepted.some((e) => e.recordId === ref?.recordId));
+	});
 	const matching: MergeCheck =
 		analysis.conflicts.length > 0
 			? { key: "claims", ok: false, text: "claims conflict with the current decision" }
 			: analysis.uncertain.length > 0
 				? { key: "claims", ok: false, text: "claims could not be fully read" }
-				: claims.rows.length > 0
-					? { key: "claims", ok: true, text: "claims match" }
-					: { key: "claims", ok: true, text: "no claims to compare" };
+				: compared.length === 0
+					? { key: "claims", ok: true, text: "no claims to compare" }
+					: compared.length === claims.rows.length
+						? { key: "claims", ok: true, text: "claims match" }
+						: { key: "claims", ok: true, text: "claims match where a decision governs them" };
 	return [decisions, check, matching];
 }
 
@@ -634,9 +644,10 @@ export function mergeRecord(view: ViewState, workItemId: string): { ts: string; 
 	let actor: { id: string; displayName: string } | undefined;
 	if ("actor" in merged.payload.event) actor = (merged.payload.event as { actor: { id: string; displayName: string } }).actor;
 	else {
+		// The request the gate allowed, not a refused one that came before it.
 		for (const entry of [...view.ledger].reverse()) {
 			const event = entry.payload.event;
-			if (entry.seq < merged.seq && event.type === "PromotionRequested" && event.workItemId === workItemId) {
+			if (entry.seq < merged.seq && event.type === "PromotionRequested" && event.workItemId === workItemId && entry.payload.effects.some((effect) => effect.type === "ALLOW_PROMOTION")) {
 				actor = event.actor;
 				break;
 			}
@@ -645,4 +656,10 @@ export function mergeRecord(view: ViewState, workItemId: string): { ts: string; 
 	if (!actor) return { ts: merged.ts, by: null };
 	const label = actorLabel(view, actor.id);
 	return { ts: merged.ts, by: label === actor.id ? actor.displayName : label };
+}
+
+/** A record id read as a name: `shelter-intake-policy` is "Shelter intake policy". */
+export function recordName(recordId: string): string {
+	const words = recordId.replace(/[-_]+/g, " ").trim();
+	return words.charAt(0).toUpperCase() + words.slice(1);
 }

@@ -21,7 +21,7 @@ export function BaselineNode({ data }: NodeProps & { data: BaselineData }) {
 			<p className="mt-1 text-[13px] text-muted-foreground">{data.scenario} · shared baseline</p>
 			<p className="mt-1.5 font-mono text-[13px] text-muted-foreground">@ {shortHash(data.commit)}</p>
 			<p className="text-[13px] text-muted-foreground">
-				{data.promoted} of {data.total} promoted
+				{data.promoted} of {data.total} merged
 			</p>
 		</div>
 	);
@@ -130,10 +130,10 @@ export function WorkItemNode({ data }: NodeProps & { data: ItemData }) {
 
 /** The fan-out: many synthetic work items in one compact grid, each tile clickable and labelled. */
 export function ClusterNode({ data }: NodeProps & { data: ClusterData }) {
-	const { select } = useConsole();
+	const { select, view } = useConsole();
 	const degraded = useDegraded();
 	const counts = data.items.reduce<Record<string, number>>((acc, wi) => {
-		const label = statusMeta(wi.item.status, degraded).label.toLowerCase();
+		const label = statusMeta(wi.item.status, degraded, false, readyByException(view, wi)).label.toLowerCase();
 		return { ...acc, [label]: (acc[label] ?? 0) + 1 };
 	}, {});
 	return (
@@ -151,7 +151,7 @@ export function ClusterNode({ data }: NodeProps & { data: ClusterData }) {
 			</p>
 			<div className="nodrag nopan grid px-3 pb-3" style={{ gridTemplateColumns: `repeat(${data.columns}, ${TILE.width}px)`, gap: TILE.gap }}>
 				{data.items.map((wi) => {
-					const meta = statusMeta(wi.item.status, degraded);
+					const meta = statusMeta(wi.item.status, degraded, false, readyByException(view, wi));
 					const Icon = meta.icon;
 					return (
 						<button

@@ -7,7 +7,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { DEMO_IDENTITY } from "@/config";
 import { useConsole } from "@/state/console-context";
-import { analysisOf, gateWaivers, mergeChecks, signerFor, signerRecordId } from "@/state/derive";
+import { gateWaivers, mergeChecks } from "@/state/derive";
 import { isDegraded } from "@/state/store";
 import { useGate } from "@/state/use-gate";
 import { scenarioMeta } from "./scenario-meta";
@@ -23,6 +23,10 @@ export function PromoteButton({ workItemId, className, showReasons = false }: { 
 	const wi = view.workItems[workItemId];
 	const [promoting, setPromoting] = useState(false);
 	const [sheetOpen, setSheetOpen] = useState(false);
+	const [tipOpen, setTipOpen] = useState(false);
+	// Closing the sheet hands focus back to the button, which would open the tooltip on top of the page again. Hold it
+	// shut until the pointer or focus leaves and comes back.
+	const holdTip = useRef(false);
 	const cancelRef = useRef<HTMLButtonElement>(null);
 	const reasonsId = useId();
 	const sheetTitleId = useId();
@@ -36,9 +40,7 @@ export function PromoteButton({ workItemId, className, showReasons = false }: { 
 	// The sheet's facts, read while it is open, from the same analysis the gate runs.
 	const sheet = useMemo(() => {
 		if (!sheetOpen || !wi) return null;
-		const analysis = analysisOf(view, workItemId);
-		const recordId = analysis ? signerRecordId(view, workItemId, analysis) : null;
-		return { checks: mergeChecks(view, wi), waivers: gateWaivers(view, wi), signer: (recordId ? signerFor(view, recordId) : null) ?? DEMO_IDENTITY.label };
+		return { checks: mergeChecks(view, wi), waivers: gateWaivers(view, wi) };
 	}, [sheetOpen, view, wi, workItemId]);
 
 	// If the gate closes (or the item merges) while the sheet is open, there is nothing left to confirm.
@@ -68,16 +70,29 @@ export function PromoteButton({ workItemId, className, showReasons = false }: { 
 		sheet && gate && gate.waivedBy.length > 0
 			? sheet.waivers.length > 0
 				? sheet.waivers
-				: gate.waivedBy.map((w) => ({ scope: w.scope ?? null, signer: w.actor ?? sheet.signer }))
+				: gate.waivedBy.map((w) => ({ scope: w.scope ?? null, signer: w.actor ?? DEMO_IDENTITY.label }))
 			: [];
 
 	return (
 		<div className={className}>
 			<Popover open={sheetOpen} onOpenChange={setSheetOpen}>
 				{/* The tooltip would sit on top of the sheet, so it steps aside while the sheet is open. */}
-				<Tooltip open={sheetOpen ? false : undefined}>
+				<Tooltip
+					open={tipOpen && !sheetOpen}
+					onOpenChange={(next) => {
+						if (!next || !holdTip.current) setTipOpen(next);
+					}}
+				>
 					<TooltipTrigger asChild>
-						<span tabIndex={canPromote ? -1 : 0} data-testid="promote-trigger" aria-describedby={reasonsId} className="inline-flex">
+						<span
+							tabIndex={canPromote ? -1 : 0}
+							data-testid="promote-trigger"
+							aria-describedby={reasonsId}
+							className="inline-flex"
+							onPointerEnter={() => (holdTip.current = false)}
+							onPointerDown={() => (holdTip.current = false)}
+							onBlur={() => (holdTip.current = false)}
+						>
 							<PopoverTrigger asChild>
 								<Button size="sm" disabled={!canPromote} data-testid="promote-button">
 									{promoting ? <Loader className="animate-spin" aria-hidden /> : promoted || canPromote ? <GitMerge aria-hidden /> : <Lock aria-hidden />}
@@ -124,6 +139,10 @@ export function PromoteButton({ workItemId, className, showReasons = false }: { 
 					role="dialog"
 					aria-labelledby={sheetTitleId}
 					data-testid="merge-sheet"
+					onCloseAutoFocus={() => {
+						holdTip.current = true;
+						setTipOpen(false);
+					}}
 					onOpenAutoFocus={(event) => {
 						// Land on Cancel: opening the sheet from the keyboard and pressing Enter again must not merge.
 						event.preventDefault();
@@ -148,7 +167,7 @@ export function PromoteButton({ workItemId, className, showReasons = false }: { 
 							<span className="font-semibold">Not checked:</span> whether the work is right.
 						</p>
 						<p>Checked again at merge.</p>
-						<p data-testid="merge-audit">Recorded in the audit log under {sheet?.signer ?? DEMO_IDENTITY.label}.</p>
+						<p data-testid="merge-audit">Recorded in the audit log under {DEMO_IDENTITY.label}.</p>
 					</div>
 					<div className="mt-4 flex gap-2">
 						<Button size="sm" onClick={() => void promote()} disabled={!canPromote} data-testid="merge-confirm">

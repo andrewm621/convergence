@@ -101,7 +101,7 @@ export function notificationsScript(bundle: NotificationsScenario): MockScript {
 		},
 		{
 			id: "promote-wi1",
-			title: "WI-1 promotes",
+			title: "WI-1 merges",
 			caption: "Work with no recorded dependency on the change is not slowed down: WI-1 passes the gate and merges.",
 			async run({ session }) {
 				await session.promoteNow("WI-1");
@@ -139,7 +139,7 @@ export function notificationsScript(bundle: NotificationsScenario): MockScript {
 		},
 		{
 			id: "promote-wi2",
-			title: "WI-2 promotes",
+			title: "WI-2 merges",
 			caption: "Merge re-checks at the current heads, then merges. The baseline holds both changes.",
 			async run({ session }) {
 				await session.promoteNow("WI-2");

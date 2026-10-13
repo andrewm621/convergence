@@ -300,18 +300,18 @@ export class MockSession {
 		const allowed = result.effects.find((effect) => effect.type === "ALLOW_PROMOTION");
 		if (result.outcome !== "applied" || !allowed) {
 			const reasons = [...new Set(result.effects.flatMap((effect) => effect.reasonCodes))];
-			return { ok: false, code: reasons[0] ?? "BLOCKED", message: "Promotion blocked at the current heads.", reasonCodes: reasons };
+			return { ok: false, code: reasons[0] ?? "BLOCKED", message: "Merge blocked at the current heads.", reasonCodes: reasons };
 		}
 		if (this.options.promoteDelayMs > 0) await new Promise((resolve) => setTimeout(resolve, this.options.promoteDelayMs));
 		await this.cell.send({ type: "PromotionMerged", ts, workItemId: input.workItemId, repo: this.scenario.repo, mergeCommitSha: this.cell.nextSha("b") });
-		return { ok: true, message: `${input.workItemId} promoted into the baseline.` };
+		return { ok: true, message: `${input.workItemId} merged into the baseline.` };
 	}
 
 	/** Promote a work item by looking at the current state, as a presenter driving the demo would. */
 	async promoteNow(workItemId: string): Promise<CommandResult> {
 		const state = await this.cell.state();
 		const wi = state.workItems[workItemId];
-		if (!wi || wi.item.status === "promoted") return { ok: true, message: "Already promoted." };
+		if (!wi || wi.item.status === "promoted") return { ok: true, message: "Already merged." };
 		return this.promote({ workItemId, expectedBaselineCommit: state.baselineCommit, forkHeadSha: wi.headSha ?? "0000000" }, this.#key(`promote-${workItemId}`));
 	}
 
