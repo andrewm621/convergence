@@ -19,9 +19,10 @@ import {
 	User,
 	Swords,
 } from "lucide-react";
-import { createContext, useContext } from "react";
+import { createContext, useContext, useId } from "react";
 import { Badge } from "@/components/ui/badge";
 import { CLAIMS_CHECK_HINT } from "@/lib/evidence";
+import { reasonText } from "@/lib/reasons";
 import { cn } from "@/lib/utils";
 
 type Tone = "neutral" | "outline" | "primary" | "success" | "warning" | "danger" | "info" | "merged";
@@ -148,10 +149,16 @@ export function EpistemicChip({ kind, className }: { kind: EpistemicKind; classN
 	);
 }
 
+/** The code stays on screen (it is searchable); its tooltip says what it means, the rule behind it, and what to do next. */
 export function ReasonChip({ code, className }: { code: ReasonCode | string; className?: string }) {
+	const describedBy = useId();
+	const text = reasonText(code);
 	return (
-		<Badge tone="outline" className={cn("font-mono text-[11px] font-medium", className)} data-reason={code}>
+		<Badge tone="outline" className={cn("font-mono text-[11px] font-medium", className)} data-reason={code} title={text} aria-describedby={describedBy}>
 			{code}
+			<span id={describedBy} className="sr-only">
+				{text}
+			</span>
 		</Badge>
 	);
 }
