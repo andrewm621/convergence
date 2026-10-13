@@ -98,7 +98,7 @@ export function buildGraph(view: ViewState, selectedId: string | null, flashIds:
 			const merged: DepEdge = { ...edge, id: `cluster->${edge.recordId}`, workItemId: "cluster" };
 			layoutEdges.push([`record:${edge.recordId}`, "cluster:seeded"]);
 			const built = dependencyEdge(merged, "cluster:seeded", flashIds.has(merged.id));
-			const label = edge.kind === "stale" ? `${staleCount} of ${total} stale` : null;
+			const label = edge.kind === "stale" ? `${staleCount} of ${total} blocked` : null;
 			edges.push({ ...built, data: { ...(built.data as NonNullable<typeof built.data>), label } });
 		}
 	}

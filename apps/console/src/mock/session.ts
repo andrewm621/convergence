@@ -178,7 +178,7 @@ export class MockSession {
 			invalid: [],
 		};
 		await this.cell.send(event);
-		return { ok: true, message: changes.length > 0 ? `Committed ${prev.recordId} v${version}.` : `Saved a prose edit to ${prev.recordId} v${version}.` };
+		return { ok: true, message: changes.length > 0 ? `${prev.recordId} v${version} is now the decision.` : `Saved a wording change to ${prev.recordId} v${version}.` };
 	}
 
 	// ---------- a human resolves ----------
@@ -206,7 +206,7 @@ export class MockSession {
 		}
 		if (input.kind === "revalidate") {
 			await this.startRerun(input.workItemId);
-			return { ok: true, message: "Revalidation started: the agent is re-running on current context." };
+			return { ok: true, message: "Revalidation started: the agent is re-running on the current decisions." };
 		}
 		return { ok: true, message: input.kind === "reject" ? "Rejected." : "Exception recorded." };
 	}
@@ -320,7 +320,7 @@ export class MockSession {
 		const state = await this.cell.state();
 		const wi = state.workItems[workItemId];
 		const record = currentSnapshot(state, recordId);
-		if (!wi?.headSha || !record) return { ok: false, code: "UNBOUND", message: "Nothing to bind the resolution to yet." };
+		if (!wi?.headSha || !record) return { ok: false, code: "UNBOUND", message: "Nothing to attach the sign-off to yet." };
 		const binding: ResolutionBinding = {
 			recordId,
 			version: record.version,
@@ -367,11 +367,11 @@ function refusalOf(effects: { reasonCodes: ReasonCode[] }[]): ReasonCode[] | und
 function refusalMessage(code: ReasonCode | undefined): string {
 	switch (code) {
 		case "STALE_BINDING":
-			return "The context or the fork moved since you opened this. Reload and decide again.";
+			return "The decisions or the agent's copy moved since you opened this. Reload and decide again.";
 		case "FORBIDDEN_ACTOR":
-			return "Only the record's authority can do that.";
+			return "Only the person who signs off on that decision can do that.";
 		case "ALREADY_RESOLVED":
-			return "Nothing stale or conflicting is left to resolve on that record.";
+			return "Nothing is left blocked on that decision.";
 		case "REVALIDATION_LIMIT":
 			return "Revalidated too many times. A person needs to look at why this keeps failing.";
 		case "REVALIDATION_IN_PROGRESS":

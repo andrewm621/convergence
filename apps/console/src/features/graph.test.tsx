@@ -54,7 +54,7 @@ describe("the work graph: exactly one edge turns red", () => {
 		expect(red).toHaveLength(1);
 		expect(red[0]?.source).toBe("item:WI-2");
 		expect(red[0]?.target).toBe("record:notifications");
-		expect((red[0]?.data as DependencyEdgeData).label).toMatch(/^stale/);
+		expect((red[0]?.data as DependencyEdgeData).label).toMatch(/^was v1 · now v2$/);
 		mock.stop();
 	});
 
@@ -84,7 +84,7 @@ describe("the work graph: exactly one edge turns red", () => {
 		expect(graph.nodes.filter((n) => n.type === "item")).toHaveLength(0);
 		const red = graph.edges.filter((e) => e.type === "dependency" && (e.data as DependencyEdgeData).kind === "stale");
 		expect(red).toHaveLength(1);
-		expect((red[0]?.data as DependencyEdgeData).label).toBe("8 of 12 stale");
+		expect((red[0]?.data as DependencyEdgeData).label).toBe("8 of 12 blocked");
 		mock.stop();
 	});
 });

@@ -42,14 +42,15 @@ describe("the model on a work item", () => {
 		mock.stop();
 	});
 
-	it("shows the model in the inspector header instead of Agent A/B, and Agent B when nothing names one", async () => {
+	it("shows the model in the inspector header instead of Agent A/B, and a bare Agent (never a letter) when nothing names one", async () => {
 		await renderWithMock(<Selected>{() => <Inspector />}</Selected>, { beats: 1, select: "WI-2" });
 		const header = await screen.findByTestId("inspector");
 		expect(within(header).getByText("openai/gpt-6-luna")).toBeInTheDocument();
 		expect(within(header).queryByText("Agent B")).toBeNull();
 
 		render(<ActorChip actor={{ kind: "agent", displayName: "Agent B" }} />);
-		expect(screen.getByText("Agent B")).toBeInTheDocument();
+		expect(screen.queryByText("Agent B")).toBeNull();
+		expect(screen.getByText("Agent")).toBeInTheDocument();
 	});
 });
 
@@ -75,7 +76,7 @@ describe("honest evidence labels", () => {
 
 	it("the ledger strip shows both Delta checks for the replayed re-run", async () => {
 		await renderWithMock(<BottomStrip />, { beats: 8 });
-		const lines = await screen.findByRole("list", { name: "Ledger lines" });
+		const lines = await screen.findByRole("list", { name: "Audit log lines" });
 		const claims = within(lines).getAllByText(CLAIMS_CHECK_LABEL);
 		expect(claims[0]).toHaveAttribute("title", CLAIMS_CHECK_HINT);
 		expect(within(lines).getAllByText("Delta Convergence contract check")[0]).toHaveAttribute("title", RUN_CHECK_HINT);
@@ -106,7 +107,7 @@ describe("the exception-lapse beat", () => {
 		const user = userEvent.setup();
 		await renderWithMock(<Selected>{() => <Inspector />}</Selected>, { scenario: "shelter-intake", beats, select: "WI-2" });
 		await user.click(await screen.findByRole("tab", { name: "Actions" }));
-		return within(await screen.findByRole("region", { name: "Resolutions on record" }));
+		return within(await screen.findByRole("region", { name: "Sign-offs" }));
 	}
 
 	it("flips the signage exception card to Lapsed with EXCEPTION_LAPSED once the policy is v3, with the item blocked again", async () => {
@@ -119,7 +120,7 @@ describe("the exception-lapse beat", () => {
 
 	it("leaves the exception standing before then", async () => {
 		const record = await onRecord(9);
-		expect(record.getByText("accept-exception")).toBeInTheDocument();
+		expect(record.getByText("Allow with exception")).toBeInTheDocument();
 		expect(record.queryByText("Lapsed")).toBeNull();
 		expect(record.queryByText("EXCEPTION_LAPSED")).toBeNull();
 		expect(record.getByText(/Valid while shelter-intake-policy is at v2/)).toBeInTheDocument();

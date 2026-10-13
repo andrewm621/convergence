@@ -22,7 +22,7 @@ describe("empty state", () => {
 		const user = userEvent.setup();
 		const mock = await renderWithMock(<ContextTimeline />, { start: "empty" });
 		const empty = await screen.findByTestId("empty-state");
-		expect(empty).toHaveTextContent("No accepted context yet. Declare the first decision.");
+		expect(empty).toHaveTextContent("No decisions yet. Declare the first one.");
 
 		await user.click(within(empty).getByRole("button", { name: /Seed the scenario/ }));
 		await waitFor(() => expect(screen.queryByTestId("empty-state")).toBeNull());
@@ -49,7 +49,7 @@ describe("context timeline", () => {
 	it("notes the typo beat as a prose edit that re-evaluated nothing", async () => {
 		await renderWithMock(<ContextTimeline />, { beats: 2 });
 		const note = await screen.findByTestId("prose-edit-note");
-		expect(note).toHaveTextContent(/No facet changed/);
+		expect(note).toHaveTextContent(/No setting changed/);
 	});
 });
 
@@ -58,16 +58,16 @@ describe("propose change", () => {
 		const user = userEvent.setup();
 		const mock = await renderWithMock(<ContextTimeline />, { beats: 1 });
 		const card = (await screen.findByRole("heading", { name: "notifications" })).closest("article") as HTMLElement;
-		await user.click(within(card).getByRole("button", { name: /Propose change/ }));
+		await user.click(within(card).getByRole("button", { name: /Change this decision/ }));
 
-		const prose = await screen.findByLabelText("Prose");
+		const prose = await screen.findByLabelText("Full wording");
 		await waitFor(() => expect((prose as HTMLTextAreaElement).value).toContain("Users receive"));
 		await user.type(prose, " (reviewed)");
 		expect(screen.getByTestId("editor-effect")).toHaveTextContent(/wording change to v1/);
 		expect(screen.getByTestId("editor-effect")).toHaveTextContent(/nothing is blocked/);
 
-		await user.click(screen.getByRole("button", { name: "Save prose edit" }));
-		await waitFor(() => expect(screen.queryByRole("form", { name: /Propose a change/ })).toBeNull());
+		await user.click(screen.getByRole("button", { name: "Save wording change" }));
+		await waitFor(() => expect(screen.queryByRole("form", { name: /^Change / })).toBeNull());
 		const state = await mock.client.api.gate("WI-2");
 		expect(state.reasonCodes).not.toContain("STALE_RECEIPT");
 	});
@@ -76,7 +76,7 @@ describe("propose change", () => {
 		const user = userEvent.setup();
 		const mock = await renderWithMock(<ContextTimeline />, { beats: 1 });
 		const card = (await screen.findByRole("heading", { name: "notifications" })).closest("article") as HTMLElement;
-		await user.click(within(card).getByRole("button", { name: /Propose change/ }));
+		await user.click(within(card).getByRole("button", { name: /Change this decision/ }));
 
 		const value = await screen.findByLabelText("Value for notifications.default");
 		await user.clear(value);
@@ -84,11 +84,11 @@ describe("propose change", () => {
 		expect(screen.getByTestId("editor-effect")).toHaveTextContent(/This makes v2 the decision\. Blocks 1 built on v1: Notification preferences and delivery\./);
 
 		// A decision change must say why.
-		await user.click(screen.getByRole("button", { name: "Commit v2" }));
+		await user.click(screen.getByRole("button", { name: "Make v2 the decision" }));
 		expect(await screen.findByText("Say why the decision changed.")).toBeInTheDocument();
 
 		await user.type(screen.getByLabelText("Why this change"), "Opt-in only.");
-		await user.click(screen.getByRole("button", { name: "Commit v2" }));
+		await user.click(screen.getByRole("button", { name: "Make v2 the decision" }));
 		await waitFor(async () => expect((await mock.client.api.gate("WI-2")).reasonCodes).toContain("STALE_RECEIPT"));
 		expect(await screen.findByText("v2", { selector: "[data-slot=badge]" })).toBeInTheDocument();
 	});
@@ -97,7 +97,7 @@ describe("propose change", () => {
 		const user = userEvent.setup();
 		await renderWithMock(<ContextTimeline />, { beats: 1 });
 		const card = (await screen.findByRole("heading", { name: "notifications" })).closest("article") as HTMLElement;
-		await user.click(within(card).getByRole("button", { name: /Propose change/ }));
+		await user.click(within(card).getByRole("button", { name: /Change this decision/ }));
 		const effect = await screen.findByTestId("editor-effect");
 		expect(effect).toHaveTextContent("Nothing changed yet, so nothing is blocked.");
 
@@ -130,12 +130,12 @@ describe("propose change", () => {
 		try {
 			await renderWithMock(<ContextTimeline />, { beats: 1 });
 			const card = (await screen.findByRole("heading", { name: "notifications" })).closest("article") as HTMLElement;
-			await user.click(within(card).getByRole("button", { name: /Propose change/ }));
+			await user.click(within(card).getByRole("button", { name: /Change this decision/ }));
 
 			// The three keys that share a prefix are all there in full, so the part that tells them apart is visible.
-			const keys = screen.getAllByLabelText("Facet key").map((el) => (el as HTMLTextAreaElement).value);
+			const keys = screen.getAllByLabelText("Setting").map((el) => (el as HTMLTextAreaElement).value);
 			expect(keys).toEqual(["notifications.default", "notifications.cadence", "notifications.channel"]);
-			for (const field of [...screen.getAllByLabelText("Facet key"), screen.getByLabelText("Value for notifications.default")]) {
+			for (const field of [...screen.getAllByLabelText("Setting"), screen.getByLabelText("Value for notifications.default")]) {
 				expect(field.tagName).toBe("TEXTAREA");
 				expect(field.className).not.toMatch(/truncate|text-ellipsis|whitespace-nowrap/);
 				expect(field).toHaveStyle({ height: "84px" });
@@ -154,13 +154,13 @@ describe("propose change", () => {
 		}
 	});
 
-	it("does not show a Commit button for one version next to a preview for another when the decision moves under the editor", async () => {
+	it("does not show a save button for one version next to a preview for another when the decision moves under the editor", async () => {
 		const user = userEvent.setup();
 		const mock = await renderWithMock(<EditorOnV1 />, { beats: 1 });
 		const value = await screen.findByLabelText("Value for notifications.default");
 		await user.clear(value);
 		await user.type(value, "opt-in");
-		expect(screen.getByRole("button", { name: "Commit v2" })).toBeEnabled();
+		expect(screen.getByRole("button", { name: "Make v2 the decision" })).toBeEnabled();
 		expect(screen.getByTestId("editor-effect")).toHaveTextContent("This makes v2 the decision.");
 
 		// Another tab commits a different change to the same decision, so it is now v2 and the draft was written against v1.
@@ -168,16 +168,16 @@ describe("propose change", () => {
 		expect(other).toMatchObject({ ok: true });
 		await waitFor(() => expect(screen.getByTestId("editor-effect")).toHaveTextContent("The decision changed while you were editing. Close this and reopen it to see the effect."));
 		expect(screen.getByTestId("editor-effect")).not.toHaveTextContent(/This makes v/);
-		const commit = screen.getByRole("button", { name: "Commit" });
+		const commit = screen.getByRole("button", { name: "Make it the decision" });
 		expect(commit).toBeDisabled();
-		expect(screen.queryByRole("button", { name: /Commit v\d/ })).toBeNull();
+		expect(screen.queryByRole("button", { name: /Make v\d the decision/ })).toBeNull();
 	});
 
 	it("announces a short count to screen readers once typing settles, not the whole line on every keystroke", async () => {
 		const user = userEvent.setup();
 		await renderWithMock(<ContextTimeline />, { beats: 1 });
 		const card = (await screen.findByRole("heading", { name: "notifications" })).closest("article") as HTMLElement;
-		await user.click(within(card).getByRole("button", { name: /Propose change/ }));
+		await user.click(within(card).getByRole("button", { name: /Change this decision/ }));
 		const effect = await screen.findByTestId("editor-effect");
 		expect(effect).not.toHaveAttribute("aria-live");
 		const live = screen.getByTestId("editor-effect-summary");
@@ -212,7 +212,7 @@ describe("propose change", () => {
 		try {
 			await renderWithMock(<ContextTimeline />, { beats: 1 });
 			const card = (await screen.findByRole("heading", { name: "notifications" })).closest("article") as HTMLElement;
-			await user.click(within(card).getByRole("button", { name: /Propose change/ }));
+			await user.click(within(card).getByRole("button", { name: /Change this decision/ }));
 			const value = await screen.findByLabelText("Value for notifications.default");
 			expect(value).toHaveStyle({ height: "40px" });
 
@@ -244,7 +244,7 @@ describe("propose change", () => {
 		const shown = (await screen.findByText(/^baseline [0-9a-f]+$/)).textContent?.replace("baseline ", "") ?? "";
 		expect(shown).not.toBe("");
 		const card = (await screen.findByRole("heading", { name: "notifications" })).closest("article") as HTMLElement;
-		await user.click(within(card).getByRole("button", { name: /Propose change/ }));
+		await user.click(within(card).getByRole("button", { name: /Change this decision/ }));
 		const value = await screen.findByLabelText("Value for notifications.default");
 		await user.clear(value);
 		await user.type(value, "opt-in");
@@ -255,7 +255,7 @@ describe("propose change", () => {
 		expect(other).toEqual({ ok: true, message: expect.anything() });
 		propose.mockClear();
 
-		await user.click(screen.getByRole("button", { name: "Commit v2" }));
+		await user.click(screen.getByRole("button", { name: "Make v2 the decision" }));
 		await waitFor(() => expect(propose).toHaveBeenCalledTimes(1));
 		expect(propose.mock.calls[0]?.[0]).toMatchObject({ recordId: "notifications", expectedBaselineCommit: expect.stringMatching(new RegExp(`^${shown}`)) });
 		expect(await screen.findByText(/The decisions changed after you opened this editor/)).toBeInTheDocument();

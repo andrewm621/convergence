@@ -37,7 +37,7 @@ function useIsDark(): boolean {
  */
 export function WorkGraph() {
 	const { view, client, observed } = useConsole();
-	// The counts follow the work: once a stale item is merged, revalidated or ruled on, the strip stops calling it stale.
+	// The counts follow the work: once a blocked item is merged, revalidated or ruled on, the strip stops calling it blocked.
 	const evaluation = currentEvaluation(view);
 	const live = client.kind === "live";
 	const ms = live ? (evaluation && observed && observed.seq === evaluation.seq ? observed.ms : null) : (evaluation?.ms ?? null);
@@ -167,47 +167,52 @@ export function StartAgents({ onStart }: { onStart(): Promise<{ ok: boolean; mes
 }
 
 /**
- * `N evaluated · K stale · M with no recorded dependency · time`: what the last decision change did, and how fast. When the change left
- * alone work that was already stale from an earlier one, those are counted apart (`K newly stale · J already stale ·
- * M with no recorded dependency`), so the numbers add up to the red cards on the graph.
+ * `K blocked · M left alone`: what the last decision change did. The item count and the time sit in the tooltip, and so does the
+ * word "stale". When the change left alone work that was already blocked by an earlier one, those are counted apart
+ * (`K newly blocked · J already blocked · M left alone`), so the numbers add up to the red cards on the graph.
  */
 export function ResultsStrip({ evaluation, ms = evaluation?.ms ?? null, measuredHere = false }: { evaluation: (Evaluation & { resolved?: number }) | null; ms?: number | null; measuredHere?: boolean }) {
 	if (!evaluation) return null;
 	const time = ms === null ? null : formatMs(ms);
+	const timing = time
+		? ` ${measuredHere ? `Measured in this browser, from sending the change to this verdict arriving (includes the network and the poller): ${time}.` : `Reconciler time for this check: ${time}.`}`
+		: "";
+	const hint = evaluation.proseOnly
+		? `Only the wording changed, so no setting moved and nothing was re-checked.${timing}`
+		: `${plural(evaluation.evaluated, "item")} checked against this change. Blocked means stale: built on a decision that has since changed. Left alone means it doesn't use what changed.${timing}`;
 	return (
 		<div
 			role="status"
-			aria-label="Last evaluation"
+			aria-label="Last check"
 			data-testid="results-strip"
+			title={hint}
 			className="flex items-center gap-2 rounded-lg border bg-card/95 px-3 py-1 text-[13px] shadow-xs"
 		>
 			<Zap className="size-4 shrink-0 text-primary" aria-hidden />
 			{evaluation.proseOnly ? (
 				<>
-					<span className="font-medium">{evaluation.recordRef ?? "Context"}: prose only</span>
+					<span className="font-medium">{evaluation.recordRef ?? "Decision"}: wording only</span>
 					<Dot />
-					<span className="tabular-nums">0 stale</span>
+					<span className="tabular-nums">0 blocked</span>
 					<Dot />
-					<span className="text-muted-foreground">nothing re-evaluated</span>
+					<span className="text-muted-foreground">nothing re-checked</span>
 					<Badge tone="outline" className="font-mono">
 						PROSE_ONLY
 					</Badge>
 				</>
 			) : (
 				<>
-					<span className="font-medium tabular-nums">{plural(evaluation.evaluated, "item")} evaluated</span>
-					<Dot />
 					<span
 						className={evaluation.stale > 0 ? "font-semibold text-danger tabular-nums" : "tabular-nums"}
-						title={evaluation.alreadyStale > 0 ? "Went stale on this change. Some may have been stale for an earlier change too." : undefined}
+						title={evaluation.alreadyStale > 0 ? "Went stale on this change. Some may have been stale for an earlier change too." : "Stale: built on a decision that has since changed."}
 					>
-						{evaluation.stale} {evaluation.alreadyStale > 0 ? "newly stale" : "stale"}
+						{evaluation.stale} {evaluation.alreadyStale > 0 ? "newly blocked" : "blocked"}
 					</span>
 					{evaluation.alreadyStale > 0 && (
 						<>
 							<Dot />
 							<span className="text-danger tabular-nums" title="Not touched by this change, but stale from an earlier one.">
-								{evaluation.alreadyStale} already stale
+								{evaluation.alreadyStale} already blocked
 							</span>
 						</>
 					)}
@@ -220,19 +225,9 @@ export function ResultsStrip({ evaluation, ms = evaluation?.ms ?? null, measured
 						</>
 					)}
 					<Dot />
-					<span className="tabular-nums">{evaluation.untouched} with no recorded dependency</span>
-					{time && (
-						<>
-							<Dot />
-							<span
-								className="text-muted-foreground tabular-nums"
-								data-testid="results-time"
-								title={measuredHere ? "Measured in this browser, from sending the change to this verdict arriving. Includes the network and the poller." : "Reconciler time for this evaluation"}
-							>
-								{time}
-							</span>
-						</>
-					)}
+					<span className="tabular-nums" title="It doesn't use anything this change touched.">
+						{evaluation.untouched} left alone
+					</span>
 				</>
 			)}
 		</div>
@@ -254,13 +249,13 @@ function Legend() {
 				<svg width="26" height="6" aria-hidden>
 					<line x1="0" y1="3" x2="26" y2="3" stroke="var(--muted-foreground)" strokeWidth="1.5" opacity="0.6" />
 				</svg>
-				relies on, still current
+				built on, still current
 			</span>
 			<span className="inline-flex items-center gap-1.5">
 				<svg width="26" height="6" aria-hidden>
 					<line x1="0" y1="3" x2="26" y2="3" stroke="var(--danger)" strokeWidth="2.5" strokeDasharray="7 4" />
 				</svg>
-				stale
+				blocked: built on an old version
 			</span>
 			<span className="inline-flex items-center gap-1.5">
 				<svg width="26" height="6" aria-hidden>

@@ -47,8 +47,8 @@ function ActivityStream() {
 	}, [view.activity.length]);
 
 	return (
-		<section aria-label="Agent activity" className="flex min-h-0 flex-col">
-			<StripHeader icon={Activity} title="Agent activity">
+		<section aria-label="Agents at work" className="flex min-h-0 flex-col">
+			<StripHeader icon={Activity} title="Agents at work">
 				<span className="text-xs text-muted-foreground">{view.activity.length} lines</span>
 			</StripHeader>
 			<div
@@ -74,7 +74,7 @@ function ActivityStream() {
 								<button type="button" onClick={() => select(line.workItemId)} className="shrink-0 rounded px-1 font-semibold outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/50">
 									{line.workItemId}
 								</button>
-								{wi && <span className="shrink-0 text-muted-foreground">{agentModelOf(view.ledger, wi.item.id) ?? wi.item.actor.displayName}</span>}
+								{wi && <span className="max-w-[16rem] shrink-0 truncate text-muted-foreground">{agentModelOf(view.ledger, wi.item.id) ?? wi.item.title}</span>}
 								<Icon className={cn("size-3 shrink-0 translate-y-0.5", meta.className)} aria-hidden />
 								<span className="sr-only">{meta.label}: </span>
 								<span className={cn("min-w-0 break-words", meta.className)}>{line.text}</span>
@@ -111,19 +111,19 @@ function useChainVerdict(): Chain {
 	return verdict;
 }
 
-/** The append-only, hash-chained ledger, newest first. The badge re-derives every hash in the browser. */
+/** The append-only, hash-chained audit log, newest first. The badge re-derives every hash in the browser. */
 function LedgerTail() {
 	const { view, select } = useConsole();
 	const verdict = useChainVerdict();
 	const lines = useMemo(() => [...view.ledger].reverse().slice(0, 60), [view.ledger]);
 
 	return (
-		<section aria-label="Ledger tail" className="flex min-h-0 flex-col">
-			<StripHeader icon={ShieldCheck} title="Ledger">
+		<section aria-label="Audit log" className="flex min-h-0 flex-col">
+			<StripHeader icon={ShieldCheck} title="Audit log">
 				{verdict.state === "ok" && view.ledger.length > 0 && (
 					<Badge
 						tone="success"
-						title="Every line's hash and its link to the previous line were re-derived in this browser, for the lines this console holds. It is not a check of the whole server-side ledger."
+						title="Every line's hash and its link to the previous line were re-derived in this browser, for the lines this console holds. It is not a check of the whole server-side audit log."
 						data-testid="chain-verified"
 					>
 						<ShieldCheck aria-hidden /> verified in this browser · {verdict.length} lines in view
@@ -131,14 +131,14 @@ function LedgerTail() {
 				)}
 				{verdict.state === "broken" && (
 					<Badge tone="danger" data-testid="chain-broken">
-						<ShieldX aria-hidden /> chain broken at #{verdict.seq}
+						<ShieldX aria-hidden /> audit log broken at #{verdict.seq}
 					</Badge>
 				)}
 				{verdict.state === "checking" && <Badge tone="neutral">verifying</Badge>}
 			</StripHeader>
-			<ol className="min-h-0 flex-1 overflow-y-auto px-4 py-1.5" aria-label="Ledger lines">
+			<ol className="min-h-0 flex-1 overflow-y-auto px-4 py-1.5" aria-label="Audit log lines">
 				{lines.length === 0 ? (
-					<li className="py-1 text-[13px] text-muted-foreground">The ledger is empty. Every observation and effect will be appended here, hash-chained.</li>
+					<li className="py-1 text-[13px] text-muted-foreground">The audit log is empty. Every observation and effect will be added here, hash-chained.</li>
 				) : (
 					lines.map((entry) => {
 						const summary = summarizeLedgerLine(entry);

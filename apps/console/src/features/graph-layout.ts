@@ -23,7 +23,7 @@ export const NODE_SIZE = {
 /** Dagre spacing. `nodesep` is the vertical gap between nodes in a column; `ranksep` the gap between columns. */
 export const SPACING = {
 	nodesep: 14,
-	/** Wide enough for the "stale: v1 -> v2" label that sits on the edge between a record and its work. */
+	/** Wide enough for the "was v1 · now v2" label that sits on the edge between a record and its work. */
 	ranksep: 120,
 	/** A fan-out cluster is wide, so the columns before it sit closer together. */
 	ranksepCluster: 84,
@@ -67,9 +67,9 @@ export function clusterSize(count: number): { width: number; height: number; col
 export function edgeLabel(edge: DepEdge): string | null {
 	switch (edge.kind) {
 		case "stale":
-			return `stale: v${edge.heldVersion ?? "?"} → v${edge.currentVersion ?? "?"}`;
+			return `was v${edge.heldVersion ?? "?"} · now v${edge.currentVersion ?? "?"}`;
 		case "excepted":
-			return "excepted";
+			return "allowed with exception";
 		case "proposed":
 			return "proposed";
 		default:

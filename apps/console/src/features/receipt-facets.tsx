@@ -42,14 +42,14 @@ export function ReceiptFacetList({ wi, entry, className }: { wi: WorkItemState; 
 	if (!facets.held) {
 		return (
 			<p className={cn("text-sm text-muted-foreground", className)} data-testid="receipt-facets-missing">
-				The facet values for {entry.recordId}@{entry.version} are not in this snapshot. Its combined facet hash is {shortHash(entry.facetHash, 8)}.
+				The setting values for {entry.recordId}@{entry.version} are not in this snapshot. Their combined hash is {shortHash(entry.facetHash, 8)}.
 			</p>
 		);
 	}
 
 	return (
 		<div className={className} data-testid={`receipt-facets-${entry.recordId}`}>
-			<ul className="divide-y rounded-lg border bg-background/60" aria-label={`Facets of ${entry.recordId}@${entry.version} that were handed over`}>
+			<ul className="divide-y rounded-lg border bg-background/60" aria-label={`Settings of ${entry.recordId}@${entry.version} that were handed over`}>
 				{facets.rows.map((row) => (
 					<li key={row.key} data-facet={row.key} data-facet-status={row.status} className={cn("px-3 py-2 text-sm", row.status !== "unchanged" && "bg-danger-soft")}>
 						<div className="flex items-baseline gap-x-3">
@@ -91,7 +91,7 @@ export function ReceiptFacetList({ wi, entry, className }: { wi: WorkItemState; 
 						<span className="font-mono font-semibold">{added.key}</span> is new in v{version} = {formatFacet(added.now)}. It was not handed over.
 					</li>
 				))}
-				{facets.rows.length === 0 && facets.added.length === 0 && <li className="px-3 py-2 text-sm text-muted-foreground">This version governs no facets.</li>}
+				{facets.rows.length === 0 && facets.added.length === 0 && <li className="px-3 py-2 text-sm text-muted-foreground">This version governs no settings.</li>}
 			</ul>
 		</div>
 	);

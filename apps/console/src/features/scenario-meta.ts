@@ -15,9 +15,14 @@ export type ScenarioMeta = {
 	agentLabel?: string;
 	/** The work is in this repo's real git history: shas link to GitHub and an all-zero sha reads "not in git". */
 	realHistory?: boolean;
-	/** Why Revalidate, Accept exception, Reject, Merge and Propose change are disabled. Set for recordings only. */
+	/** Why Revalidate, Allow with exception, Reject, Merge and Change this decision are disabled. Set for recordings only. */
 	readOnlyReason?: string;
+	/** The example in the exception form's "What it covers" field: something this scenario could actually name. */
+	scopeExample?: string;
 };
+
+/** Shown when a scenario names no example of its own. */
+export const DEFAULT_SCOPE_EXAMPLE = "e.g. the one document this covers";
 
 /** The note that must stay visible on the shelter scenario. */
 export const SYNTHETIC_NOTE = "Synthetic scenario. Not operational guidance.";
@@ -34,12 +39,13 @@ export const LIVE_BUILD_NOTE = `${LIVE_BUILD_NOTE_LEAD} this repo's own build de
 export const REPO_URL = "https://github.com/andrewm621/delta-convergence";
 
 export const SCENARIO_META: Record<ScenarioName, ScenarioMeta> = {
-	notifications: { label: "Notifications", kind: "coding", icon: Code2 },
+	notifications: { label: "Notifications", kind: "coding", icon: Code2, scopeExample: "e.g. src/notifications/delivery.ts" },
 	"shelter-intake": {
 		label: "Larkhaven County Shelter",
 		kind: "knowledge work",
 		icon: HeartHandshake,
 		note: `${SYNTHETIC_NOTE} Larkhaven County, its river flood and the Larkhaven Mutual Aid Network are fictional.`,
+		scopeExample: "e.g. the printed door signs only",
 	},
 	"delta-convergence-build": {
 		label: "Our own build (replay)",
@@ -50,8 +56,9 @@ export const SCENARIO_META: Record<ScenarioName, ScenarioMeta> = {
 		agentLabel: "recorded build session",
 		realHistory: true,
 		readOnlyReason: "Resolved by a human outside the console in the real build.",
+		scopeExample: "e.g. docs/PRD.md only",
 	},
-	"sales-ops": { label: "Northwind Sales Ops", kind: "knowledge work", icon: BriefcaseBusiness, hidden: true },
+	"sales-ops": { label: "Northwind Sales Ops", kind: "knowledge work", icon: BriefcaseBusiness, hidden: true, scopeExample: "e.g. reports/q4-forecast.md" },
 };
 
 /**

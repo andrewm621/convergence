@@ -10,10 +10,10 @@ const runtime: Runtime = { mock: true, scenario: "notifications", start: "seeded
 
 async function next(user: ReturnType<typeof userEvent.setup>, times: number) {
 	for (let i = 0; i < times; i++) {
-		const button = await screen.findByRole("button", { name: "Next beat" });
+		const button = await screen.findByRole("button", { name: "Next step" });
 		await waitFor(() => expect(button).toBeEnabled());
 		await user.click(button);
-		await waitFor(() => expect(screen.getByRole("button", { name: "Next beat" })).toBeEnabled());
+		await waitFor(() => expect(screen.getByRole("button", { name: "Next step" })).toBeEnabled());
 	}
 }
 
@@ -28,7 +28,7 @@ describe("the console, mock-driven end to end", () => {
 
 	it("shows the one-screen layout: context, graph, inspector, activity and ledger", async () => {
 		render(<App runtime={runtime} />);
-		for (const name of ["Context timeline", "Work graph", "Inspector", "Agent activity", "Ledger tail"]) {
+		for (const name of ["Decisions", "Work graph", "Selected work", "Agents at work", "Audit log"]) {
 			expect(await screen.findByRole("region", { name })).toBeInTheDocument();
 		}
 	});
@@ -38,21 +38,21 @@ describe("the console, mock-driven end to end", () => {
 		render(<App runtime={runtime} />);
 		await next(user, 1);
 		const graph = await screen.findByRole("region", { name: "Work graph" });
-		await waitFor(() => expect(within(graph).getByRole("button", { name: /WI-1 .*running/ })).toBeInTheDocument());
-		expect(within(graph).getByRole("button", { name: /WI-2 .*running/ })).toBeInTheDocument();
+		await waitFor(() => expect(within(graph).getByRole("button", { name: /WI-1 .*Agent working/ })).toBeInTheDocument());
+		expect(within(graph).getByRole("button", { name: /WI-2 .*Agent working/ })).toBeInTheDocument();
 
 		await next(user, 3); // typo, draft, commit v2
-		await waitFor(() => expect(within(graph).getByRole("button", { name: /WI-2 .*stale/ })).toBeInTheDocument());
-		expect(within(graph).getByRole("button", { name: /WI-1 .*running/ })).toBeInTheDocument();
+		await waitFor(() => expect(within(graph).getByRole("button", { name: /WI-2 .*Blocked/ })).toBeInTheDocument());
+		expect(within(graph).getByRole("button", { name: /WI-1 .*Left alone/ })).toBeInTheDocument();
 
 		const strip = await screen.findByTestId("results-strip");
-		expect(strip).toHaveTextContent("2 items evaluated");
-		expect(strip).toHaveTextContent("1 stale");
-		expect(strip).toHaveTextContent("1 with no recorded dependency");
-		expect(strip).toHaveTextContent(/ms/);
+		expect(strip).toHaveAttribute("title", expect.stringContaining("2 items checked"));
+		expect(strip).toHaveTextContent("1 blocked");
+		expect(strip).toHaveTextContent("1 left alone");
+		expect(strip.getAttribute("title")).toMatch(/ ms\./);
 
 		// The inspector follows the beat, and its default tab is the question.
-		expect(await screen.findByRole("tab", { name: "Why is this blocked?" })).toHaveAttribute("aria-selected", "true");
+		expect(await screen.findByRole("tab", { name: "Why blocked?" })).toHaveAttribute("aria-selected", "true");
 		expect(await screen.findByTestId("promote-button")).toBeDisabled();
 	});
 
@@ -60,7 +60,7 @@ describe("the console, mock-driven end to end", () => {
 		const user = userEvent.setup();
 		render(<App runtime={runtime} />);
 		await next(user, 5);
-		await screen.findByRole("button", { name: /WI-2 .*conflict/ });
+		await screen.findByRole("button", { name: /WI-2 .*Blocked/ });
 		const chips = document.querySelectorAll("[data-status]");
 		expect(chips.length).toBeGreaterThan(0);
 		for (const chip of chips) {
@@ -89,10 +89,10 @@ describe("the console, mock-driven end to end", () => {
 		expect(await screen.findByRole("heading", { name: "qualified-lead" })).toBeInTheDocument();
 		await next(user, 4);
 		const graph = await screen.findByRole("region", { name: "Work graph" });
-		await waitFor(() => expect(within(graph).getByRole("button", { name: /WI-3 .*stale/ })).toBeInTheDocument());
-		expect(within(graph).getByRole("button", { name: /WI-4 .*stale/ })).toBeInTheDocument();
-		expect(within(graph).getByRole("button", { name: /WI-5 .*running/ })).toBeInTheDocument();
-		expect(screen.getByTestId("results-strip")).toHaveTextContent("3 items evaluated");
+		await waitFor(() => expect(within(graph).getByRole("button", { name: /WI-3 .*Blocked/ })).toBeInTheDocument());
+		expect(within(graph).getByRole("button", { name: /WI-4 .*Blocked/ })).toBeInTheDocument();
+		expect(within(graph).getByRole("button", { name: /WI-5 .*Left alone/ })).toBeInTheDocument();
+		expect(screen.getByTestId("results-strip")).toHaveAttribute("title", expect.stringContaining("3 items checked"));
 	});
 
 	it("switches to the Larkhaven County shelter scenario, and keeps the synthetic note in view", async () => {
@@ -105,20 +105,20 @@ describe("the console, mock-driven end to end", () => {
 		expect(screen.getByTestId("scenario-note")).toHaveTextContent("Synthetic scenario. Not operational guidance.");
 		await next(user, 4);
 		const graph = await screen.findByRole("region", { name: "Work graph" });
-		await waitFor(() => expect(within(graph).getByRole("button", { name: /WI-1 .*stale/ })).toBeInTheDocument());
-		expect(within(graph).getByRole("button", { name: /WI-2 .*stale/ })).toBeInTheDocument();
-		expect(within(graph).getByRole("button", { name: /WI-3 .*stale/ })).toBeInTheDocument();
-		expect(within(graph).getByRole("button", { name: /WI-4 .*running/ })).toBeInTheDocument();
-		expect(within(graph).getByRole("button", { name: /WI-5 .*running/ })).toBeInTheDocument();
-		expect(screen.getByTestId("results-strip")).toHaveTextContent("5 items evaluated");
+		await waitFor(() => expect(within(graph).getByRole("button", { name: /WI-1 .*Blocked/ })).toBeInTheDocument());
+		expect(within(graph).getByRole("button", { name: /WI-2 .*Blocked/ })).toBeInTheDocument();
+		expect(within(graph).getByRole("button", { name: /WI-3 .*Blocked/ })).toBeInTheDocument();
+		expect(within(graph).getByRole("button", { name: /WI-4 .*Left alone/ })).toBeInTheDocument();
+		expect(within(graph).getByRole("button", { name: /WI-5 .*Left alone/ })).toBeInTheDocument();
+		expect(screen.getByTestId("results-strip")).toHaveAttribute("title", expect.stringContaining("5 items checked"));
 		// The negative controls read as deliberate: "Left alone" is on the node (the reason code is its tooltip), and stays when their drafts arrive.
 		for (const id of ["WI-4", "WI-5"]) {
-			expect(within(graph).getByTestId(`left-alone-${id}`)).toHaveTextContent("Left alone: no recorded dependency on what changed");
+			expect(within(graph).getByTestId(`left-alone-${id}`)).toHaveTextContent("Left alone: doesn't use what changed");
 			expect(within(graph).getByTestId(`left-alone-${id}`).getAttribute("title")).toContain("NO_DEPENDENCY_ON_CHANGED_FACETS");
 		}
 		for (const id of ["WI-1", "WI-2", "WI-3"]) expect(within(graph).queryByTestId(`left-alone-${id}`)).toBeNull();
 		await next(user, 1);
-		await waitFor(() => expect(within(graph).getByRole("button", { name: /WI-4 .*ready/ })).toBeInTheDocument());
+		await waitFor(() => expect(within(graph).getByRole("button", { name: /WI-4 .*Ready/ })).toBeInTheDocument());
 		expect(within(graph).getByTestId("left-alone-WI-4")).toHaveTextContent("Left alone");
 		await user.click(screen.getByRole("radio", { name: /Notifications/ }));
 		expect(await screen.findByRole("heading", { name: "notifications" })).toBeInTheDocument();
@@ -127,7 +127,7 @@ describe("the console, mock-driven end to end", () => {
 
 	it("starts empty on request, with the first-decision prompt and a one-click seed", async () => {
 		render(<App runtime={{ ...runtime, start: "empty" }} />);
-		expect(await screen.findByText("No accepted context yet. Declare the first decision.")).toBeInTheDocument();
+		expect(await screen.findByText("No decisions yet. Declare the first one.")).toBeInTheDocument();
 	});
 
 	it("toggles between light and dark themes", async () => {

@@ -22,8 +22,8 @@ export function notificationsScript(bundle: NotificationsScenario): MockScript {
 				await session.seedIfEmpty();
 				await session.startAgents(["wi1", "wi2"]);
 				drip([
-					["WI-1", "status", "Started on its own fork. Receipt: status-model@1"],
-					["WI-2", "status", "Started on its own fork. Receipt: notifications@1, status-model@1"],
+					["WI-1", "status", "Started on its own fork. Built on: status-model@1"],
+					["WI-2", "status", "Started on its own fork. Built on: notifications@1, status-model@1"],
 					["WI-1", "tool", "Read AGENTS.md"],
 					["WI-2", "tool", "Read .delta/context/notifications.md"],
 					["WI-1", "text", "Plan: status enum, badge component, status-change endpoint"],
@@ -36,7 +36,7 @@ export function notificationsScript(bundle: NotificationsScenario): MockScript {
 		},
 		{
 			id: "typo",
-			title: "Typo beat",
+			title: "Typo fix",
 			caption: "Prose-only edit to notifications. NO_ACTION, PROSE_ONLY. Nothing goes red.",
 			async run({ session }) {
 				const record = currentSnapshot(await session.cell.state(), "notifications");

@@ -35,7 +35,7 @@ function CopyButton({ text, label }: { text: string; label: string }) {
 	);
 }
 
-/** What this work item was handed: records, versions, named facets. It proves delivery, not understanding. */
+/** What this work item was handed (its receipt): decisions, versions, named settings. It proves delivery, not understanding. */
 export function ReceiptTab({ wi }: { wi: WorkItemState }) {
 	const { view } = useConsole();
 	const { receipt } = wi;
@@ -47,12 +47,14 @@ export function ReceiptTab({ wi }: { wi: WorkItemState }) {
 	return (
 		<div className="space-y-4 p-4" data-testid="receipt-tab">
 			<div className="flex items-center gap-2">
-				<h3 className="text-base font-semibold">Context receipt</h3>
+				<h3 className="text-base font-semibold" title="The receipt: the exact decision versions this work was handed">
+					What it was given
+				</h3>
 				<EpistemicChip kind="recorded" className="ml-auto text-sm" />
 			</div>
-			<p className="text-sm text-muted-foreground">What {wi.item.actor.displayName} was handed before it started. It proves what was delivered, not that it was understood.</p>
+			<p className="text-sm text-muted-foreground">What the agent was handed for {wi.item.title} before it started. It proves what was delivered, not that it was understood.</p>
 
-			<ul className="space-y-3" aria-label="Records delivered">
+			<ul className="space-y-3" aria-label="Decisions delivered">
 				{receipt.accepted.map((entry) => {
 					const current = currentRecord(view, entry.recordId);
 					const newer = current && current.version > entry.version;
@@ -70,7 +72,7 @@ export function ReceiptTab({ wi }: { wi: WorkItemState }) {
 								)}
 								{newer && !behind && (
 									<Badge tone="outline" className="text-sm">
-										v{current.version} exists, facets it relies on unchanged
+										v{current.version} exists, settings it relies on unchanged
 									</Badge>
 								)}
 								{!newer && (
@@ -79,14 +81,14 @@ export function ReceiptTab({ wi }: { wi: WorkItemState }) {
 									</Badge>
 								)}
 							</div>
-							<p className="mt-2.5 mb-1.5 text-sm font-medium">Facets it was handed</p>
+							<p className="mt-2.5 mb-1.5 text-sm font-medium">Settings it was handed</p>
 							<ReceiptFacetList wi={wi} entry={entry} />
 							<dl className="mt-2.5 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 font-mono text-sm text-muted-foreground">
-								<dt>all facets</dt>
+								<dt>all settings</dt>
 								<dd className="truncate" title={entry.facetHash}>
 									#{shortHash(entry.facetHash, 12)}
 								</dd>
-								<dt>record file</dt>
+								<dt>decision file</dt>
 								<dd className="truncate" title={entry.blobHash}>
 									#{shortHash(entry.blobHash, 12)}
 								</dd>
@@ -94,7 +96,7 @@ export function ReceiptTab({ wi }: { wi: WorkItemState }) {
 						</li>
 					);
 				})}
-				{receipt.accepted.length === 0 && <li className="text-sm text-muted-foreground">No accepted records were delivered.</li>}
+				{receipt.accepted.length === 0 && <li className="text-sm text-muted-foreground">No accepted decisions were delivered.</li>}
 			</ul>
 
 			<dl className="grid grid-cols-[auto_1fr] items-center gap-x-4 gap-y-1.5 rounded-lg bg-muted/60 p-3 text-sm">
@@ -153,7 +155,7 @@ export function SemanticTab({ wi }: { wi: WorkItemState }) {
 	return (
 		<div className="space-y-4 p-4" data-testid="semantic-tab">
 			<div className="flex items-center gap-2">
-				<h3 className="text-sm font-semibold">Claims vs accepted facets</h3>
+				<h3 className="text-sm font-semibold">Claims vs decision</h3>
 				<EpistemicChip kind="asserted" className="ml-auto" />
 			</div>
 
@@ -195,8 +197,8 @@ export function SemanticTab({ wi }: { wi: WorkItemState }) {
 								</div>
 								<ArrowRight className="self-center text-muted-foreground" aria-hidden />
 								<div className={cn("rounded-md p-2", row.verdict === "conflict" ? "bg-danger-soft" : row.verdict === "match" ? "bg-success-soft" : "bg-muted/60")}>
-									<p className="text-[11px] text-muted-foreground">Accepted</p>
-									<p className="font-medium break-words">{row.accepted === null ? "(no accepted facet)" : formatFacet(row.accepted)}</p>
+									<p className="text-[11px] text-muted-foreground">Decision says</p>
+									<p className="font-medium break-words">{row.accepted === null ? "(no setting governs this)" : formatFacet(row.accepted)}</p>
 									{row.acceptedRef && <p className="mt-0.5 font-mono text-[11px] text-muted-foreground">{row.acceptedRef}</p>}
 								</div>
 							</div>
@@ -267,12 +269,12 @@ export function ChangesTab({ wi }: { wi: WorkItemState }) {
 	if (!available) {
 		return (
 			<p className="p-4 text-[13px] text-muted-foreground" data-testid="changes-unavailable">
-				File diffs are not served by the live Worker yet, so this tab has nothing to show. The claims, receipt and gate for this work item are on the other tabs.
+				File diffs are not served by the live Worker yet, so this tab has nothing to show. The claims, what it was given and the merge check for this work item are on the other tabs.
 			</p>
 		);
 	}
 	if (error) return <p className="p-4 text-sm text-danger">{error}</p>;
-	if (!files) return <p className="p-4 text-sm text-muted-foreground">Reading the fork.</p>;
+	if (!files) return <p className="p-4 text-sm text-muted-foreground">Reading the agent's copy.</p>;
 	if (files.length === 0) {
 		return (
 			<p className="p-4 text-[13px] text-muted-foreground" data-testid="changes-empty">

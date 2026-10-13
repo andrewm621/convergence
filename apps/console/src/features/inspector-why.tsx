@@ -26,6 +26,19 @@ const CONDITION_TONE: Record<ConditionType, "danger" | "warning" | "success" | "
 	Promoted: "merged",
 };
 
+/** What each condition is called on screen. The engine's name stays in `data-condition`. */
+const CONDITION_LABEL: Record<ConditionType, string> = {
+	Fresh: "Up to date",
+	Stale: "Built on an old version",
+	Uncertain: "Can't tell",
+	ClaimConflict: "Claims conflict",
+	TestFailed: "Check failed",
+	TestsPassed: "Check passed",
+	Blocked: "Blocked",
+	Ready: "Ready",
+	Promoted: "Merged",
+};
+
 /**
  * "Why is this blocked?": decision vN, then the receipt (what this agent was given), then the
  * claim, the test, and the condition. Each link says how far to trust it: `recorded`,
@@ -63,9 +76,9 @@ export function WhyTab({ wi }: { wi: WorkItemState }) {
 	// The Worker's claims check has its own row: the engine does not count it as a test, so the Test row does not list it.
 	const claimsChecks = analysis.headEvidence.filter((e) => !analysis.testEvidence.includes(e));
 	const summary = promoted
-		? "It cleared the gate at the current heads and was merged into the baseline."
+		? "It passed the merge check at the current heads and was merged into the baseline."
 		: rerunning
-			? `Revalidating: ${wi.item.actor.displayName} is re-running on the current decisions (${wi.receipt.accepted.map((e) => `${e.recordId}@${e.version}`).join(", ")}). Merge stays closed until its next push.`
+			? `Revalidating: the agent is re-running ${wi.item.title} on the current decisions (${wi.receipt.accepted.map((e) => `${e.recordId}@${e.version}`).join(", ")}). Merge stays closed until its next push.`
 			: blocked
 			? [
 					...analysis.stale.map((f) => `Built on ${f.recordId}@${f.fromVersion}, but ${f.recordId} is now v${f.toVersion}${f.facetKeys.length ? ` (${f.facetKeys.join(", ")} changed)` : ""}.`),
@@ -73,7 +86,7 @@ export function WhyTab({ wi }: { wi: WorkItemState }) {
 					...(analysis.failedChecks.length ? [`Delta Convergence's own check failed: ${analysis.failedChecks.join(", ")}.`] : []),
 				]
 					.slice(0, 4)
-					.join(" ") || (gate?.blockers.join(" ") ?? "The gate is closed.")
+					.join(" ") || (gate?.blockers.join(" ") ?? "The merge is blocked.")
 			: "Nothing stands in the way. It still needs a human to merge it.";
 
 	return (
@@ -163,7 +176,7 @@ export function WhyTab({ wi }: { wi: WorkItemState }) {
 						Left alone{alone.recordRef ? ` by ${alone.recordRef}` : ""}
 					</p>
 					<p className="mt-1 text-xs text-muted-foreground" title={alone.message}>
-						No recorded dependency on what changed.
+						It doesn&apos;t use anything that changed.
 					</p>
 					<ul className="mt-2 flex flex-wrap gap-1.5" aria-label="Reason codes for leaving it alone">
 						{alone.reasonCodes.map((code) => (
@@ -201,7 +214,7 @@ export function WhyTab({ wi }: { wi: WorkItemState }) {
 								</p>
 								{unaffected && (
 									<p className="rounded-md bg-muted/60 px-2 py-1 text-xs text-muted-foreground">
-										Moved from v{before?.version} to v{head.version}, but none of the facets this work relies on ({(relied ?? []).join(", ") || "any"}) changed.
+										Moved from v{before?.version} to v{head.version}, but none of the settings this work relies on ({(relied ?? []).join(", ") || "any"}) changed.
 									</p>
 								)}
 								{changes.map((change) => (
@@ -217,11 +230,11 @@ export function WhyTab({ wi }: { wi: WorkItemState }) {
 					})}
 				</ChainLink>
 
-				<ChainLink icon={Receipt} step="2" title="Receipt" subtitle="what this agent was given" chip={<EpistemicChip kind="recorded" />} tone={analysis.stale.length > 0 ? "danger" : "neutral"}>
+				<ChainLink icon={Receipt} step="2" title="What it was given" subtitle="the decision versions this agent was handed" chip={<EpistemicChip kind="recorded" />} tone={analysis.stale.length > 0 ? "danger" : "neutral"}>
 					<ReceiptChips wi={wi} staleIds={staleIds} />
 					{analysis.stale.length > 0 && (
 						<p className="mt-1.5 text-sm text-danger">
-							Behind on {plural(analysis.stale.length, "record")}: the facets it relies on have changed since this receipt.
+							Behind on {plural(analysis.stale.length, "decision")}: the settings it relies on have changed since it was handed them.
 						</p>
 					)}
 				</ChainLink>
@@ -261,7 +274,7 @@ export function WhyTab({ wi }: { wi: WorkItemState }) {
 						icon={ShieldQuestion}
 						step="3b"
 						title="Claims check"
-						subtitle="the Worker compared the claims with the receipt"
+						subtitle="the Worker compared the claims with what it was given"
 						chip={<EpistemicChip kind="claims-checked" />}
 						tone={claimsChecks.some((e) => !e.pass) ? "danger" : "neutral"}
 					>
@@ -304,7 +317,7 @@ export function WhyTab({ wi }: { wi: WorkItemState }) {
 					<ConditionList conditions={wi.conditions} />
 					{promoted ? (
 						<p className="mt-2 text-[13px]" data-testid="decided">
-							Merged into the baseline{mergeEntry ? ` at ${formatDateTime(mergeEntry.ts)}` : ""}. This is on the ledger.
+							Merged into the baseline{mergeEntry ? ` at ${formatDateTime(mergeEntry.ts)}` : ""}. This is in the audit log.
 						</p>
 					) : (
 						<div className="mt-2.5 rounded-lg border border-dashed p-2.5" data-testid="awaiting-human">
@@ -313,7 +326,7 @@ export function WhyTab({ wi }: { wi: WorkItemState }) {
 								Awaiting human
 							</p>
 							<p className="mt-1 text-xs text-muted-foreground">
-								{problem ? "Nobody has decided what to do about this. Revalidate it, accept a scoped exception, or reject it." : blocked ? "Nothing is wrong with it so far, but it is not ready: it still needs to push its work." : "Nothing is wrong, but it stays unmerged until a person merges it."}
+								{problem ? "Nobody has decided what to do about this. Revalidate it, allow it with a scoped exception, or reject it." : blocked ? "Nothing is wrong with it so far, but it is not ready: it still needs to push its work." : "Nothing is wrong, but it stays unmerged until a person merges it."}
 							</p>
 							<Button variant="outline" size="xs" className="mt-2" onClick={() => setTab("actions")}>
 								<CircleAlert aria-hidden /> Open actions
@@ -333,7 +346,7 @@ function ReceiptChips({ wi, staleIds }: { wi: WorkItemState; staleIds: ReadonlyS
 	const open = wi.receipt.accepted.find((entry) => entry.recordId === openId);
 	return (
 		<>
-			<ul className="flex flex-wrap gap-2" aria-label="Records in the receipt">
+			<ul className="flex flex-wrap gap-2" aria-label="Decisions it was given">
 				{wi.receipt.accepted.map((entry) => {
 					const head = currentRecord(view, entry.recordId);
 					const newer = head && head.version > entry.version;
@@ -347,13 +360,13 @@ function ReceiptChips({ wi, staleIds }: { wi: WorkItemState; staleIds: ReadonlyS
 								aria-expanded={expanded}
 								aria-controls={`receipt-facets-${entry.recordId}`}
 								data-receipt-chip={entry.recordId}
-								title="Show the facets this work item was handed"
+								title="Show the settings this work item was handed"
 								onClick={() => setOpenId(expanded ? null : entry.recordId)}
 								className={cn(badgeVariants({ tone: behind ? "danger" : "outline" }), "cursor-pointer gap-1.5 px-2.5 py-1 font-mono text-sm outline-none hover:brightness-95 focus-visible:ring-[3px] focus-visible:ring-ring/50")}
 							>
 								<Chevron aria-hidden />
 								{entry.recordId}@{entry.version}
-								{behind ? ` (now v${head.version})` : newer ? ` (v${head.version} exists; no recorded affected dependency)` : ""}
+								{behind ? ` (now v${head.version})` : newer ? ` (v${head.version} exists; nothing it uses changed)` : ""}
 							</button>
 						</li>
 					);
@@ -362,7 +375,7 @@ function ReceiptChips({ wi, staleIds }: { wi: WorkItemState; staleIds: ReadonlyS
 			{open && (
 				<div id={`receipt-facets-${open.recordId}`} className="mt-2">
 					<p className="mb-1.5 text-sm font-medium">
-						Facets handed over with {open.recordId}@{open.version}
+						Settings handed over with {open.recordId}@{open.version}
 					</p>
 					<ReceiptFacetList wi={wi} entry={open} />
 				</div>
@@ -423,7 +436,7 @@ function ConditionList({ conditions }: { conditions: Condition[] }) {
 							</Badge>
 						) : (
 							<Badge tone={CONDITION_TONE[c.type]} className="font-semibold">
-								{c.type}
+								{CONDITION_LABEL[c.type]}
 							</Badge>
 						)}
 						{c.reasonCodes.map((code) => (

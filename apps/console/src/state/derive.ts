@@ -2,6 +2,7 @@ import { parseRecordRef, type Claim, type Dependency, type FacetValue, type Poli
 import { analyze, authorityFor, classifyExceptions, diffFacets, evaluateGate, facetValuesEqual, findStale, type Analysis } from "delta-core";
 import { DEMO_IDENTITY } from "@/config";
 import { describeCheck } from "@/lib/evidence";
+import { plural } from "@/lib/format";
 import { toCellState, type Evaluation, type ViewState } from "./store";
 
 /**
@@ -141,10 +142,10 @@ export function semanticDiff(view: ViewState, wi: WorkItemState, analysis: Analy
 		const acceptedRef = current ? `${current.recordId}@${current.version}` : null;
 		const undeclared = ref ? analysis.outsideReceipt.some((o) => o.recordId === ref.recordId && o.subjects.includes(claim.subject)) : false;
 		const conflict = analysis.conflicts.find((c) => c.subject === claim.subject && c.basedOn === claim.basedOn);
-		if (undeclared) return { claim, verdict: "undeclared" as const, accepted, acceptedRef, superseded, note: `${ref?.recordId ?? "This record"} was not in the receipt and has no accepted dependency.` };
-		if (conflict) return { claim, verdict: "conflict" as const, accepted, acceptedRef, superseded, note: conflict.reasonCodes.includes("SUPERSEDED_BASIS") && accepted !== null && facetValuesEqual(claim.value, accepted) ? "Right value, but built on a superseded version of a facet that changed." : null };
-		if (accepted === null) return { claim, verdict: "ungoverned" as const, accepted, acceptedRef, superseded, note: "No accepted facet governs this subject." };
-		return { claim, verdict: "match" as const, accepted, acceptedRef, superseded, note: superseded ? "Based on an older version, but this facet did not change." : null };
+		if (undeclared) return { claim, verdict: "undeclared" as const, accepted, acceptedRef, superseded, note: `${ref?.recordId ?? "This decision"} was not among what it was given and has no accepted dependency.` };
+		if (conflict) return { claim, verdict: "conflict" as const, accepted, acceptedRef, superseded, note: conflict.reasonCodes.includes("SUPERSEDED_BASIS") && accepted !== null && facetValuesEqual(claim.value, accepted) ? "Right value, but built on a superseded version of a setting that changed." : null };
+		if (accepted === null) return { claim, verdict: "ungoverned" as const, accepted, acceptedRef, superseded, note: "No setting governs this." };
+		return { claim, verdict: "match" as const, accepted, acceptedRef, superseded, note: superseded ? "Based on an older version, but this setting did not change." : null };
 	});
 
 	const covered = new Set(state.claims.map((c) => c.subject));
@@ -187,6 +188,9 @@ export function summarizeLedgerLine(entry: ReconciliationEvent): LedgerSummary {
 	return { ...base, noAction, effectTypes: [...new Set(effects.map((effect) => effect.type))] };
 }
 
+/** What each kind of sign-off is called in the audit log. */
+const SIGN_OFF_LABEL: Record<string, string> = { revalidate: "Revalidate", "accept-exception": "Allow with exception", reject: "Reject" };
+
 function describeLine(entry: ReconciliationEvent): Omit<LedgerSummary, "noAction" | "effectTypes"> {
 	const event = entry.payload.event;
 	// OBSERVATION_ONLY means "nothing to report": not worth a chip.
@@ -210,9 +214,9 @@ function describeLine(entry: ReconciliationEvent): Omit<LedgerSummary, "noAction
 		case "DependencyDecided":
 			return { label: `Dependency ${event.decision}`, detail: event.recordId, workItemId: event.workItemId, reasonCodes: reasons };
 		case "ReceiptIssued":
-			return { label: "Receipt issued", detail: `${event.receipt.accepted.length} records`, workItemId: event.workItemId, reasonCodes: reasons };
+			return { label: "Given its decisions", hint: "ReceiptIssued: the exact decision versions this work was handed, recorded as its receipt.", detail: plural(event.receipt.accepted.length, "decision"), workItemId: event.workItemId, reasonCodes: reasons };
 		case "ResolutionRecorded":
-			return { label: `Resolution: ${event.resolution.kind}`, detail: event.resolution.rationale, workItemId: event.resolution.workItemId, reasonCodes: reasons };
+			return { label: `Sign-off: ${SIGN_OFF_LABEL[event.resolution.kind] ?? event.resolution.kind}`, hint: `ResolutionRecorded: ${event.resolution.kind}`, detail: event.resolution.rationale, workItemId: event.resolution.workItemId, reasonCodes: reasons };
 		case "PromotionRequested":
 			return { label: "Merge requested", detail: event.forkHeadSha.slice(0, 7), workItemId: event.workItemId, reasonCodes: reasons };
 		case "PromotionMerged":

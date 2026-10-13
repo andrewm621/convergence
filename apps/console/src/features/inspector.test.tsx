@@ -86,10 +86,10 @@ describe("the Why tab: epistemic chips", () => {
 
 	it("is the default tab, titled as the question, with the chain from decision to condition", async () => {
 		await renderWithMock(<Inspector />, { beats: 5, select: "WI-2" });
-		const tab = await screen.findByRole("tab", { name: "Why is this blocked?" });
+		const tab = await screen.findByRole("tab", { name: "Why blocked?" });
 		expect(tab).toHaveAttribute("aria-selected", "true");
 		const panel = await screen.findByTestId("why-tab");
-		for (const title of ["Decision", "Receipt", "Claim", "Test", "Condition"]) expect(within(panel).getByRole("heading", { name: title })).toBeInTheDocument();
+		for (const title of ["Decision", "What it was given", "Claim", "Test", "Condition"]) expect(within(panel).getByRole("heading", { name: title })).toBeInTheDocument();
 		expect(within(panel).getAllByText("STALE_RECEIPT").length).toBeGreaterThan(0);
 	});
 
@@ -118,13 +118,13 @@ describe("actions: accept exception needs a scope and a rationale", () => {
 
 		await user.click(screen.getByRole("button", { name: "Record exception" }));
 		expect(calls).toHaveLength(0);
-		expect(screen.getByText(/Scope is required/)).toBeInTheDocument();
+		expect(screen.getByText(/Say what this exception covers/)).toBeInTheDocument();
 		expect(screen.getByText(/Rationale is required/)).toBeInTheDocument();
 
-		await user.type(screen.getByLabelText("Scope"), "reports/q4-forecast.md");
+		await user.type(screen.getByLabelText("What it covers"), "reports/q4-forecast.md");
 		await user.click(screen.getByRole("button", { name: "Record exception" }));
 		expect(calls).toHaveLength(0);
-		expect(screen.queryByText(/Scope is required/)).toBeNull();
+		expect(screen.queryByText(/Say what this exception covers/)).toBeNull();
 		expect(screen.getByText(/Rationale is required/)).toBeInTheDocument();
 
 		await user.type(screen.getByLabelText("Rationale"), "Grandfathered for the board deck.");
@@ -136,14 +136,14 @@ describe("actions: accept exception needs a scope and a rationale", () => {
 		const user = userEvent.setup();
 		const mock = await renderWithMock(<Inspector />, { scenario: "sales-ops", beats: 5, select: "WI-3" });
 		await user.click(await screen.findByRole("tab", { name: "Actions" }));
-		await user.click(await screen.findByRole("button", { name: /Accept exception/ }));
-		await user.type(await screen.findByLabelText("Scope"), "reports/q4-forecast.md");
+		await user.click(await screen.findByRole("button", { name: /Allow with exception/ }));
+		await user.type(await screen.findByLabelText("What it covers"), "reports/q4-forecast.md");
 		await user.type(screen.getByLabelText("Rationale"), "Q4 forecast is grandfathered on v1 for the board deck.");
 		await user.click(screen.getByRole("button", { name: "Record exception" }));
 
 		await waitFor(() => expect(mock.client.controls.getState().busy).toBe(false));
 		await waitFor(async () => expect((await mock.client.api.gate("WI-3")).pass).toBe(true));
-		expect(await screen.findByText("Scope: reports/q4-forecast.md")).toBeInTheDocument();
+		expect(await screen.findByText("Covers: reports/q4-forecast.md")).toBeInTheDocument();
 	});
 
 	it("revalidate goes through the engine with a default rationale and shows the revalidating chip", async () => {
