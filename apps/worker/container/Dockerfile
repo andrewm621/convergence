@@ -12,7 +12,7 @@ RUN npm install --global @anthropic-ai/claude-code@2.1.280
 # Helper binary @cloudflare/sandbox needs; the tag must match the installed package version.
 COPY --from=docker.io/cloudflare/sandbox:1.0.0 /usr/local/bin/sandbox-shim /usr/local/bin/sandbox-shim
 
-COPY run-agent.sh stub-agent.mjs stub-agent-lib.ts /opt/delta/
+COPY run-agent.sh stub-agent.mjs stub-agent-lib.ts claude-events.mjs claude-stream-lib.ts write-receipt.mjs receipt-lib.ts /opt/delta/
 RUN chmod +x /opt/delta/run-agent.sh
 
 WORKDIR /workspace

@@ -2,7 +2,7 @@ import { Hono, type Context, type Next } from "hono";
 import { assertSafePath, errorCode, getRepo } from "./artifacts/git-write";
 import { redactDeep, redactText } from "./artifacts/tokens";
 import { DispatchError, dispatchAgent, presentRun } from "./agents/dispatch";
-import { DispatchRequest, REPO_NAME_RE, WORK_ITEM_ID_RE } from "./agents/protocol";
+import { DispatchRequest, IdempotencyKey, REPO_NAME_RE, RefName, WORK_ITEM_ID_RE } from "./agents/protocol";
 import { purgeSmokeRepos, runSmoke, seedForks } from "./smoke";
 
 export { WorkspaceCell } from "./workspace-cell";
@@ -60,9 +60,14 @@ app.post("/api/agents/dispatch", async (c) => {
 			400,
 		);
 	}
+	const key = IdempotencyKey.safeParse(c.req.header("Idempotency-Key"));
+	if (!key.success) {
+		return c.json({ error: { code: "IDEMPOTENCY_KEY_REQUIRED", message: key.error.issues[0]?.message ?? "Idempotency-Key header is required" } }, 400);
+	}
 	try {
-		const { httpStatus, run } = await dispatchAgent(c.env, parsed.data);
-		return c.json(presentRun(run), httpStatus);
+		const { httpStatus, run } = await dispatchAgent(c.env, parsed.data, key.data);
+		// Activity lines come from the sandbox and can carry git error text (remote URLs): redact before it leaves.
+		return c.json(redactDeep(presentRun(run)), httpStatus);
 	} catch (e) {
 		if (e instanceof DispatchError) return c.json({ error: { code: e.code, message: e.message } }, e.status);
 		throw e;
@@ -74,20 +79,21 @@ app.get("/api/agents/runs/:workItemId", async (c) => {
 	if (!WORK_ITEM_ID_RE.test(id)) return c.json({ error: { code: "INVALID_INPUT", message: "invalid work item id" } }, 400);
 	const run = await c.env.AGENT_SANDBOX.getByName(id).readRun();
 	if (!run) return c.json({ error: { code: "NOT_FOUND", message: `no run for ${id}` } }, 404);
-	return c.json(presentRun(run));
+	return c.json(redactDeep(presentRun(run)));
 });
 
 app.get("/api/repos/:name/log", async (c) => {
 	const name = c.req.param("name");
 	if (!REPO_NAME_RE.test(name)) return c.json({ error: { code: "INVALID_REPO_NAME", message: "invalid repo name" } }, 400);
 	const limit = Math.min(Math.max(Number(c.req.query("limit") ?? 20) || 20, 1), 100);
-	const ref = c.req.query("ref") ?? "main";
+	const ref = RefName.safeParse(c.req.query("ref") ?? "main");
+	if (!ref.success) return c.json({ error: { code: "INVALID_INPUT", message: "invalid ref" } }, 400);
 
 	using repo = await getRepo(c.env, name);
-	const commits = await repo.log({ ref, limit });
+	const commits = await repo.log({ ref: ref.data, limit });
 	return c.json({
 		repo: name,
-		ref,
+		ref: ref.data,
 		commits: commits.map((m) => ({
 			hash: m.hash,
 			treeHash: m.treeHash,
@@ -109,8 +115,10 @@ app.get("/api/repos/:name/file", async (c) => {
 	} catch {
 		return c.json({ error: { code: "INVALID_INPUT", message: "invalid path" } }, 400);
 	}
+	const ref = RefName.safeParse(c.req.query("ref") ?? "main");
+	if (!ref.success) return c.json({ error: { code: "INVALID_INPUT", message: "invalid ref" } }, 400);
 	using repo = await getRepo(c.env, name);
-	const blob = await repo.readFile({ ref: c.req.query("ref") ?? "main", path });
+	const blob = await repo.readFile({ ref: ref.data, path });
 	if (!blob) return c.json({ error: { code: "NOT_FOUND", message: `no ${path} at that ref` } }, 404);
 	return c.json({ repo: name, path, text: redactText(await blob.text()) });
 });

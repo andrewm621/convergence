@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { errorCode, getRepo } from "../artifacts/git-write";
-import { AgentMode, SandboxInstance, type DispatchRequest } from "./protocol";
-import type { RunRecord } from "./sandbox";
+import { parseContextRecord } from "../../container/stub-agent-lib";
+import { AgentMode, SandboxInstance, dispatchFingerprint, type DispatchRequest, type Revalidate } from "./protocol";
+import type { AgentSandbox, RunRecord, StartOutcome } from "./sandbox";
 
 const RUN_WAIT_MS = 150_000;
 
@@ -10,6 +11,10 @@ const AgentConfig = z.object({
 	AGENT_MODEL: z.string().min(1).default("anthropic/claude-sonnet-5.5"),
 	STUB_STEP_MS: z.coerce.number().int().min(0).max(60_000).default(2500),
 	SANDBOX_INSTANCE: SandboxInstance.default("lite"),
+	// Hard caps for AGENT_MODE=claude: turns, dollars and wall clock.
+	AGENT_MAX_TURNS: z.coerce.number().int().min(1).max(100).default(15),
+	AGENT_MAX_BUDGET_USD: z.coerce.number().positive().max(20).default(1),
+	AGENT_TIMEOUT_S: z.coerce.number().int().min(30).max(3600).default(600),
 });
 
 export interface AgentConfig {
@@ -17,12 +22,15 @@ export interface AgentConfig {
 	model: string;
 	stubStepMs: number;
 	instance: SandboxInstance;
+	maxTurns: number;
+	maxBudgetUsd: number;
+	timeoutS: number;
 }
 
 /** A dispatch problem with a stable code the API maps to an HTTP status. */
 export class DispatchError extends Error {
 	constructor(
-		readonly status: 400 | 404 | 409 | 500 | 503,
+		readonly status: 400 | 404 | 409 | 422 | 500 | 503,
 		readonly code: string,
 		message: string,
 	) {
@@ -37,12 +45,23 @@ export function readAgentConfig(env: Env): AgentConfig {
 		AGENT_MODEL: env.AGENT_MODEL,
 		STUB_STEP_MS: env.STUB_STEP_MS,
 		SANDBOX_INSTANCE: env.SANDBOX_INSTANCE,
+		AGENT_MAX_TURNS: env.AGENT_MAX_TURNS,
+		AGENT_MAX_BUDGET_USD: env.AGENT_MAX_BUDGET_USD,
+		AGENT_TIMEOUT_S: env.AGENT_TIMEOUT_S,
 	});
 	if (!parsed.success) {
 		throw new DispatchError(500, "AGENT_CONFIG_INVALID", parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; "));
 	}
 	const c = parsed.data;
-	return { mode: c.AGENT_MODE, model: c.AGENT_MODEL, stubStepMs: c.STUB_STEP_MS, instance: c.SANDBOX_INSTANCE };
+	return {
+		mode: c.AGENT_MODE,
+		model: c.AGENT_MODEL,
+		stubStepMs: c.STUB_STEP_MS,
+		instance: c.SANDBOX_INSTANCE,
+		maxTurns: c.AGENT_MAX_TURNS,
+		maxBudgetUsd: c.AGENT_MAX_BUDGET_USD,
+		timeoutS: c.AGENT_TIMEOUT_S,
+	};
 }
 
 /** Shape returned to API callers: the two ledger-ready events plus the run's state. */
@@ -59,6 +78,9 @@ export function presentRun(run: RunRecord) {
 			: null,
 		durationMs: run.finishedAt ? Date.parse(run.finishedAt) - Date.parse(run.startedAt) : null,
 		commit: run.commit,
+		pushVerified: run.pushVerified,
+		baseHead: run.baseHead,
+		revalidation: run.revalidation,
 		exitCode: run.exitCode,
 		error: run.error,
 		tokenRevoked: run.tokenRevoked,
@@ -67,16 +89,67 @@ export function presentRun(run: RunRecord) {
 	};
 }
 
+/** A revalidation's context files must be the versions it says it is delivering. Checked before a token is minted. */
+export function checkRevalidationContext(revalidate: Revalidate): void {
+	const delivered = new Map<string, number>();
+	for (const [name, text] of Object.entries(revalidate.context)) {
+		const record = parseContextRecord(text);
+		if (!record) throw new DispatchError(400, "CONTEXT_INVALID", `${name} is not a valid context record`);
+		delivered.set(record.id, record.version);
+	}
+	for (const change of revalidate.changes) {
+		if (delivered.get(change.recordId) !== change.toVersion) {
+			throw new DispatchError(
+				400,
+				"CONTEXT_MISMATCH",
+				`context must include ${change.recordId} at version ${change.toVersion}`,
+			);
+		}
+	}
+}
+
 /**
  * Start the agent for one work item on its fork. Mints a short-lived write token for that fork only;
  * the token goes to the outbound handler, never into the container, a URL or a log line.
+ * The same Idempotency-Key with the same request returns the run it started, with no second token or run.
  */
-export async function dispatchAgent(env: Env, req: DispatchRequest): Promise<{ httpStatus: 200 | 202; run: RunRecord }> {
+export async function dispatchAgent(
+	env: Env,
+	req: DispatchRequest,
+	idempotencyKey: string,
+): Promise<{ httpStatus: 200 | 202; run: RunRecord }> {
 	const cfg = readAgentConfig(env);
+	if (req.revalidate) checkRevalidationContext(req.revalidate);
 	if (cfg.mode === "claude" && !(env as { OPENROUTER_API_KEY?: string }).OPENROUTER_API_KEY) {
 		throw new DispatchError(503, "OPENROUTER_API_KEY_MISSING", "AGENT_MODE=claude needs the OPENROUTER_API_KEY secret");
 	}
 
+	const fingerprint = await dispatchFingerprint(req);
+	const sandbox = env.AGENT_SANDBOX.getByName(req.workItemId);
+	const seen = await sandbox.peekIdempotency(idempotencyKey, fingerprint);
+	if (seen === "reused") {
+		throw new DispatchError(422, "IDEMPOTENCY_KEY_REUSED", "that Idempotency-Key was used with a different request");
+	}
+
+	let run: RunRecord | null = null;
+	if (seen === "replay") {
+		run = await sandbox.readRun();
+	}
+	if (!run) run = await startNewRun(env, sandbox, req, cfg, idempotencyKey, fingerprint);
+
+	if (req.wait && run.state === "running") run = (await sandbox.waitForRun(RUN_WAIT_MS)) ?? run;
+	// Still running (not waiting, or the wait timed out): the caller polls GET /agents/runs/:id.
+	return { httpStatus: run.state === "running" ? 202 : 200, run };
+}
+
+async function startNewRun(
+	env: Env,
+	sandbox: DurableObjectStub<AgentSandbox>,
+	req: DispatchRequest,
+	cfg: AgentConfig,
+	idempotencyKey: string,
+	fingerprint: string,
+): Promise<RunRecord> {
 	using repo = await getRepo(env, req.forkRepo).catch((e) => {
 		if (errorCode(e) === "NOT_FOUND") throw new DispatchError(404, "FORK_NOT_FOUND", `no repo named ${req.forkRepo}`);
 		throw e;
@@ -89,8 +162,7 @@ export async function dispatchAgent(env: Env, req: DispatchRequest): Promise<{ h
 	const ttl = cfg.mode === "claude" ? 3600 : 900;
 	const token = await repo.createToken("write", ttl);
 
-	const sandbox = env.AGENT_SANDBOX.getByName(req.workItemId);
-	let started: Awaited<ReturnType<typeof sandbox.startRun>>;
+	let started: StartOutcome;
 	try {
 		started = await sandbox.startRun({
 			workItemId: req.workItemId,
@@ -103,17 +175,25 @@ export async function dispatchAgent(env: Env, req: DispatchRequest): Promise<{ h
 			prompt: req.prompt,
 			stubStepMs: cfg.stubStepMs,
 			instance: cfg.instance,
+			maxTurns: cfg.maxTurns,
+			maxBudgetUsd: cfg.maxBudgetUsd,
+			timeoutS: cfg.timeoutS,
+			idempotencyKey,
+			fingerprint,
+			revalidate: req.revalidate,
 		});
 	} catch (e) {
 		await repo.revokeToken(token.id).catch(() => false);
 		throw e;
 	}
+	// Anything but a fresh start means the minted token went unused.
+	if (started.status !== "started") await repo.revokeToken(token.id).catch(() => false);
 	if (started.status === "busy") {
-		await repo.revokeToken(token.id).catch(() => false);
 		throw new DispatchError(409, "RUN_IN_PROGRESS", `work item ${req.workItemId} already has a run in flight`);
 	}
-
-	if (!req.wait) return { httpStatus: 202, run: started.run };
-	const finished = await sandbox.waitForRun(RUN_WAIT_MS);
-	return { httpStatus: 200, run: finished ?? started.run };
+	if (started.status === "key_reused") {
+		throw new DispatchError(422, "IDEMPOTENCY_KEY_REUSED", "that Idempotency-Key was used with a different request");
+	}
+	if (!started.run) throw new Error("run missing after start");
+	return started.run;
 }
