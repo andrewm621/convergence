@@ -272,10 +272,10 @@ Result on `main` plus this README, run 2026-10-13: typecheck clean, and all test
 | `packages/contracts` | 4 | 59 |
 | `packages/delta-core` | 15 | 280 |
 | `apps/worker` | 32 | 730 |
-| `apps/console` | 17 | 148 |
-| **Total** | **68** | **1,217** |
+| `apps/console` | 24 | 256 |
+| **Total** | **75** | **1,325** |
 
-The console tests run in jsdom and some use short timeouts, so they can time out on a heavily loaded machine. If one does, rerun that package alone (`pnpm --filter console test`) once the machine is quiet before treating it as a failure. For the counts above the machine was heavily loaded, and the console suite passed in full (148 of 148) only with longer test and async-wait timeouts set from outside the repo; the other three packages passed with the stock settings.
+The console tests run in jsdom with a 10-second async-wait timeout (set in `apps/console/src/test/setup.ts`). On a heavily loaded machine one can still time out; if it does, rerun that package alone (`pnpm --filter console test`) before treating it as a failure. The counts above come from a fresh clone with the stock settings.
 
 The `scenarios/*` packages have no test files of their own; their fixtures are exercised by the `delta-core` tests.
 
