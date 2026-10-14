@@ -25,6 +25,8 @@
 //   --model <slug>             run both agents on this allowlisted OpenRouter model instead of the Worker's default.
 //   --after-push               land v2 after both agents have pushed, instead of while they run (the deterministic variant).
 //   --v2-after <seconds>       how long after the dispatch v2 lands, while the agents run (default 25).
+//   --stop-after-push          stop once both agents have pushed, before the decision changes, so the v2 change and everything
+//                              after it can be done on camera in the console. Implies --keep.
 
 const base = (process.env.WORKER_URL ?? "").replace(/\/$/, "");
 const token = process.env.DEV_TOKEN ?? "";
@@ -50,13 +52,14 @@ if (argv.includes("--model") && !(typeof modelArg === "string" && /^[A-Za-z0-9][
 }
 const stopBeforeRevalidate = argv.includes("--stop-before-revalidate");
 const afterPush = argv.includes("--after-push");
+const stopAfterPush = argv.includes("--stop-after-push");
 const midRunDelayS = Number(valueOf("--v2-after") ?? 25);
 if (!(midRunDelayS >= 0 && midRunDelayS <= 300)) {
 	console.error("--v2-after needs a number of seconds, 0 to 300");
 	process.exit(2);
 }
 // A demo cell points at its repos, so deleting them at the end would break it.
-const keep = argv.includes("--keep") || cellArg !== undefined || stopBeforeRevalidate;
+const keep = argv.includes("--keep") || cellArg !== undefined || stopBeforeRevalidate || stopAfterPush;
 const runId = Date.now().toString(36);
 const scenario = cellArg ?? `${CELL_PREFIX}live-${runId}`;
 /** Every repo this run seeds: the only ones the cleanup deletes. */
@@ -155,7 +158,7 @@ for (const event of ["uncaughtException", "unhandledRejection"]) {
 // ---------------------------------------------------------------------------------------------------------
 // 0. Seed
 // ---------------------------------------------------------------------------------------------------------
-console.log(`scenario ${scenario}${modelArg ? `  model ${modelArg}` : ""}${afterPush ? "  (v2 lands after both pushes)" : "  (v2 lands while the agents run)"}`);
+console.log(`scenario ${scenario}${modelArg ? `  model ${modelArg}` : ""}${stopAfterPush ? "  (stops after both pushes; no v2)" : afterPush ? "  (v2 lands after both pushes)" : "  (v2 lands while the agents run)"}`);
 if (cellArg !== undefined) {
 	// There is no cell reset, so a name that is already initialised cannot be reused. Look before creating any repo.
 	const existing = await get("/state");
@@ -213,6 +216,20 @@ async function runToEnd(item) {
 	return res;
 }
 const runs = items.map((item) => runToEnd(item));
+
+if (stopAfterPush) {
+	const done = await Promise.all(runs);
+	check("both agents ran and pushed", done.every((r) => r?.json?.state === "succeeded"), done.map((r) => `${r?.json?.workItemId}=${r?.json?.state}/${r?.json?.mode}/${r?.json?.model}`).join(" "));
+	const seen = await until(async () => {
+		const [a, b] = [await wiOf("SH-1"), await wiOf("SH-2")];
+		return a?.headSha && b?.headSha ? true : false;
+	}, 60_000, "ForkPushed for both");
+	check("ForkPushed recorded for both forks", Boolean(seen.value), `${seen.ms} ms after both runs returned`);
+	note(`stopping after both pushes, as asked: the decision has not changed. SH-1 ${await statusOf("SH-1")} ${j(conditionsOf(await wiOf("SH-1")))}; SH-2 ${await statusOf("SH-2")} ${j(conditionsOf(await wiOf("SH-2")))}`);
+	note(`console: <worker url>/?cell=${scenario}   (token in the address bar hash, as usual)`);
+	note(`repos kept: ${created.join(", ")}`);
+	await finish();
+}
 
 // ---------------------------------------------------------------------------------------------------------
 // 3. The decision changes. By default while the agents are mid-run, a few seconds after they started.
