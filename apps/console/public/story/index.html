@@ -1,0 +1,943 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Convergence · the story</title>
+<style>
+/* Tokens copied from the console's dark theme (apps/console/src/index.css) so the deck and the product read as one object. */
+:root {
+  color-scheme: dark;
+  --background: oklch(0.165 0.012 255);
+  --foreground: oklch(0.95 0.005 250);
+  --card: oklch(0.205 0.014 255);
+  --popover: oklch(0.23 0.016 255);
+  --primary: oklch(0.74 0.13 265);
+  --primary-foreground: oklch(0.2 0.03 265);
+  --secondary: oklch(0.26 0.014 255);
+  --muted: oklch(0.245 0.013 255);
+  --muted-foreground: oklch(0.72 0.02 255);
+  --accent: oklch(0.29 0.03 265);
+  --border: oklch(0.31 0.015 255);
+  --input: oklch(0.34 0.016 255);
+  --ring: oklch(0.65 0.12 265);
+  --success: oklch(0.8 0.15 155);
+  --success-soft: oklch(0.29 0.055 155);
+  --warning: oklch(0.84 0.13 85);
+  --warning-soft: oklch(0.3 0.06 85);
+  --danger: oklch(0.78 0.15 22);
+  --danger-soft: oklch(0.3 0.07 22);
+  --info: oklch(0.78 0.12 240);
+  --info-soft: oklch(0.29 0.06 245);
+  --merged: oklch(0.8 0.12 295);
+  --graph-dot: oklch(0.3 0.012 255);
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  --ease: cubic-bezier(.2, .7, .2, 1);
+  --fade: .45s;
+}
+html.rm { --fade: .2s; }
+/* Reduced motion: no animation anywhere; every element sits in its end state and slides cross-fade in 200 ms. */
+html.rm .slide, html.rm .slide * { animation: none !important; }
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; background: var(--background); color: var(--foreground); font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
+button { font: inherit; color: inherit; cursor: pointer; }
+.mono { font-family: var(--font-mono); }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+:focus-visible { outline: 3px solid var(--ring); outline-offset: 3px; border-radius: 6px; }
+body.idle-cursor { cursor: none; }
+
+/* ---------- stage ---------- */
+#stage {
+  position: absolute; left: 50%; top: 50%; width: 1920px; height: 1080px; overflow: hidden;
+  transform-origin: center center; transform: translate(-50%, -50%) scale(var(--k, 1));
+  background:
+    radial-gradient(1400px 800px at 78% 0%, color-mix(in oklch, var(--primary) 9%, transparent), transparent 70%),
+    radial-gradient(color-mix(in oklch, var(--graph-dot) 70%, transparent) 1.5px, transparent 1.6px) 0 0 / 44px 44px,
+    var(--background);
+}
+.slide {
+  position: absolute; inset: 0; opacity: 0; visibility: hidden;
+  transition: opacity var(--fade) ease, visibility 0s linear var(--fade);
+}
+.slide.on { opacity: 1; visibility: visible; transition: opacity var(--fade) ease, visibility 0s; }
+.abs { position: absolute; }
+
+.wm { position: absolute; left: 80px; top: 40px; display: flex; align-items: center; gap: 14px; font-size: 28px; font-weight: 600; letter-spacing: -.01em; }
+.wm svg { width: 36px; height: 36px; }
+.tag {
+  position: absolute; right: 48px; bottom: 40px; padding: 8px 18px; border: 1.5px solid var(--input); border-radius: 12px;
+  background: color-mix(in oklch, var(--card) 88%, transparent); font-size: 22px; line-height: 1.3; text-align: right; z-index: 5;
+}
+.tag b { font-weight: 700; letter-spacing: .12em; }
+.tag span { display: block; color: var(--muted-foreground); letter-spacing: .01em; }
+.tag.live { color: var(--success); border-color: color-mix(in oklch, var(--success) 60%, transparent); }
+
+.h1 { position: absolute; left: 80px; font-size: 84px; line-height: 1.04; font-weight: 700; letter-spacing: -.025em; max-width: 1760px; }
+.sub { position: absolute; left: 80px; font-size: 36px; line-height: 1.3; color: var(--muted-foreground); max-width: 1500px; }
+.lbl { font-size: 24px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted-foreground); font-weight: 600; }
+.card { position: absolute; background: var(--card); border: 1.5px solid var(--border); border-radius: 20px; padding: 30px 36px; box-shadow: 0 24px 60px -30px #000; }
+.chip { display: inline-flex; align-items: center; gap: 8px; padding: 2px 14px; min-height: 34px; border-radius: 999px; border: 1.5px solid var(--input); background: var(--secondary); font-size: 22px; line-height: 1.2; white-space: nowrap; transition: background .4s, color .4s, border-color .4s; }
+.chip.ok { color: var(--success); background: var(--success-soft); border-color: color-mix(in oklch, var(--success) 45%, transparent); }
+.chip.bad { color: var(--danger); background: var(--danger-soft); border-color: color-mix(in oklch, var(--danger) 55%, transparent); }
+.chip.warn { color: var(--warning); background: var(--warning-soft); border-color: color-mix(in oklch, var(--warning) 50%, transparent); }
+.chip.info { color: var(--info); background: var(--info-soft); border-color: color-mix(in oklch, var(--info) 45%, transparent); }
+.chip.mute { color: var(--muted-foreground); }
+.skel { display: grid; gap: 14px; }
+.skel i { display: block; height: 14px; border-radius: 7px; background: var(--muted); }
+
+/* ---------- reveal motion: every default is the end state; animations only supply the "from" ---------- */
+@keyframes rv { from { opacity: 0; transform: translate(var(--dx, 0), var(--dy, 18px)) scale(var(--sc, 1)); } }
+.slide.on .rv { animation: rv .7s var(--ease) var(--t, 0s) both; }
+html.rm .slide .rv, html.rm .slide .ch { animation: none !important; }
+@keyframes chIn { from { opacity: 0; } to { opacity: 1; } }
+.slide.on .ch { animation: chIn .01s steps(1, end) calc(var(--t0, 0s) + var(--i) * 42ms) both; }
+.w { display: inline-block; white-space: nowrap; }
+
+/* ---------- O1 ---------- */
+.o1-line { display: grid; font-size: 34px; line-height: 1.3; margin: 22px 0; }
+.o1-line > span { grid-area: 1 / 1; }
+.o1-line mark { background: transparent; color: inherit; border-radius: 6px; padding: 0 4px; margin: 0 -4px; }
+.o1-line .old { opacity: 0; }
+.slide.on .o1-line .old { animation: oldOut .6s ease 5.1s both; }
+.slide.on .o1-line .old mark { animation: hlOn .5s ease 4.2s both; }
+.slide.on .o1-line .new { animation: newIn .6s ease 5.4s both; }
+@keyframes oldOut { from { opacity: 1; } to { opacity: 0; filter: blur(5px); transform: translateY(-6px); } }
+@keyframes newIn { from { opacity: 0; transform: translateY(6px); } }
+@keyframes hlOn { from { background: transparent; } to { background: var(--warning-soft); box-shadow: 0 0 0 2px color-mix(in oklch, var(--warning) 50%, transparent); } }
+.commits { list-style: none; display: flex; flex-direction: column-reverse; gap: 12px; margin-top: 26px; }
+.commits li { display: flex; gap: 22px; align-items: baseline; padding: 12px 20px; border-radius: 12px; background: var(--muted); font-size: 28px; }
+.commits .h { font-family: var(--font-mono); font-size: 24px; color: var(--info); }
+.o1-link { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; opacity: 0; pointer-events: none; }
+.slide.on .o1-link { animation: linkDraw 1.3s ease 6.4s both, linkOut 1s ease 9s both; }
+@keyframes linkDraw { from { clip-path: inset(0 100% 0 0); opacity: 1; } to { clip-path: inset(0 0 0 0); opacity: 1; } }
+@keyframes linkOut { from { opacity: 1; } to { opacity: 0; } }
+
+/* ---------- O2 ---------- */
+.o2-bar { position: absolute; height: 26px; border-radius: 13px; left: var(--x); width: calc(var(--now) - var(--x)); background: linear-gradient(90deg, color-mix(in oklch, var(--primary) 55%, var(--background)), color-mix(in oklch, var(--primary) 85%, var(--background)) 80%, color-mix(in oklch, var(--primary) 0%, transparent)); border: 1.5px solid color-mix(in oklch, var(--primary) 55%, transparent); border-right: none; border-radius: 13px 0 0 13px; transform-origin: left center; }
+.o2-bar.you { background: linear-gradient(90deg, color-mix(in oklch, var(--info) 60%, var(--background)), color-mix(in oklch, var(--info) 90%, var(--background)) 80%, transparent); border-color: color-mix(in oklch, var(--info) 60%, transparent); }
+@keyframes grow { from { opacity: 0; transform: scaleX(0); } }
+.slide.on .o2-bar { animation: grow .8s var(--ease) var(--t, 0s) both; }
+html.rm .slide .o2-bar { animation: none !important; }
+.o2-q { position: absolute; width: 38px; height: 38px; border-radius: 50%; left: 1412px; background: var(--warning-soft); color: var(--warning); border: 2px solid color-mix(in oklch, var(--warning) 60%, transparent); font-weight: 800; font-size: 26px; display: grid; place-items: center; }
+@keyframes pop { from { opacity: 0; transform: scale(.3); } 70% { transform: scale(1.15); } }
+.slide.on .o2-q { animation: pop .45s var(--ease) var(--t, 0s) both; }
+html.rm .slide .o2-q { animation: none !important; }
+.o2-now { position: absolute; left: 1380px; top: 318px; width: 3px; height: 560px; background: var(--warning); border-radius: 2px; box-shadow: 0 0 24px color-mix(in oklch, var(--warning) 60%, transparent); }
+.slide.on .o2-now { animation: drop .6s var(--ease) 5.2s both; }
+@keyframes drop { from { opacity: 0; transform: translateY(-90px); } }
+.o2-sweep { position: absolute; left: 240px; top: 330px; width: 160px; height: 540px; opacity: 0; background: linear-gradient(90deg, transparent, color-mix(in oklch, var(--warning) 26%, transparent) 50%, transparent); border-radius: 80px; pointer-events: none; }
+.slide.on .o2-sweep { animation: sweep 2.4s ease-in-out 6s both; }
+@keyframes sweep { 0% { opacity: 0; transform: translateX(1480px); } 10%, 90% { opacity: 1; } 100% { opacity: 0; transform: translateX(0); } }
+html.rm .slide .o2-sweep, html.rm .slide .o2-now { animation: none !important; }
+
+/* ---------- O3 ---------- */
+.o3-arrow { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; pointer-events: none; }
+.o3-gate { position: absolute; left: 1296px; top: 340px; width: 34px; height: 170px; border-radius: 10px; background: var(--danger-soft); border: 2.5px solid var(--danger); box-shadow: 0 0 30px color-mix(in oklch, var(--danger) 45%, transparent); }
+.o3-gate::before, .o3-gate::after { content: ""; position: absolute; left: 6px; right: 6px; height: 4px; border-radius: 2px; background: var(--danger); }
+.o3-gate::before { top: 38px; } .o3-gate::after { bottom: 38px; }
+.slide.on .o3-gate { animation: gateDrop .7s cubic-bezier(.3, 1.4, .5, 1) 7.4s both; }
+@keyframes gateDrop { from { opacity: 0; transform: translateY(-150px); } }
+html.rm .slide .o3-gate { animation: none !important; }
+.o3-word { position: absolute; top: 780px; }
+.o3-word b { display: block; font-size: 72px; line-height: 1.05; letter-spacing: -.02em; }
+.o3-word span { display: block; margin-top: 10px; font-size: 30px; color: var(--muted-foreground); max-width: 480px; line-height: 1.3; }
+
+/* ---------- O4 ---------- */
+#o4wrap { position: absolute; left: 80px; top: 144px; width: 1760px; display: grid; grid-template-columns: 460px 64px 980px 20px 236px; column-gap: 0; row-gap: 8px; align-items: stretch; }
+.o4-gh { grid-column: 5; grid-row: 1; font-size: 28px; font-weight: 700; color: var(--foreground); align-self: end; padding-bottom: 2px; }
+.o4-dec { grid-column: 1; grid-row: 2 / span 4; position: relative; padding: 24px 28px; display: flex; flex-direction: column; gap: 14px; background: var(--card); border: 1.5px solid var(--border); border-radius: 20px; }
+.o4-small { grid-column: 1; position: relative; padding: 10px 22px; border-radius: 18px; background: var(--card); border: 1.5px solid var(--border); display: flex; flex-direction: column; justify-content: center; gap: 2px; }
+.o4-rec { display: flex; align-items: center; gap: 14px; }
+.o4-rec .name { font-family: var(--font-mono); font-size: 36px; font-weight: 700; }
+.o4-small .name { font-family: var(--font-mono); font-size: 28px; font-weight: 700; }
+.o4-small .facet { font-family: var(--font-mono); font-size: 24px; color: var(--muted-foreground); }
+.o4-set { display: grid; gap: 6px; font-family: var(--font-mono); font-size: 26px; }
+.o4-set div { display: flex; gap: 12px; }
+.o4-set .k { color: var(--muted-foreground); min-width: 112px; }
+.o4-set .val { transition: color .4s; }
+.o4-set .val.chg { color: var(--warning); }
+@keyframes valIn { from { opacity: 0; transform: translateX(26px); } }
+.o4-set .val.fresh { animation: valIn .5s var(--ease) both; }
+html.rm .o4-set .val.fresh { animation: none; }
+.o4-prose { font-size: 26px; line-height: 1.3; color: var(--muted-foreground); }
+.o4-prose mark { background: var(--warning-soft); color: var(--warning); border-radius: 5px; padding: 0 4px; }
+.o4-actions { margin-top: auto; display: flex; flex-direction: column; gap: 10px; }
+.btn { appearance: none; border: 1.5px solid var(--input); background: var(--secondary); border-radius: 12px; padding: 10px 22px; font-size: 26px; font-weight: 600; line-height: 1.2; transition: background .2s, opacity .2s, border-color .2s; }
+.btn:hover:not(:disabled) { background: var(--accent); border-color: var(--ring); }
+.btn:disabled { opacity: .5; cursor: default; }
+.btn.pri { background: var(--primary); color: var(--primary-foreground); border-color: transparent; }
+.btn.pri:hover:not(:disabled) { background: color-mix(in oklch, var(--primary) 85%, white); }
+.btn.ghost { background: transparent; }
+.live-only { display: none !important; }
+body.live .live-only { display: revert !important; }
+body.live .o4-prose.live-only { display: block !important; }
+body.live .btn.live-only { display: block !important; }
+
+.o4-edge { grid-column: 2; position: relative; align-self: center; height: 4px; background: color-mix(in oklch, var(--input) 85%, transparent); border-radius: 2px; transition: background .5s; }
+.o4-edge.hot { background: color-mix(in oklch, var(--danger) 70%, transparent); }
+.o4-edge.flat { background: color-mix(in oklch, var(--input) 50%, transparent); }
+.o4-edge i { position: absolute; left: 0; top: -5px; width: 14px; height: 14px; border-radius: 50%; background: var(--info); box-shadow: 0 0 14px var(--info); opacity: 0; }
+.o4-edge.go i { animation: travel .32s linear both; }
+@keyframes travel { from { opacity: 1; transform: translateX(0); } to { opacity: 1; transform: translateX(52px); } 99% { opacity: 1; } }
+html.rm .o4-edge.go i { animation: none; opacity: 0; }
+
+.o4-item { grid-column: 3; position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 410px; column-gap: 22px; padding: 10px 22px; min-height: 90px; align-items: center; text-align: left; background: var(--card); border: 1.5px solid var(--border); border-radius: 18px; transition: background .45s, border-color .45s, box-shadow .45s; }
+.o4-item .title { font-size: 28px; line-height: 1.2; font-weight: 600; }
+.o4-item .rcpt { font-family: var(--font-mono); font-size: 24px; line-height: 1.3; color: var(--muted-foreground); margin-top: 2px; }
+.o4-item .chips { display: flex; gap: 8px; justify-content: flex-end; align-items: center; flex-wrap: nowrap; }
+.o4-item .reason { margin-top: 4px; font-size: 24px; line-height: 1.25; color: var(--muted-foreground); text-align: right; min-height: 30px; }
+.o4-item[data-status="blocked"], .o4-item[data-status="awaiting"] { background: color-mix(in oklch, var(--danger-soft) 60%, var(--card)); border-color: color-mix(in oklch, var(--danger) 65%, transparent); }
+.o4-item[data-status="blocked"] .reason { color: var(--danger); }
+.o4-item[data-status="revalidating"], .o4-item[data-status="exception"] { background: color-mix(in oklch, var(--warning-soft) 60%, var(--card)); border-color: color-mix(in oklch, var(--warning) 60%, transparent); }
+.o4-item[data-status="ready"] { background: color-mix(in oklch, var(--success-soft) 60%, var(--card)); border-color: color-mix(in oklch, var(--success) 55%, transparent); }
+.o4-item[data-status="ready"] .reason, .o4-item[data-status="revalidating"] .reason, .o4-item[data-status="exception"] .reason { color: var(--foreground); }
+.o4-item[data-status="rejected"] { opacity: .7; }
+.o4-item.click { cursor: pointer; }
+.o4-item.click:hover { box-shadow: 0 0 0 2px color-mix(in oklch, var(--danger) 55%, transparent); }
+.o4-item.sel { box-shadow: 0 0 0 3px var(--danger); }
+.o4-item .panel { grid-column: 1 / -1; display: none; padding-top: 8px; margin-top: 8px; border-top: 1.5px solid color-mix(in oklch, var(--danger) 40%, transparent); }
+.o4-item.sel .panel { display: block; animation: panelIn .35s var(--ease) both; }
+html.rm .o4-item.sel .panel { animation: none; }
+@keyframes panelIn { from { opacity: 0; transform: translateY(-8px); } }
+.panel .who { font-size: 28px; line-height: 1.2; }
+.panel .btn { padding: 6px 20px; }
+.panel .who b { color: var(--danger); }
+.panel .acts { display: flex; gap: 14px; margin-top: 6px; align-items: center; }
+.panel .owner { font-size: 22px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted-foreground); font-weight: 600; margin-right: 6px; }
+.o4-git { grid-column: 5; display: grid; place-items: center; border-radius: 18px; border: 1.5px solid color-mix(in oklch, var(--success) 35%, transparent); background: color-mix(in oklch, var(--success-soft) 55%, var(--background)); font-family: var(--font-mono); font-size: 24px; color: var(--success); white-space: nowrap; }
+.o4-git.ping { animation: ping 1s ease both; }
+@keyframes ping { 0% { box-shadow: 0 0 0 0 color-mix(in oklch, var(--success) 70%, transparent); } 50% { box-shadow: 0 0 0 12px color-mix(in oklch, var(--success) 0%, transparent); background: color-mix(in oklch, var(--success-soft) 100%, var(--background)); } }
+html.rm .o4-git.ping { animation: none; }
+#o4cap { position: absolute; left: 80px; top: 992px; width: 1500px; min-height: 40px; font-size: 32px; color: var(--foreground); }
+#o4cap:empty { display: none; }
+#o4scrim { position: absolute; inset: 0; background: color-mix(in oklch, var(--background) 62%, transparent); opacity: 0; visibility: hidden; transition: opacity .3s, visibility 0s .3s; z-index: 10; }
+#o4scrim.open { opacity: 1; visibility: visible; transition: opacity .3s; }
+#o4sheet { position: absolute; left: 80px; top: 186px; width: 1000px; padding: 28px 34px; border-radius: 22px; background: var(--popover); border: 1.5px solid var(--input); box-shadow: 0 40px 90px -20px #000; z-index: 11; opacity: 0; visibility: hidden; transform: translateY(14px) scale(.985); transition: opacity .3s, transform .3s var(--ease), visibility 0s .3s; }
+#o4sheet.open { opacity: 1; visibility: visible; transform: none; transition: opacity .3s, transform .3s var(--ease); }
+html.rm #o4sheet, html.rm #o4scrim, html.rm .btn { transition-duration: .2s; }
+#o4sheet h2 { font-size: 36px; display: flex; align-items: center; gap: 16px; margin-bottom: 18px; }
+.diff { font-family: var(--font-mono); font-size: 28px; display: grid; gap: 8px; padding: 16px 22px; background: var(--background); border-radius: 14px; border: 1.5px solid var(--border); }
+.diff div { display: flex; gap: 20px; }
+.diff .k { color: var(--muted-foreground); min-width: 130px; }
+.diff .from { color: var(--danger); text-decoration: line-through; text-decoration-thickness: 2px; }
+.diff .to { color: var(--success); }
+.diff .same { color: var(--muted-foreground); opacity: .85; }
+.effect { font-size: 30px; line-height: 1.35; margin: 18px 0 20px; }
+.sheet-acts { display: flex; gap: 14px; align-items: center; }
+
+/* ---------- O5 ---------- */
+.o5-row { position: absolute; left: 80px; display: flex; align-items: center; gap: 30px; font-size: 34px; }
+.o5-tag { display: inline-block; min-width: 230px; text-align: center; padding: 8px 20px; border-radius: 14px; border: 2px solid; font-size: 34px; font-weight: 800; letter-spacing: .12em; }
+.o5-tag.live { color: var(--success); border-color: var(--success); background: var(--success-soft); }
+.o5-tag.seeded { color: var(--info); border-color: var(--info); background: var(--info-soft); }
+.o5-tag.replay { color: var(--merged); border-color: var(--merged); background: color-mix(in oklch, var(--merged) 16%, var(--background)); }
+.o5-tag.ghost { background: transparent; opacity: .35; }
+#o5-corner { position: absolute; right: 48px; bottom: 40px; z-index: 6; }
+#o5-corner .tag { position: static; }
+.slide.on .o5-gfx { animation: oldOut .5s ease 4.2s both; }
+.o5-gfx { opacity: 0; }
+html.rm .slide .o5-gfx { animation: none !important; }
+
+/* ---------- C ---------- */
+.big-q { position: absolute; left: 120px; top: 190px; font-size: 100px; line-height: 1.08; font-weight: 700; letter-spacing: -.03em; width: 1700px; }
+.c1-col { position: absolute; top: 640px; width: 780px; }
+.c1-col .row { display: flex; align-items: center; gap: 30px; }
+.c1-col svg { width: 96px; height: 96px; flex: none; }
+.c1-col b { display: block; font-size: 96px; line-height: 1; letter-spacing: -.03em; }
+.c1-col span { display: block; font-size: 40px; color: var(--muted-foreground); margin-top: 18px; padding-left: 126px; }
+.c2-card { position: absolute; top: 340px; width: 620px; height: 240px; display: flex; flex-direction: column; gap: 22px; }
+.c2-card .name { display: flex; align-items: center; gap: 14px; font-family: var(--font-mono); font-size: 38px; font-weight: 700; }
+.c2-card .set { font-family: var(--font-mono); font-size: 34px; padding: 14px 18px; border-radius: 12px; background: var(--warning-soft); border: 1.5px solid color-mix(in oklch, var(--warning) 55%, transparent); color: var(--warning); }
+.c2-card .set span { color: var(--muted-foreground); margin-right: 18px; }
+.c2-note { position: absolute; top: 612px; font-size: 30px; color: var(--muted-foreground); }
+.c2-rec { position: absolute; left: 740px; top: 332px; width: 440px; padding: 26px 30px; display: flex; flex-direction: column; gap: 14px; align-items: flex-start; border-style: dashed; border-color: color-mix(in oklch, var(--warning) 55%, var(--border)); }
+.c2-rec .t { font-family: var(--font-mono); font-size: 36px; font-weight: 700; }
+.c2-line { position: absolute; top: 458px; height: 3px; width: 40px; background: repeating-linear-gradient(90deg, var(--warning) 0 8px, transparent 8px 16px); }
+.c3-line { position: absolute; left: 160px; width: 1600px; display: flex; align-items: baseline; gap: 36px; opacity: 0; transform: translateY(18px); transition: opacity .6s ease, transform .6s var(--ease); }
+.c3-line b { font-size: 108px; line-height: 1; letter-spacing: -.03em; min-width: 520px; }
+.c3-line span { font-size: 42px; color: var(--muted-foreground); line-height: 1.25; }
+.c3-line.vis { opacity: 1; transform: none; }
+.c3-line.dim { opacity: .42; }
+html.rm .c3-line { transform: none; transition-duration: .2s; }
+.c4-ghost { position: absolute; inset: 0; opacity: .3; filter: blur(1.5px); }
+.c4-ghost div { position: absolute; border: 1.5px solid var(--input); border-radius: 14px; background: var(--card); }
+.slide.on .c4-ghost { animation: ghostOut 1.4s ease 1.2s both; }
+.c4-ghost { opacity: 0; }
+@keyframes ghostOut { from { opacity: .3; } to { opacity: 0; filter: blur(8px); } }
+html.rm .slide .c4-ghost { animation: none !important; }
+.c4-box { position: absolute; top: 500px; width: 320px; padding: 26px 24px; min-height: 230px; border-radius: 18px; background: var(--card); border: 1.5px solid var(--input); }
+.c4-box b { display: block; font-size: 40px; letter-spacing: -.01em; margin-bottom: 18px; }
+.c4-box code { font-family: var(--font-mono); font-size: 24px; color: var(--info); line-height: 1.35; word-break: break-word; }
+.c5-list { position: absolute; left: 80px; top: 560px; font-size: 38px; line-height: 1.4; color: var(--foreground); list-style: none; display: grid; gap: 8px; max-width: 1600px; }
+.c5-small { position: absolute; left: 80px; top: 830px; font-size: 30px; color: var(--muted-foreground); }
+
+/* ---------- chrome ---------- */
+#hud { position: fixed; left: 10px; bottom: 8px; z-index: 30; display: flex; align-items: center; gap: 4px; font-size: 14px; color: var(--muted-foreground); opacity: .55; transition: opacity .2s; }
+#hud:hover, #hud:focus-within { opacity: 1; }
+#hud.hide { display: none; }
+#hud button { appearance: none; border: 0; background: transparent; width: 26px; height: 26px; border-radius: 6px; font-size: 16px; line-height: 1; color: inherit; }
+#hud button:hover { background: var(--secondary); }
+#count { font-variant-numeric: tabular-nums; min-width: 78px; text-align: center; }
+#help { position: fixed; inset: 0; z-index: 40; display: none; place-items: center; background: color-mix(in oklch, var(--background) 80%, transparent); }
+#help.open { display: grid; }
+#help dl { background: var(--popover); border: 1.5px solid var(--input); border-radius: 16px; padding: 26px 34px; display: grid; grid-template-columns: auto 1fr; gap: 8px 28px; font-size: 18px; }
+#help dt { font-family: var(--font-mono); color: var(--info); }
+#help h2 { grid-column: 1 / -1; font-size: 22px; margin-bottom: 6px; }
+</style>
+</head>
+<body>
+<div id="stage" role="region" aria-label="Convergence story deck">
+
+<!-- ============ T0 (live final only) ============ -->
+<section class="slide" data-id="T0" data-title="Convergence." data-tag="GRAPHIC">
+  <h1 class="abs rv" style="left:120px;top:330px;font-size:210px;line-height:1;font-weight:700;letter-spacing:-.04em;--t:.1s">Convergence.</h1>
+  <p class="sub rv" style="left:128px;top:590px;font-size:52px;max-width:1500px;--t:.6s">When a decision changes, find the work built on the old one.</p>
+</section>
+
+<!-- ============ O1 ============ -->
+<section class="slide" data-id="O1" data-title="Git versions files. Not decisions." data-tag="GRAPHIC">
+  <h1 class="h1 rv" style="top:118px;--t:.1s">Git versions files. Not decisions.</h1>
+
+  <div class="card rv" style="left:80px;top:290px;width:800px;height:560px;--t:.5s">
+    <div class="lbl">A file</div>
+    <div class="mono" style="font-size:34px;font-weight:700;margin:14px 0 18px">delivery.ts</div>
+    <div class="skel"><i style="width:82%"></i><i style="width:64%"></i><i style="width:74%"></i></div>
+    <ol class="commits">
+      <li class="rv" style="--t:1.3s;--dy:-22px"><span class="h">1c5d2ae</span><span>first delivery queue</span></li>
+      <li class="rv" style="--t:2.0s;--dy:-22px"><span class="h">83fa90d</span><span>send on signup</span></li>
+      <li class="rv" style="--t:2.7s;--dy:-22px"><span class="h">e41b7c2</span><span>retry failed sends</span></li>
+    </ol>
+    <p class="rv" style="--t:3.4s;font-size:30px;color:var(--success);margin-top:26px">Every change has a hash.</p>
+  </div>
+
+  <div class="card rv" style="left:1040px;top:290px;width:800px;height:560px;--t:.7s">
+    <div class="lbl">A decision, in a doc</div>
+    <div class="skel" style="margin-top:28px"><i style="width:70%"></i><i style="width:88%"></i></div>
+    <p class="o1-line"><span class="old"><mark>Notifications: on by default, immediate.</mark></span><span class="new">Notifications: opt-in, weekly digest.</span></p>
+    <div class="skel"><i style="width:78%"></i><i style="width:58%"></i></div>
+    <p class="rv" style="--t:5.9s;font-size:30px;color:var(--danger);margin-top:30px">No version. No hash.</p>
+  </div>
+
+  <svg class="o1-link" viewBox="0 0 1920 1080" aria-hidden="true">
+    <path d="M 884 383 C 960 383, 960 465, 1036 465" fill="none" stroke="oklch(0.84 0.13 85)" stroke-width="5" stroke-linecap="round" stroke-dasharray="1 14"/>
+    <text x="960" y="352" text-anchor="middle" font-size="28" fill="oklch(0.84 0.13 85)" font-family="ui-sans-serif, system-ui, sans-serif" font-weight="600">relied on</text>
+  </svg>
+
+  <p class="sub rv" style="left:80px;top:890px;font-size:36px;color:var(--foreground);--t:9.4s">Nothing records which work relied on the old version.</p>
+</section>
+
+<!-- ============ O2 ============ -->
+<section class="slide" data-id="O2" data-title="More agents, more promises in flight." data-tag="GRAPHIC">
+  <h1 class="h1 rv" style="top:118px;--t:.1s">More agents, more promises in flight.</h1>
+  <p class="sub rv" style="top:236px;--t:.6s">Each one started from whatever it was handed.</p>
+  <div id="o2rows"></div>
+  <div class="abs rv" style="left:1180px;top:270px;font-size:28px;color:var(--warning);font-weight:600;--t:5.4s;width:420px;text-align:center">A decision changes</div>
+  <div class="o2-now"></div>
+  <div class="o2-sweep"></div>
+  <p class="sub rv" style="left:80px;top:918px;font-size:40px;color:var(--foreground);--t:8.4s">Which of these relied on the old one?</p>
+</section>
+
+<!-- ============ O3 ============ -->
+<section class="slide" data-id="O3" data-title="A lockfile for decisions." data-tag="GRAPHIC">
+  <h1 class="h1 rv" style="top:118px;--t:.1s">A lockfile for decisions.</h1>
+  <div class="card rv" style="left:80px;top:290px;width:700px;height:150px;padding:22px 30px;--t:.8s">
+    <div style="font-size:36px;font-weight:700;line-height:1.15">Notification delivery service</div>
+    <div style="display:flex;gap:10px;margin-top:14px"><span class="chip">code</span><span class="chip">agent</span></div>
+  </div>
+  <div class="card rv" style="left:80px;top:470px;width:700px;height:176px;padding:20px 30px;border-style:dashed;--t:2.0s;--dy:-50px">
+    <div class="lbl" style="font-size:22px">What it was given</div>
+    <div class="mono" style="font-size:28px;line-height:1.5;margin-top:8px">notifications@1&nbsp;&nbsp;a1f3…<br>status-model@1&nbsp;&nbsp;9c0e…</div>
+  </div>
+  <span class="chip warn rv mono" style="position:absolute;left:560px;top:540px;font-size:26px;--t:4.3s;--dx:-30px;--dy:0">≠ now @2</span>
+
+  <svg class="o3-arrow" viewBox="0 0 1920 1080" aria-hidden="true">
+    <line x1="780" y1="365" x2="1300" y2="365" stroke="oklch(0.72 0.02 255)" stroke-width="4"/>
+    <line x1="1330" y1="365" x2="1700" y2="365" stroke="oklch(0.72 0.02 255)" stroke-width="4" stroke-dasharray="3 12" stroke-linecap="round" opacity=".6"/>
+    <path d="M 1690 345 L 1730 365 L 1690 385 Z" fill="oklch(0.72 0.02 255)" opacity=".6"/>
+  </svg>
+  <div class="abs rv" style="left:1480px;top:310px;font-size:30px;color:var(--muted-foreground);--t:.9s">merge</div>
+  <div class="o3-gate"></div>
+  <div class="abs rv" style="left:1190px;top:530px;width:250px;text-align:center;font-size:30px;font-weight:600;color:var(--danger);--t:8.0s">Awaiting human</div>
+
+  <div class="o3-word rv" style="left:80px;--t:1.9s"><b>Receipt</b><span>What the work was handed.</span></div>
+  <div class="o3-word rv" style="left:760px;--t:4.1s"><b>Compare</b><span>When a decision changes.</span></div>
+  <div class="o3-word rv" style="left:1290px;--t:7.2s"><b>Gate</b><span>Block the merge until a person decides.</span></div>
+</section>
+
+<!-- ============ O4 (centrepiece) ============ -->
+<section class="slide" data-id="O4" data-title="Change the decision. Watch what it touches." data-tag="GRAPHIC" data-tag2="synthetic data · the live demo follows">
+  <h1 class="abs rv" style="left:80px;top:72px;font-size:56px;line-height:1.1;font-weight:700;letter-spacing:-.02em;--t:.05s">Change the decision. Watch what it touches.</h1>
+  <div id="o4wrap">
+    <div class="o4-gh">What git says:</div>
+    <div class="o4-dec">
+      <div class="lbl">Decision</div>
+      <div class="o4-rec"><span class="name">notifications</span><span class="chip info mono" id="o4ver">v1</span></div>
+      <div class="o4-set" id="o4set"></div>
+      <p class="o4-prose live-only" id="o4prose"></p>
+      <div class="o4-actions">
+        <button class="btn pri" id="o4change" type="button">Change this decision</button>
+        <button class="btn live-only" id="o4typo" type="button">Fix a typo</button>
+      </div>
+    </div>
+  </div>
+  <p id="o4cap" aria-hidden="true"></p>
+  <div id="o4scrim"></div>
+  <div id="o4sheet" role="dialog" aria-modal="false" aria-labelledby="o4sheet-h" inert>
+    <h2 id="o4sheet-h">Change this decision <span class="chip mute">Decision owner</span></h2>
+    <div class="diff mono" id="o4diff"></div>
+    <p class="effect" id="o4effect"></p>
+    <div class="sheet-acts"><button class="btn pri" id="o4commit" type="button">Make v2 the decision</button><button class="btn ghost" id="o4cancel" type="button">Cancel</button></div>
+  </div>
+</section>
+
+<!-- ============ O5 ============ -->
+<section class="slide" data-id="O5" data-title="From here, it’s the deployed product." data-tag="GRAPHIC" data-tag-id="o5">
+  <h1 class="h1 rv" style="top:118px;--t:.1s">From here, it’s the deployed product.</h1>
+  <p class="sub rv" style="top:250px;font-size:34px;--t:.7s">The agents are language models. The referee makes no model calls.</p>
+  <p class="sub rv live-only" style="top:306px;font-size:32px;--t:.9s">This next part is the deployed product; today it runs in replay or live.</p>
+  <div class="o5-row rv" style="top:440px;--t:1.6s"><span class="o5-tag live" id="o5live">LIVE</span><span>A real run: real agents, the deployed Worker.</span></div>
+  <div class="o5-row rv" style="top:560px;--t:2.4s"><span class="o5-tag seeded">SEEDED</span><span>Synthetic data from a fixture. No model behind it.</span></div>
+  <div class="o5-row rv" style="top:680px;--t:3.2s"><span class="o5-tag replay">REPLAY</span><span>A recorded event log, re-driven through the same engine.</span></div>
+</section>
+
+<!-- ============ C1 ============ -->
+<section class="slide" data-id="C1" data-title="What did you rely on? Is it still accepted?" data-tag="GRAPHIC">
+  <h1 class="big-q" data-type="What did you rely on? Is it still accepted?" style="--t0:.3s">What did you rely on? Is it still accepted?</h1>
+  <div class="c1-col rv" style="left:120px;--t:3.2s">
+    <div class="row">
+      <svg viewBox="0 0 96 96" fill="none" stroke="oklch(0.78 0.12 240)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 8h56v80l-10-8-9 8-9-8-9 8-9-8-10 8z"/><path d="M34 30h28M34 46h28M34 62h16"/></svg>
+      <b>Reliance</b>
+    </div>
+    <span>computed</span>
+  </div>
+  <div class="c1-col rv" style="left:1000px;--t:4.4s">
+    <div class="row">
+      <svg viewBox="0 0 96 96" fill="none" stroke="oklch(0.8 0.15 155)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="48" cy="30" r="16"/><path d="M16 88c0-18 14-30 32-30s32 12 32 30"/></svg>
+      <b>Meaning</b>
+    </div>
+    <span>a person’s</span>
+  </div>
+</section>
+
+<!-- ============ C2 ============ -->
+<section class="slide" data-id="C2" data-title="Next: conflicts of meaning." data-tag="GRAPHIC" data-tag2="designed, not built">
+  <h1 class="h1 rv" style="top:118px;--t:.1s">Next: conflicts of meaning.</h1>
+  <div class="card c2-card rv" style="left:80px;--t:.8s;--dx:-120px;--dy:0">
+    <div class="name">pricing <span class="chip ok mono" style="font-size:24px">v3</span><span class="chip ok" style="font-family:var(--font-sans)">accepted</span></div>
+    <div class="set rv" style="--t:2s;--dy:0"><span>trial</span>30 days</div>
+  </div>
+  <p class="c2-note rv" style="left:80px;--t:1.4s">2 items rely on this.</p>
+  <div class="card c2-card rv" style="left:1220px;--t:.8s;--dx:120px;--dy:0">
+    <div class="name">billing policy <span class="chip ok mono" style="font-size:24px">v2</span><span class="chip ok" style="font-family:var(--font-sans)">accepted</span></div>
+    <div class="set rv" style="--t:2s;--dy:0"><span>trial</span>14 days</div>
+  </div>
+  <p class="c2-note rv" style="left:1220px;--t:1.4s">2 items rely on this.</p>
+  <div class="c2-line rv" style="left:700px;--t:3s"></div>
+  <div class="c2-line rv" style="left:1180px;--t:3s"></div>
+  <div class="card c2-rec rv" style="--t:3.2s;--dy:10px">
+    <div class="t">conflict</div>
+    <span class="chip warn">contradiction</span>
+    <span class="chip mute">found by rule</span>
+    <span class="chip">open</span>
+  </div>
+</section>
+
+<!-- ============ C3 ============ -->
+<section class="slide" data-id="C3" data-title="Where this comes from" data-tag="GRAPHIC">
+  <div class="lbl abs rv" style="left:160px;top:200px;font-size:30px;--t:.1s">Where this comes from</div>
+  <div class="c3-line" data-s="1" style="top:330px"><b>Strata</b><span>decisions, reasons, history.</span></div>
+  <div class="c3-line" data-s="2" style="top:520px"><b>Delta</b><span>keeps checking that work still fits what was decided.</span></div>
+  <div class="c3-line" data-s="3" style="top:710px"><b>Convergence</b><span>a shared protocol for governed decisions.</span></div>
+</section>
+
+<!-- ============ C4 ============ -->
+<section class="slide" data-id="C4" data-title="A protocol. This app is its first implementation." data-tag="GRAPHIC">
+  <div class="c4-ghost" aria-hidden="true">
+    <div style="left:0;top:0;width:360px;height:1080px;border-radius:0"></div>
+    <div style="left:360px;top:0;width:1560px;height:90px;border-radius:0"></div>
+    <div style="left:470px;top:200px;width:380px;height:140px"></div><div style="left:1000px;top:160px;width:380px;height:140px"></div>
+    <div style="left:1000px;top:380px;width:380px;height:140px"></div><div style="left:1480px;top:270px;width:340px;height:140px"></div>
+    <div style="left:470px;top:560px;width:380px;height:140px"></div><div style="left:1000px;top:640px;width:380px;height:140px"></div>
+  </div>
+  <h1 class="h1 rv" style="top:118px;--t:.1s">A protocol. This app is its first implementation.</h1>
+  <p class="sub rv mono" style="top:350px;font-size:32px;--t:.7s">Convergence Protocol v0.1 (draft) · docs/PROTOCOL.md</p>
+  <div class="c4-box rv" style="left:80px;--t:2.6s"><b>record</b><code>context-record-<wbr>front-matter.json</code></div>
+  <div class="c4-box rv" style="left:440px;--t:3.0s"><b>receipt</b><code>context-receipt.json</code></div>
+  <div class="c4-box rv" style="left:800px;--t:3.4s"><b>dependency</b><code>dependency.json</code></div>
+  <div class="c4-box rv" style="left:1160px;--t:3.8s"><b>resolution</b><code>resolution.json</code></div>
+  <div class="c4-box rv" style="left:1520px;--t:4.2s"><b>ledger</b><code>cell-snapshot.json</code></div>
+</section>
+
+<!-- ============ C5 ============ -->
+<section class="slide" data-id="C5" data-title="Models propose. People and deterministic rules decide." data-tag="GRAPHIC">
+  <h1 class="h1 rv" style="top:170px;font-size:96px;line-height:1.06;width:1640px;--t:.1s">Models propose. People and deterministic rules decide.</h1>
+  <ul class="c5-list">
+    <li class="rv" style="--t:2.2s">Only gates work that flows through Convergence.</li>
+    <li class="rv" style="--t:2.8s">Only knows declared or claimed dependencies.</li>
+    <li class="rv" style="--t:3.4s">Previews one change; no side-by-side alternatives.</li>
+  </ul>
+  <p class="c5-small rv" style="--t:4.6s">MIT · replay runs without credentials · see the README</p>
+</section>
+
+<!-- ============ Q1 (live final only) ============ -->
+<section class="slide" data-id="Q1" data-title="What to look at." data-tag="GRAPHIC">
+  <h1 class="h1 rv" style="top:118px;--t:.1s">What to look at.</h1>
+  <ol class="abs" style="left:80px;top:300px;list-style:none;display:grid;gap:34px;font-size:50px;line-height:1.2">
+    <li class="rv" style="--t:.6s"><b>The receipt.</b> <span style="color:var(--muted-foreground)">What the work was given.</span></li>
+    <li class="rv" style="--t:1.1s"><b>The control shot.</b> <span style="color:var(--muted-foreground)">Git says clean.</span></li>
+    <li class="rv" style="--t:1.6s"><b>The gate.</b> <span style="color:var(--muted-foreground)">Awaiting human.</span></li>
+  </ol>
+  <div class="abs rv" style="left:80px;top:760px;font-size:36px;--t:2.2s">
+    <div class="lbl" style="margin-bottom:12px">Try it</div>
+    <div class="mono" id="q1url" style="font-size:40px"></div>
+    <div style="color:var(--muted-foreground);margin-top:10px">Add <span class="mono" style="color:var(--info)">?mock=1</span> to run it in replay, no credentials needed.</div>
+  </div>
+</section>
+</div>
+
+<div id="o5-corner" hidden></div>
+
+<div id="hud" aria-label="Deck controls">
+  <button type="button" id="prev" aria-label="Previous slide">‹</button>
+  <span id="count" aria-hidden="true"></span>
+  <button type="button" id="next" aria-label="Next slide">›</button>
+  <button type="button" id="helpbtn" aria-label="Keyboard shortcuts">?</button>
+</div>
+<div id="help" role="dialog" aria-label="Keyboard shortcuts">
+  <dl>
+    <h2>Keys</h2>
+    <dt>→ space</dt><dd>Next step or slide</dd>
+    <dt>←</dt><dd>Back</dd>
+    <dt>R</dt><dd>Reset the model (O4) or replay the slide</dd>
+    <dt>M</dt><dd>Toggle reduced motion</dd>
+    <dt>H</dt><dd>Hide or show the counter</dd>
+    <dt>F</dt><dd>Fullscreen</dd>
+    <dt>?</dt><dd>This list · Esc closes</dd>
+    <dt>?slide=O4</dt><dd>Deep link · &amp;step=0..4 on O4 · ?mode=live adds T0 and Q1</dd>
+  </dl>
+</div>
+<div id="live" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
+
+<script>
+(function () {
+  "use strict";
+  var qs = new URLSearchParams(location.search);
+  var deep = (qs.get("slide") || location.hash.replace("#", "") || "").toUpperCase();
+  var live = qs.get("mode") === "live" || deep === "T0" || deep === "Q1";
+  var ORDER = live
+    ? ["T0", "O1", "O2", "O4", "O3", "O5", "C1", "C2", "C3", "C4", "C5", "Q1"]
+    : ["O1", "O2", "O3", "O4", "O5", "C1", "C2", "C3", "C4", "C5"];
+  document.body.classList.toggle("live", live);
+
+  var stage = document.getElementById("stage");
+  var html = document.documentElement;
+  var slides = {};
+  Array.prototype.forEach.call(stage.querySelectorAll(".slide"), function (el) { slides[el.dataset.id] = el; el.inert = true; el.setAttribute("aria-hidden", "true"); });
+  var announceEl = document.getElementById("live");
+  function announce(msg) { announceEl.textContent = ""; setTimeout(function () { announceEl.textContent = msg; }, 30); }
+
+  /* ---------- reduced motion ---------- */
+  var mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+  var rm = mq.matches || qs.get("rm") === "1";
+  function setRM(v) { rm = v; html.classList.toggle("rm", rm); if (typeof c3Apply === "function") c3Apply(); }
+  if (mq.addEventListener) mq.addEventListener("change", function (e) { setRM(e.matches); });
+  html.classList.toggle("rm", rm);
+
+  /* ---------- scale the 1920x1080 stage to the viewport ---------- */
+  function fit() { stage.style.setProperty("--k", Math.min(innerWidth / 1920, innerHeight / 1080)); }
+  addEventListener("resize", fit); fit();
+
+  /* ---------- slide chrome: wordmark + honesty tag ---------- */
+  var MARK = '<svg viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M4 7h10c8 0 8 11 18 11M4 29h10c8 0 8-11 18-11"/></svg>';
+  Object.keys(slides).forEach(function (id) {
+    var el = slides[id];
+    var wm = document.createElement("div"); wm.className = "wm"; wm.innerHTML = MARK + "<span>Convergence</span>"; el.insertBefore(wm, el.firstChild);
+    if (id === "O5") return; // O5 owns its corner tag, see below
+    var tag = document.createElement("div"); tag.className = "tag";
+    tag.innerHTML = "<b>" + el.dataset.tag + "</b>" + (el.dataset.tag2 ? "<span>" + el.dataset.tag2 + "</span>" : "");
+    el.appendChild(tag);
+  });
+
+  /* ---------- typed headline (C1): real text, revealed per character ---------- */
+  Array.prototype.forEach.call(document.querySelectorAll("[data-type]"), function (el) {
+    var text = el.dataset.type, i = 0; el.textContent = "";
+    text.split(" ").forEach(function (word, wi, all) {
+      var w = document.createElement("span"); w.className = "w";
+      word.split("").forEach(function (c) { var s = document.createElement("span"); s.className = "ch"; s.style.setProperty("--i", i++); s.textContent = c; w.appendChild(s); });
+      el.appendChild(w);
+      if (wi < all.length - 1) { el.appendChild(document.createTextNode(" ")); i++; }
+    });
+  });
+
+  /* ---------- O2: twelve things in flight ---------- */
+  (function () {
+    var host = document.getElementById("o2rows"), NOW = 1380, Y0 = 336, P = 44;
+    var starts = [300, 400, 480, 450, 620, 700, 680, 860, 950, 1040, 1010, 1190];
+    var html2 = "";
+    starts.forEach(function (x, i) {
+      var y = Y0 + i * P, t = (i === 0 ? 1.0 : 1.7 + (i - 1) * 0.28).toFixed(2);
+      html2 += '<div class="o2-bar' + (i === 0 ? " you" : "") + '" style="top:' + (y + 9) + "px;--x:" + x + "px;--now:" + NOW + "px;--t:" + t + 's"></div>';
+      html2 += '<div class="o2-q" style="top:' + (y + 3) + "px;--t:" + (6.4 + i * 0.07).toFixed(2) + 's" aria-hidden="true">?</div>';
+    });
+    html2 += '<div class="abs rv" style="left:80px;top:' + (Y0 + 2) + 'px;font-size:28px;--t:1s">you</div>';
+    html2 += '<div class="abs rv" style="left:80px;top:' + (Y0 + P * 6 - 14) + 'px;font-size:28px;color:var(--muted-foreground);--t:2.6s">11 agents</div>';
+    html2 += '<div class="abs rv" style="left:236px;top:' + (Y0 + P + 6) + 'px;width:3px;height:' + (P * 11 - 14) + 'px;border-radius:2px;background:var(--input);--t:2.6s"></div>';
+    host.innerHTML = html2;
+  })();
+
+  /* ---------- timers that the centrepiece can cancel ---------- */
+  var timers = [];
+  function later(fn, ms) { if (instant || rm) { fn(); return; } timers.push(setTimeout(fn, ms)); }
+  function clearTimers() { timers.forEach(clearTimeout); timers = []; }
+  var instant = false;
+
+  /* =================== O4: a model of the rule, not the engine =================== */
+  var REC = {
+    notifications: { 1: { "notifications.default": "on", "notifications.cadence": "immediate", "notifications.sender": "Status Bot" },
+                     2: { "notifications.default": "opt-in", "notifications.cadence": "weekly-digest", "notifications.sender": "Status Bot" } },
+    "status-model": { 1: { "status-model.states": "queued, running, done" } },
+    "support-hours": { 1: { "support-hours.weekdays": "08:00–18:00" } }
+  };
+  var PRETTY = { "weekly-digest": "weekly digest" };
+  var ITEMS = [
+    { id: 1, short: "delivery service", title: "Notification delivery service", kind: "code", pins: { notifications: 1, "status-model": 1 }, relies: ["notifications.default", "notifications.cadence"] },
+    { id: 3, short: "help-centre article", title: "Help-centre article: your notification settings", kind: "doc", pins: { notifications: 1 }, relies: ["notifications.default"] },
+    { id: 4, short: "onboarding email", title: "Week-one onboarding email", kind: "doc", pins: { notifications: 1 }, relies: ["notifications.cadence"] },
+    { id: 5, short: "email footer", title: "Email footer template", kind: "doc", pins: { notifications: 1 }, relies: ["notifications.sender"] },
+    { id: 2, short: "status badges", title: "Status badges", kind: "code", pins: { "status-model": 1 }, relies: ["status-model.states"] },
+    { id: 6, short: "support rota", title: "Q4 support rota", kind: "code", pins: { "support-hours": 1 }, relies: ["support-hours.weekdays"] }
+  ];
+  var wrap = document.getElementById("o4wrap");
+  var M, els = {};
+
+  function recOf(key) { return key.split(".")[0]; }
+  /* R1: an item is stale when a facet it relies on differs between the version in its receipt and the current version. */
+  function isStale(it, cur) {
+    return it.relies.some(function (k) {
+      var r = recOf(k), pinned = it.pins[r], now = cur[r] || 1;
+      return pinned !== now && REC[r][pinned][k] !== REC[r][now][k];
+    });
+  }
+  function receiptText(it) { return Object.keys(it.pins).map(function (r) { return r + "@" + it.pins[r]; }).join(" · "); }
+
+  // build the rows once
+  (function build() {
+    var rowNo = 2;
+    ITEMS.forEach(function (it) {
+      var edge = document.createElement("div"); edge.className = "o4-edge"; edge.style.gridRow = rowNo; edge.innerHTML = "<i></i>";
+      var card = document.createElement("div"); card.className = "o4-item"; card.style.gridRow = rowNo; card.dataset.id = it.id; card.dataset.status = "fresh";
+      card.innerHTML =
+        '<div><div class="title"></div><div class="rcpt"></div></div>' +
+        '<div><div class="chips"><span class="chip mute">' + it.kind + '</span><span class="chip mute">agent</span><span class="chip ok st">Fresh</span></div><div class="reason"></div></div>' +
+        '<div class="panel"><div class="who"><b>Awaiting human</b> · the decision owner signs off.</div>' +
+        '<div class="acts"><span class="owner">Decision owner</span><button class="btn pri" data-act="revalidate" type="button">Revalidate</button><button class="btn" data-act="exception" type="button">Allow with exception</button><button class="btn" data-act="reject" type="button">Reject</button></div></div>';
+      card.querySelector(".title").textContent = it.title;
+      var git = document.createElement("div"); git.className = "o4-git"; git.style.gridRow = rowNo; git.textContent = "merge: clean ✓";
+      wrap.appendChild(edge); wrap.appendChild(card); wrap.appendChild(git);
+      els[it.id] = { edge: edge, card: card, git: git, st: card.querySelector(".st"), reason: card.querySelector(".reason"), rcpt: card.querySelector(".rcpt") };
+      rowNo++;
+    });
+    function small(rec, row, id, facet) {
+      var d = document.createElement("div"); d.className = "o4-small"; d.style.gridRow = row;
+      d.innerHTML = '<div class="name">' + id + ' <span class="chip info mono" style="font-size:20px;min-height:28px">v1</span></div><div class="facet">' + facet + "</div>";
+      wrap.appendChild(d);
+    }
+    small(null, 6, "status-model", "states: queued, running, done");
+    small(null, 7, "support-hours", "weekdays: 08:00–18:00");
+    // the decision card spans the four notifications rows (2..5)
+  })();
+
+  function freshModel() {
+    var m = { v: 1, sheet: false, sel: null, typo: false, cap: "", items: {} };
+    ITEMS.forEach(function (it) { m.items[it.id] = { status: "fresh", pins: JSON.parse(JSON.stringify(it.pins)), reason: "" }; });
+    return m;
+  }
+  function itemModel(it) { return M.items[it.id]; }
+  function view(it) { var m = itemModel(it); return { relies: it.relies, pins: m.pins }; }
+
+  var STATUS_UI = {
+    fresh: ["ok", "Fresh"], blocked: ["bad", "Blocked"], revalidating: ["warn", "Revalidating"],
+    ready: ["ok", "✓ Ready to merge"], exception: ["warn", "Ready · exception"], rejected: ["mute", "Rejected"]
+  };
+  function paintItem(it) {
+    var m = itemModel(it), e = els[it.id], ui = STATUS_UI[m.status];
+    e.card.dataset.status = (M.sel === it.id && m.status === "blocked") ? "awaiting" : m.status;
+    e.st.className = "chip st " + ui[0]; e.st.textContent = ui[1];
+    e.reason.textContent = m.reason;
+    e.rcpt.textContent = Object.keys(m.pins).map(function (r) { return r + "@" + m.pins[r]; }).join(" · ");
+    var clickable = m.status === "blocked";
+    e.card.classList.toggle("click", clickable);
+    if (clickable) { e.card.setAttribute("role", "button"); e.card.tabIndex = 0; e.card.setAttribute("aria-expanded", String(M.sel === it.id)); }
+    else { e.card.removeAttribute("role"); e.card.removeAttribute("tabindex"); e.card.removeAttribute("aria-expanded"); }
+    e.card.classList.toggle("sel", M.sel === it.id && clickable);
+    Array.prototype.forEach.call(e.card.querySelectorAll(".panel button"), function (b) { b.tabIndex = (M.sel === it.id && clickable) ? 0 : -1; });
+  }
+  function paintDecision(animate) {
+    document.getElementById("o4ver").textContent = "v" + M.v;
+    var cur = REC.notifications[M.v], prev = REC.notifications[1], host = document.getElementById("o4set");
+    host.innerHTML = "";
+    ["default", "cadence", "sender"].forEach(function (k) {
+      var key = "notifications." + k, val = cur[key], changed = M.v > 1 && val !== prev[key];
+      var row = document.createElement("div");
+      row.innerHTML = '<span class="k"></span><span class="val"></span>';
+      row.firstChild.textContent = k + ":";
+      var v = row.lastChild; v.textContent = PRETTY[val] ? val : val; v.className = "val" + (changed ? " chg" + (animate ? " fresh" : "") : "");
+      host.appendChild(row);
+    });
+    var btn = document.getElementById("o4change");
+    btn.disabled = M.v > 1; btn.textContent = M.v > 1 ? "Changed to v2" : "Change this decision";
+    var p = document.getElementById("o4prose");
+    p.innerHTML = M.typo ? "<mark>Notifications</mark> go to each project’s followers." : "Notifcations go to each project’s followers.";
+    document.getElementById("o4typo").disabled = M.typo;
+  }
+  function paintSheet() {
+    var sheet = document.getElementById("o4sheet"), open = M.sheet;
+    sheet.classList.toggle("open", open); document.getElementById("o4scrim").classList.toggle("open", open); sheet.inert = !open;
+    if (!open) return;
+    var a = REC.notifications[1], b = REC.notifications[2], d = document.getElementById("o4diff");
+    d.innerHTML = "";
+    [["default", "notifications.default"], ["cadence", "notifications.cadence"], ["sender", "notifications.sender"]].forEach(function (p) {
+      var row = document.createElement("div"), k = document.createElement("span"); k.className = "k"; k.textContent = p[0];
+      row.appendChild(k);
+      if (a[p[1]] === b[p[1]]) { var s = document.createElement("span"); s.className = "same"; s.textContent = a[p[1]] + "  (unchanged)"; row.appendChild(s); }
+      else { var f = document.createElement("span"); f.className = "from"; f.textContent = a[p[1]]; var ar = document.createElement("span"); ar.textContent = "→"; var t = document.createElement("span"); t.className = "to"; t.textContent = PRETTY[b[p[1]]] || b[p[1]]; row.appendChild(f); row.appendChild(ar); row.appendChild(t); }
+      d.appendChild(row);
+    });
+    document.getElementById("o4effect").textContent = effectLine();
+  }
+  function effectLine() {
+    var cur = { notifications: 2, "status-model": 1, "support-hours": 1 };
+    var blocked = ITEMS.filter(function (it) { return M.items[it.id].status === "fresh" && isStale(view(it), cur); });
+    var left = ITEMS.length - blocked.length;
+    return "This makes v2 the decision. Blocks " + blocked.length + " built on v1: " + blocked.map(function (i) { return i.short; }).join(", ") + ". Leaves " + left + " alone.";
+  }
+  function setCap(t) { M.cap = t; var c = document.getElementById("o4cap"); c.textContent = t; }
+
+  function paintAll(animate) {
+    ITEMS.forEach(paintItem); paintDecision(animate); paintSheet(); setCap(M.cap);
+    ITEMS.forEach(function (it) { els[it.id].edge.classList.toggle("hot", M.items[it.id].status !== "fresh" && it.relies[0].indexOf("notifications") === 0 && M.v > 1 && itemModel(it).reason !== "Same record, setting unchanged" && it.id !== 5); });
+  }
+  function resetO4() { clearTimers(); M = freshModel(); ITEMS.forEach(function (it) { els[it.id].edge.className = "o4-edge"; els[it.id].git.classList.remove("ping"); }); paintAll(false); }
+
+  /* --- transitions --- */
+  function openSheet(focus) {
+    if (M.v > 1 || M.sheet) return;
+    M.sheet = true; paintSheet();
+    if (focus) later(function () { document.getElementById("o4commit").focus(); }, 60);
+    announce("Change this decision. " + effectLine());
+  }
+  function closeSheet() { M.sheet = false; paintSheet(); }
+  function commit() {
+    if (M.v > 1) return;
+    var cur = { notifications: 2, "status-model": 1, "support-hours": 1 };
+    var staleIds = {};
+    ITEMS.forEach(function (it) { if (isStale(view(it), cur)) staleIds[it.id] = true; });
+    M.sheet = false; M.v = 2; M.sel = null;
+    paintSheet(); paintDecision(true);
+    var nBlocked = 0;
+    ITEMS.forEach(function (it, idx) {
+      var m = itemModel(it), notif = it.relies[0].indexOf("notifications") === 0;
+      if (staleIds[it.id]) { m.status = "blocked"; m.reason = "Built on v" + m.pins.notifications + " · now v2"; nBlocked++; }
+      else m.reason = notif ? "Same record, setting unchanged" : "No dependency on what changed";
+      var base = notif ? 250 + idx * 130 : 0;
+      if (notif) later(function () { var e = els[it.id].edge; e.classList.remove("go"); void e.offsetWidth; e.classList.add("go"); }, base);
+      later(function () {
+        paintItem(it);
+        if (staleIds[it.id]) els[it.id].edge.classList.add("hot");
+      }, notif ? base + 330 : 1000);
+    });
+    later(function () { ITEMS.forEach(function (it) { var g = els[it.id].git; g.classList.remove("ping"); void g.offsetWidth; g.classList.add("ping"); }); }, 1900);
+    announce("Decision is now v2. " + nBlocked + " blocked, " + (ITEMS.length - nBlocked) + " left alone. Git still says merge clean for all six.");
+  }
+  function select(id, focus) {
+    var it = ITEMS.filter(function (x) { return x.id === id; })[0];
+    if (!it || itemModel(it).status !== "blocked") return;
+    M.sel = (M.sel === id) ? null : id; ITEMS.forEach(paintItem);
+    if (M.sel === id) { announce(it.title + ": awaiting human. The decision owner signs off. Revalidate, Allow with exception, or Reject."); if (focus) later(function () { els[id].card.querySelector("[data-act=revalidate]").focus(); }, 60); }
+  }
+  function resolve(id, act) {
+    var it = ITEMS.filter(function (x) { return x.id === id; })[0], m = itemModel(it);
+    if (!it || m.status !== "blocked") return;
+    M.sel = null;
+    if (act === "revalidate") {
+      m.status = "revalidating"; m.reason = "Decision owner revalidating"; m.pins.notifications = 2; paintItem(it);
+      later(function () { m.status = "ready"; m.reason = "Revalidated by the decision owner"; paintItem(it); }, 600);
+      setCap("The others wait. Nothing resolves itself.");
+      announce(it.title + ": revalidated by the decision owner, ready to merge. The others wait. Nothing resolves itself.");
+    } else if (act === "exception") {
+      m.status = "exception"; m.reason = "Covers: this draft only. Ends when notifications gets a new version."; paintItem(it);
+      setCap("Exception by the decision owner. Bound to v2.");
+      announce(it.title + ": exception allowed by the decision owner, this draft only.");
+    } else {
+      m.status = "rejected"; m.reason = "Rejected by the decision owner"; paintItem(it); setCap("");
+      announce(it.title + ": rejected by the decision owner.");
+    }
+    ITEMS.forEach(paintItem);
+    els[it.id].edge.classList.remove("hot");
+  }
+  function fixTypo() { if (M.typo || !live) return; M.typo = true; paintDecision(false); setCap("Wording only. Nothing blocked."); announce("Wording only. Nothing blocked."); }
+
+  function o4Step() {
+    if (M.v === 1) return M.sheet ? 1 : 0;
+    var any = ITEMS.some(function (it) { return ["revalidating", "ready", "exception", "rejected"].indexOf(itemModel(it).status) > -1; });
+    return any ? 4 : (M.sel ? 3 : 2);
+  }
+  function o4Goto(n, isInstant) {
+    var was = instant; instant = !!isInstant; clearTimers(); M = freshModel(); resetEdges(); paintAll(false);
+    if (n >= 1) openSheet(false);
+    if (n >= 2) commit();
+    if (n >= 3) select(3, false);
+    if (n >= 4) resolve(3, "revalidate");
+    instant = was;
+  }
+  function resetEdges() { ITEMS.forEach(function (it) { els[it.id].edge.className = "o4-edge"; }); }
+  var o4 = {
+    enter: function (fromEnd, step) { o4Goto(step != null ? step : (fromEnd ? 4 : 0), true); },
+    next: function () {
+      var s = o4Step();
+      if (s === 0) openSheet(false); else if (s === 1) commit();
+      else if (s === 2) select(3, false);
+      else if (s === 3) resolve(M.sel, "revalidate");
+      else return false;
+      return true;
+    },
+    prev: function () { var s = o4Step(); if (s === 0) return false; o4Goto(s - 1, true); return true; },
+    reset: function () { o4Goto(0, true); }
+  };
+  document.getElementById("o4change").addEventListener("click", function (e) { openSheet(e.detail === 0); if (e.detail) this.blur(); });
+  document.getElementById("o4commit").addEventListener("click", function (e) { commit(); if (e.detail) this.blur(); });
+  document.getElementById("o4cancel").addEventListener("click", function () { closeSheet(); document.getElementById("o4change").focus({ preventScroll: true }); });
+  document.getElementById("o4typo").addEventListener("click", function (e) { fixTypo(); if (e.detail) this.blur(); });
+  wrap.addEventListener("click", function (e) {
+    var b = e.target.closest("[data-act]");
+    var card = e.target.closest(".o4-item");
+    if (b && card) { resolve(+card.dataset.id, b.dataset.act); if (e.detail) b.blur(); return; }
+    if (card) select(+card.dataset.id, e.detail === 0);
+  });
+  wrap.addEventListener("keydown", function (e) {
+    var card = e.target.closest && e.target.closest(".o4-item");
+    if (card && e.target === card && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); e.stopPropagation(); select(+card.dataset.id, true); }
+  });
+
+  /* =================== C3: three cues =================== */
+  var c3 = { step: 3 };
+  var c3Lines = Array.prototype.slice.call(slides.C3.querySelectorAll(".c3-line"));
+  function c3Apply() {
+    var n = rm ? 3 : c3.step;
+    c3Lines.forEach(function (l, i) { l.classList.toggle("vis", i < n); l.classList.toggle("dim", n === 3 && i < 2); });
+  }
+  var c3m = {
+    enter: function (fromEnd) { c3.step = fromEnd ? 3 : 1; c3Apply(); },
+    next: function () { if (rm || c3.step >= 3) return false; c3.step++; c3Apply(); return true; },
+    prev: function () { if (rm || c3.step <= 1) return false; c3.step--; c3Apply(); return true; },
+    reset: function () { c3.step = 1; c3Apply(); }
+  };
+  c3Apply();
+
+  /* =================== O5: the LIVE tag lands in the corner =================== */
+  var o5corner = document.getElementById("o5-corner");
+  (function () {
+    var el = slides.O5;
+    var box = document.createElement("div"); box.className = "tag"; box.innerHTML = "<b>GRAPHIC</b>"; box.classList.add("o5-gfx");
+    var liveTag = document.createElement("div"); liveTag.className = "tag live"; liveTag.id = "o5landed"; liveTag.innerHTML = "<b>LIVE</b>";
+    var g = document.createElement("div"); g.style.cssText = "position:absolute;right:48px;bottom:40px"; g.appendChild(liveTag);
+    var gfxWrap = document.createElement("div"); gfxWrap.style.cssText = "position:absolute;right:48px;bottom:40px"; gfxWrap.appendChild(box); box.style.position = "static";
+    // static GRAPHIC tag stays visible until the LIVE tag lands in the same spot
+    var base = document.createElement("div"); base.className = "tag o5-base"; base.innerHTML = "<b>GRAPHIC</b>"; base.style.zIndex = 4;
+    el.appendChild(base); el.appendChild(g);
+    liveTag.style.position = "static";
+  })();
+  function o5Play() {
+    var liveTag = document.getElementById("o5landed"), src = document.getElementById("o5live"), base = slides.O5.querySelector(".o5-base");
+    var row = src;
+    if (liveTag._anim) { liveTag._anim.cancel(); liveTag._anim = null; }
+    liveTag.style.opacity = rm ? 1 : 0; base.style.opacity = rm ? 0 : 1; row.classList.toggle("ghost", rm);
+    if (rm) return;
+    var k = parseFloat(stage.style.getPropertyValue("--k")) || 1;
+    var a = src.getBoundingClientRect(), b = liveTag.getBoundingClientRect();
+    var dx = (a.left + a.width / 2 - (b.left + b.width / 2)) / k, dy = (a.top + a.height / 2 - (b.top + b.height / 2)) / k;
+    var anim = liveTag.animate([{ transform: "translate(" + dx + "px," + dy + "px) scale(1.5)", opacity: 0 }, { transform: "translate(" + dx + "px," + dy + "px) scale(1.5)", opacity: 1, offset: 0.2 }, { transform: "none", opacity: 1 }], { duration: 1100, delay: 4300, easing: "cubic-bezier(.2,.7,.2,1)", fill: "both" });
+    liveTag._anim = anim;
+    base.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 300, delay: 4200, fill: "both" });
+    row.animate([{ opacity: 1 }, { opacity: .35 }], { duration: 500, delay: 4400, fill: "both" });
+  }
+  var o5m = {
+    enter: function () { o5Play(); },
+    reset: function () { o5Play(); }
+  };
+
+  /* =================== navigation =================== */
+  var handlers = { O4: o4, C3: c3m, O5: o5m };
+  var idx = -1, counter = document.getElementById("count");
+  function cur() { return ORDER[idx]; }
+  function replayCSS(el) { el.classList.remove("on"); void el.offsetWidth; el.classList.add("on"); }
+  function show(i, opts) {
+    opts = opts || {};
+    i = Math.max(0, Math.min(ORDER.length - 1, i));
+    var prevEl = idx >= 0 ? slides[ORDER[idx]] : null;
+    if (prevEl && i !== idx) { prevEl.classList.remove("on"); prevEl.inert = true; prevEl.setAttribute("aria-hidden", "true"); }
+    clearTimers();
+    idx = i;
+    var id = ORDER[idx], el = slides[id];
+    el.inert = false; el.removeAttribute("aria-hidden");
+    el.classList.add("on");
+    var h = handlers[id]; if (h && h.enter) h.enter(!!opts.fromEnd, opts.step);
+    counter.textContent = id + " · " + (idx + 1) + " / " + ORDER.length;
+    document.title = id + " · Convergence · the story";
+    announce("Slide " + (idx + 1) + " of " + ORDER.length + ": " + el.dataset.title);
+    try { var u = new URL(location.href); u.searchParams.set("slide", id); if (id === "O4" && opts.step != null) u.searchParams.set("step", opts.step); else u.searchParams.delete("step"); history.replaceState(null, "", u); } catch (e) {}
+    document.body.classList.toggle("idle-cursor", false);
+    cursorTouch();
+  }
+  function next() { var h = handlers[cur()]; if (h && h.next && h.next()) return; if (idx < ORDER.length - 1) show(idx + 1); }
+  function prev() { var h = handlers[cur()]; if (h && h.prev && h.prev()) return; if (idx > 0) show(idx - 1, { fromEnd: true }); }
+  function replay() { var id = cur(), h = handlers[id]; replayCSS(slides[id]); if (h && h.reset) h.reset(); }
+
+  /* ---------- cursor: visible on O4, hidden after a pause elsewhere ---------- */
+  var cursorTimer;
+  function cursorTouch() { document.body.classList.remove("idle-cursor"); clearTimeout(cursorTimer); if (cur() !== "O4") cursorTimer = setTimeout(function () { if (cur() !== "O4") document.body.classList.add("idle-cursor"); }, 2500); }
+  addEventListener("mousemove", cursorTouch);
+
+  /* ---------- input ---------- */
+  var help = document.getElementById("help"), hud = document.getElementById("hud");
+  function interactive(t) { return t && t.closest && t.closest("button, a, input, [role=button], #help"); }
+  addEventListener("keydown", function (e) {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    var k = e.key, onBtn = interactive(e.target);
+    if (k === "Escape") { if (help.classList.contains("open")) help.classList.remove("open"); else if (M.sheet) closeSheet(); return; }
+    if (onBtn && (k === " " || k === "Enter")) return; // native activation of the focused control
+    if (k === "ArrowRight" || k === " " || k === "PageDown") { e.preventDefault(); next(); }
+    else if (k === "ArrowLeft" || k === "PageUp") { e.preventDefault(); prev(); }
+    else if (k === "Home") show(0);
+    else if (k === "End") show(ORDER.length - 1);
+    else if (k === "r" || k === "R") replay();
+    else if (k === "m" || k === "M") { setRM(!rm); announce(rm ? "Reduced motion on" : "Reduced motion off"); }
+    else if (k === "h" || k === "H") hud.classList.toggle("hide");
+    else if (k === "f" || k === "F") { if (document.fullscreenElement) document.exitFullscreen(); else if (html.requestFullscreen) html.requestFullscreen(); }
+    else if (k === "?") help.classList.toggle("open");
+  });
+  stage.addEventListener("click", function (e) {
+    if (interactive(e.target) || e.target.closest("#o4wrap, #o4sheet, #o4scrim")) return;
+    if (cur() === "O4") return; // the model moves on buttons and the arrow keys, never on a stray click
+    if (e.shiftKey) prev(); else next();
+  });
+  document.getElementById("next").addEventListener("click", function () { next(); this.blur(); });
+  document.getElementById("prev").addEventListener("click", function () { prev(); this.blur(); });
+  document.getElementById("helpbtn").addEventListener("click", function () { help.classList.toggle("open"); });
+  help.addEventListener("click", function () { help.classList.remove("open"); });
+  if (qs.get("hud") === "0") hud.classList.add("hide");
+
+  // Q1 shows where this deployment lives
+  document.getElementById("q1url").textContent = /^https?:$/.test(location.protocol) ? location.host : "this deployment";
+
+  /* ---------- go ---------- */
+  var start = ORDER.indexOf(deep); if (start < 0) start = 0;
+  var stepParam = qs.get("step");
+  show(start, { step: ORDER[start] === "O4" && stepParam != null ? Math.max(0, Math.min(4, +stepParam || 0)) : null });
+})();
+</script>
+</body>
+</html>
