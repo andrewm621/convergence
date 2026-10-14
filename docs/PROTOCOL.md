@@ -2,6 +2,19 @@
 
 **Draft v0.1.** Sections 1 to 5 and 7 describe what ships in this repository today. Section 6 is a draft of what comes next and is not implemented.
 
+## The protocol in plain terms
+
+The core is six terms.
+
+- A **record** is something work relies on. In v0.1 that is a decision or a definition.
+- A **version** of a record is `id@n` plus a content hash. A version is never edited in place.
+- **Reliance** is recorded in two ways. The receipt says what the work was given. The declared dependencies say what the work says it relies on.
+- A **change** is a new accepted version of a record.
+- A **flag** goes only to work that relied on a part of the record that changed. Everything else is left alone, and the ledger says why.
+- A **resolution** is made by a named person, who revalidates the work against the new version, grants a scoped exception, or rejects the work.
+
+The protocol does not try to give every participant the same knowledge. Participants work independently on what they were given. The protocol keeps a verifiable trail of which version of which record each piece of work relied on and, when that version changed, who resolved it. Work is traceable, with a named resolver. Anything that requires all participants to hold the same knowledge is out of scope.
+
 ## 1. Status and scope
 
 The Convergence Protocol is a way for people and agents who work concurrently to share governed decisions. It covers code, and it covers any other work that relies on a decision someone made: a policy, a definition, a requirement. The rules are not specific to source code; the v0.1 wire formats assume git (commit ids, notes, forks).
@@ -16,6 +29,8 @@ What is normative in v0.1:
 - The Zod schemas in `packages/contracts/src`. The JSON Schemas in [`packages/contracts/schema`](../packages/contracts/schema) are generated from them. A JSON Schema cannot express cross-field refinements; where one is missing from a JSON Schema, the Zod schema is authoritative. Each affected file says so in its `description`.
 
 Not normative: section 6 (draft extensions), the REST API in [`control-loop.md`](control-loop.md), and anything in `apps/`.
+
+[The protocol in plain terms](#the-protocol-in-plain-terms) gives the model before the detail, and an implementer checks itself against the conformance kit described in section 4 ([`conformance/`](../conformance/README.md)).
 
 ## 2. Model in one paragraph
 
@@ -241,7 +256,7 @@ These are the rules a conforming implementation MUST apply. Each is checked by n
 **R1. Staleness is facet-level.** When a new accepted version of a record is observed, every work item that is not promoted and has an accepted dependency on that record MUST be compared against it. The item is Stale when a facet its dependency names (every facet, when `facetKeys` is empty) was added, removed or changed between the version in the item's receipt and the new version. It is also Stale when the receipt never delivered the record (see R4), or when the version the receipt holds is unknown to the cell or ahead of the accepted head (`UNKNOWN_CONTEXT_VERSION`). Prose never causes staleness. With `staleness: record`, any new version or blob hash does. A Stale item gets a `RECORD_CONDITION`, a `REQUEST_REVIEW` and, through the Blocked condition, a `BLOCK_PROMOTION`. Only accepted versions count; the acceptance rule in section 3.2 applies. A prose-only change yields `NO_ACTION` with `PROSE_ONLY`.
 Tests: `rules-r1-r2.test.ts` ("R1 staleness is facet-level", "R1 context acceptance (authority and shape)"); invariant "prose-only edit stales nothing".
 
-**R2. Unaffected work is left alone, with the reason recorded.** A work item with no accepted dependency on a changed facet, and no claim citing the changed record, MUST NOT change status, conditions or receipt. The implementation records a `NO_ACTION` effect with `NO_DEPENDENCY_ON_CHANGED_FACETS` for each such item, except on a prose-only change, where a single `NO_ACTION` with `PROSE_ONLY` stands for all items. An item whose claims cite the changed record (or that holds an approval or exception on it) is refreshed instead, and may become a `ClaimConflict` (`SUPERSEDED_BASIS`) or lose its approval.
+**R2. Unaffected work is left alone, with the reason recorded.** A work item with no accepted dependency on a changed facet, and no claim citing the changed record, MUST NOT change status, conditions or receipt. The implementation records a `NO_ACTION` effect with `NO_DEPENDENCY_ON_CHANGED_FACETS` for each such item, except on a prose-only change, where a single `NO_ACTION` with `PROSE_ONLY` stands for all items. An item whose claims cite the changed record, that holds a promotion approval, or that holds an exception on the changed record is re-evaluated instead; if none of its conditions changes, it gets the same `NO_ACTION`. In that re-evaluation a claim is compared with the new version (R3) only if the cited record is in the item's receipt or the item has an accepted dependency on it, and the item may then become a `ClaimConflict` (`SUPERSEDED_BASIS`) or lose its approval. A claim citing a record that is not in the receipt, with no dependency or only a proposed one, is not compared: the item stays Uncertain with `UNDECLARED_DEP` (R4), whatever the new version says, until a person decides the dependency. A claim whose inferred dependency was rejected is ignored.
 Tests: `rules-r1-r2.test.ts` ("R2 unaffected work is left alone, with the reason recorded"); invariant "unaffected work never changes status".
 
 **R3. Claim conflict.** When a fork push supplies claims for its head, each claim is compared with the current accepted record it cites.
