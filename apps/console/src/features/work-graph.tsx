@@ -2,7 +2,6 @@ import { Background, BackgroundVariant, Controls, ReactFlow, ReactFlowProvider, 
 import { Play, Zap } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { newIdempotencyKey } from "@/client/types";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SeededBadge } from "@/components/status";
 import { UnavailableHint } from "@/components/unavailable-hint";
@@ -180,8 +179,20 @@ export function StartAgents({ onStart }: { onStart(): Promise<{ ok: boolean; mes
  * word "stale". When the change left alone work that was already blocked by an earlier one, those are counted apart
  * (`K newly blocked · J already blocked · M left alone`), so the numbers add up to the red cards on the graph.
  */
-export function ResultsStrip({ evaluation, ms = evaluation?.ms ?? null, measuredHere = false }: { evaluation: (Evaluation & { resolved?: number }) | null; ms?: number | null; measuredHere?: boolean }) {
+export function ResultsStrip({
+	evaluation,
+	ms = evaluation?.ms ?? null,
+	measuredHere = false,
+}: {
+	evaluation: (Evaluation & { resolved?: number; rerunning?: number; alreadyRerunning?: number }) | null;
+	ms?: number | null;
+	measuredHere?: boolean;
+}) {
 	if (!evaluation) return null;
+	// Work the agent is already redoing says "re-running", not "blocked". The counts still add up: blocked + re-running + left alone.
+	const rerunning = (evaluation.rerunning ?? 0) + (evaluation.alreadyRerunning ?? 0);
+	const blocked = evaluation.stale - (evaluation.rerunning ?? 0);
+	const alreadyBlocked = evaluation.alreadyStale - (evaluation.alreadyRerunning ?? 0);
 	const time = ms === null ? null : formatMs(ms);
 	const timing = time
 		? ` ${measuredHere ? `Measured in this browser, from sending the change to this verdict arriving (includes the network and the poller): ${time}.` : `Reconciler time for this check: ${time}.`}`
@@ -195,7 +206,7 @@ export function ResultsStrip({ evaluation, ms = evaluation?.ms ?? null, measured
 			aria-label="Last check"
 			data-testid="results-strip"
 			title={hint}
-			className="flex items-center gap-2 rounded-lg border bg-card/95 px-3 py-1 text-[13px] shadow-xs"
+			className="flex items-center gap-2 rounded-lg border bg-card/95 px-3 py-1 text-[13px] whitespace-nowrap shadow-xs"
 		>
 			<Zap className="size-4 shrink-0 text-primary" aria-hidden />
 			{evaluation.proseOnly ? (
@@ -205,23 +216,30 @@ export function ResultsStrip({ evaluation, ms = evaluation?.ms ?? null, measured
 					<span className="tabular-nums">0 blocked</span>
 					<Dot />
 					<span className="text-muted-foreground">nothing re-checked</span>
-					<Badge tone="outline" className="font-mono">
-						PROSE_ONLY
-					</Badge>
 				</>
 			) : (
 				<>
-					<span
-						className={evaluation.stale > 0 ? "font-semibold text-danger tabular-nums" : "tabular-nums"}
-						title={evaluation.alreadyStale > 0 ? "Went stale on this change. Some may have been stale for an earlier change too." : "Stale: built on a decision that has since changed."}
-					>
-						{evaluation.stale} {evaluation.alreadyStale > 0 ? "newly blocked" : "blocked"}
-					</span>
-					{evaluation.alreadyStale > 0 && (
+					{(blocked > 0 || rerunning === 0) && (
+						<span
+							className={blocked > 0 ? "font-semibold text-danger tabular-nums" : "tabular-nums"}
+							title={evaluation.alreadyStale > 0 ? "Went stale on this change. Some may have been stale for an earlier change too." : "Stale: built on a decision that has since changed."}
+						>
+							{blocked} {evaluation.alreadyStale > 0 ? "newly blocked" : "blocked"}
+						</span>
+					)}
+					{alreadyBlocked > 0 && (
 						<>
 							<Dot />
 							<span className="text-danger tabular-nums" title="Not touched by this change, but stale from an earlier one.">
-								{evaluation.alreadyStale} already blocked
+								{alreadyBlocked} already blocked
+							</span>
+						</>
+					)}
+					{rerunning > 0 && (
+						<>
+							{(blocked > 0 || alreadyBlocked > 0) && <Dot />}
+							<span className="font-medium text-info tabular-nums" data-testid="results-rerunning" title="The agent is redoing this work on the current decisions. Merge stays closed until the re-run pushes.">
+								{rerunning} re-running
 							</span>
 						</>
 					)}
