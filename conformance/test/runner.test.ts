@@ -7,7 +7,7 @@ const failing = (results: VectorResult[]): string[] => results.filter((r) => !r.
 
 describe("the reference engine passes every vector", () => {
 	it("100% against adapters/reference.ts", async () => {
-		const results = await runVectors({ impl: adapterCommand("reference.ts"), vectors, jobs: 8 });
+		const results = await runVectors({ impl: adapterCommand("reference.ts"), vectors, jobs: 4 });
 		expect(failing(results)).toEqual([]);
 		expect(results).toHaveLength(vectors.length);
 	});
@@ -16,7 +16,7 @@ describe("the reference engine passes every vector", () => {
 /** The suite must tell a broken implementation from a conforming one, and point at the rule it breaks. */
 describe("the vectors catch broken implementations", () => {
 	it("an engine that never tracks staleness fails the R1 vectors, and still passes the ones staleness cannot touch", async () => {
-		const failed = failing(await runVectors({ impl: adapterCommand("broken.ts", "ignore-staleness"), vectors, jobs: 8 }));
+		const failed = failing(await runVectors({ impl: adapterCommand("broken.ts", "ignore-staleness"), vectors, jobs: 4 }));
 		expect(failed).toEqual(
 			expect.arrayContaining(["we-01-decision-changes-mid-flight", "r1-02-whole-record-dependency-sees-added-facet", "r1-09-shelter-intake-policy-v2", "r5-09-stale-work-cannot-be-promoted"]),
 		);
@@ -26,7 +26,7 @@ describe("the vectors catch broken implementations", () => {
 	});
 
 	it("an engine whose gate forgets receipts is caught promoting stale work", async () => {
-		const results = await runVectors({ impl: adapterCommand("broken.ts", "promote-superseded"), vectors, jobs: 8 });
+		const results = await runVectors({ impl: adapterCommand("broken.ts", "promote-superseded"), vectors, jobs: 4 });
 		expect(failing(results)).toEqual(["r5-09-stale-work-cannot-be-promoted"]);
 		const problem = results.find((r) => !r.pass)?.problems.join("\n") ?? "";
 		expect(problem).toContain("ALLOW_PROMOTION");
@@ -34,7 +34,7 @@ describe("the vectors catch broken implementations", () => {
 	});
 
 	it("an engine without an idempotency table fails exactly the R9 duplicate vectors", async () => {
-		const failed = failing(await runVectors({ impl: adapterCommand("broken.ts", "skip-dedupe"), vectors, jobs: 8 }));
+		const failed = failing(await runVectors({ impl: adapterCommand("broken.ts", "skip-dedupe"), vectors, jobs: 4 }));
 		expect(failed).toEqual(["r9-01-replayed-push", "r9-02-command-retried", "r9-03-key-reused-for-another-request", "r9-04-command-with-another-timestamp", "r9-06-register-twice"]);
 	});
 
