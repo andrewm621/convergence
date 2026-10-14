@@ -1,6 +1,6 @@
 # Convergence: Cloudflare submission copy
 
-**Status:** draft v3, truth pass on 2026-10-13 against `main` (the build is deployed and the live runs below were verified). Revised for the video script v2 (Larkhaven County replaces Northwind; naming rule: the product is always "Convergence"; "Delta" is only the reconciliation engine inside it, never the product name, outside code identifiers). Final only after the claims in section 7 are checked against the recorded footage and the shipped build. Anything still marked `[VERIFY BEFORE SUBMIT]` depends on the recorded video or on a final check at submit time.
+**Status:** draft v4. On Oct 14 the decision owner approved pitch A, the plain-language swap and the protocol-first vision. Earlier: truth pass on 2026-10-13 against `main` (the build is deployed and the live runs below were verified). Revised for the video script v2 (Larkhaven County replaces Northwind; naming rule: the product is always "Convergence"; "Delta" is only the reconciliation engine inside it, never the product name, outside code identifiers). Final only after the claims in section 7 are checked against the recorded footage and the shipped build. Anything still marked `[VERIFY BEFORE SUBMIT]` depends on the recorded video or on a final check at submit time.
 
 ## 1. Project name
 
@@ -8,11 +8,11 @@ Convergence
 
 ## 2. One-line pitch
 
-Git tells you when two agents changed the same lines. Convergence tells you when two agents are building from different decisions, and won't let the stale one merge.
+A draft protocol for decisions people and agents rely on. When one changes, work built on the old version is found and blocked until a named human resolves it.
 
-## 2a. Short description (49 words)
+## 2a. Short description (54 words)
 
-Convergence is a draft protocol for governed decisions; this is its first implementation. When an accepted decision changes mid-flight, it finds the agent work built on the old version, blocks that work from merging until a named human resolves it, and leaves the rest alone. No model makes those calls.
+Convergence is a draft protocol for decisions people and agents rely on; this is its first implementation. When an accepted decision changes mid-flight, it finds the agent work built on the old version, blocks that work from merging until a named human resolves it, and leaves the rest alone. No model makes those calls.
 
 ## 2b. Tagline (11 words)
 
@@ -20,17 +20,16 @@ A protocol for knowing which work was built on which decision.
 
 <!-- Alternate tagline (12 words): When a decision changes, find the work built on the old one. -->
 
-## 3. Vision (143 words)
+## 3. Vision (149 words)
 
-Agents rarely collide on lines of code. They collide on meaning. A decision changes mid-flight, one agent keeps building on the old version, and both branches still merge clean.
+Letting agents work independently isn't the hard part anymore. Knowing what each piece of work relied on is. A decision changes mid-flight, one agent keeps building on the old version, and everything still merges clean.
 
-Git versions files. Nothing versions the accepted decisions behind the work, or tracks which work was built on which version. Convergence adds that layer: every agent gets a receipt of the exact decisions it was handed, and a reconciler (think Kubernetes controller, for collaborative work) watches for drift.
+We're not necessarily trying to give every agent the same knowledge. We're trying to make independent work possible without losing accountability for the assumptions and commitments behind it.
 
-When a decision changes, work built on the old version is found, blocked from merging, and sent to a human, who revalidates it or grants a scoped exception. Unaffected work keeps moving.
+That's why Convergence is a protocol first: shared records, receipts and rules for the decisions people and agents rely on, with a traceable trail of what each piece of work relied on. A merge check in a code host, a feature built into Artifacts, or decisions outside code entirely could all build on it.
 
-LLMs do the work and propose changes. The referee is deterministic rules with no model calls, and humans decide what ships.
+To be straight about where it stands: v0.1 draft, one implementation, evidence from synthetic scenarios. The 79-vector conformance kit is how you check yours, or tell me where the draft is wrong.
 
-The same engine handles a second, non-coding scenario with no code changes.
 
 ## 4. How we used Cloudflare
 

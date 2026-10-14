@@ -4,7 +4,7 @@ A decision shouldn't just be written down. The system should know what depends o
 
 It works like a lockfile for decisions. Each agent's context is pinned to the exact version of every decision it was given. When one changes, you know whose work was built on the old version, and that work is blocked from merging until a named human resolves it, even when git merges it clean. Everything else stays green, and no model makes those calls.
 
-Convergence is a protocol for governed decisions: a shared contract that lets people and agents see which work relied on which accepted decision, in code or in any other knowledge work. This repo is the first implementation. The protocol is a v0.1 draft; see [docs/PROTOCOL.md](docs/PROTOCOL.md).
+Convergence is a protocol for the decisions people and agents rely on: a shared contract for seeing which work relied on which accepted decision, in code or in any other knowledge work. This repo is the first implementation. The protocol is a v0.1 draft; see [docs/PROTOCOL.md](docs/PROTOCOL.md).
 
 We're not necessarily trying to give every agent the same knowledge. We're trying to make independent work possible without losing accountability for the assumptions and commitments behind it.
 
