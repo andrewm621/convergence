@@ -22,6 +22,8 @@ Every segment carries one of these labels. The label appears on screen as a smal
 | **REPLAY** | A recorded event log re-driven through the same engine. Always tagged "replay" on screen. |
 | **GRAPHIC** | Illustration or title card. Not a recording of the product. |
 
+The `/story` deck is GRAPHIC throughout, including its interactive slide: that slide is a small model of the rule over synthetic data, not the engine. Its corner tag stays on screen for every deck slide, and the slide before the live footage shows "next: LIVE" beside it rather than a LIVE tag.
+
 If a live step fails and a fallback goes in, change the on-screen tag and the narration to match. Never present replay as live.
 
 ## Run of show
