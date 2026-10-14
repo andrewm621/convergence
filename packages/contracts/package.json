@@ -6,6 +6,7 @@
   "main": "src/index.ts",
   "scripts": {
     "test": "vitest run --passWithNoTests",
+    "schema": "vitest run src/json-schema.test.ts -u",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {

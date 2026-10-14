@@ -1,0 +1,1389 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ReconciliationEvent",
+  "description": "One line of the append-only, hash-chained ledger. `hash` covers every other field of the line in canonical JSON.",
+  "type": "object",
+  "properties": {
+    "seq": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "prevHash": {
+      "$ref": "#/$defs/Sha256"
+    },
+    "hash": {
+      "$ref": "#/$defs/Sha256"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "BaselinePushed",
+        "ForkPushed",
+        "EvidenceRecorded",
+        "WorkItemRegistered",
+        "DependencyDecided",
+        "ReceiptIssued",
+        "ResolutionRecorded",
+        "PromotionRequested",
+        "PromotionMerged",
+        "AgentRunStarted",
+        "AgentRunFinished"
+      ]
+    },
+    "payload": {
+      "type": "object",
+      "properties": {
+        "event": {
+          "$ref": "#/$defs/DeltaEvent"
+        },
+        "effects": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Effect"
+          }
+        }
+      },
+      "required": [
+        "event",
+        "effects"
+      ],
+      "additionalProperties": false
+    },
+    "policyVersion": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "baselineSha": {
+      "$ref": "#/$defs/CommitSha"
+    },
+    "ts": {
+      "$ref": "#/$defs/IsoTimestamp"
+    }
+  },
+  "required": [
+    "seq",
+    "prevHash",
+    "hash",
+    "type",
+    "payload",
+    "policyVersion",
+    "baselineSha",
+    "ts"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "Sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "DeltaEvent": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/BaselinePushed"
+        },
+        {
+          "$ref": "#/$defs/ForkPushed"
+        },
+        {
+          "$ref": "#/$defs/EvidenceRecorded"
+        },
+        {
+          "$ref": "#/$defs/WorkItemRegistered"
+        },
+        {
+          "$ref": "#/$defs/DependencyDecided"
+        },
+        {
+          "$ref": "#/$defs/ReceiptIssued"
+        },
+        {
+          "$ref": "#/$defs/ResolutionRecorded"
+        },
+        {
+          "$ref": "#/$defs/PromotionRequested"
+        },
+        {
+          "$ref": "#/$defs/PromotionMerged"
+        },
+        {
+          "$ref": "#/$defs/AgentRunStarted"
+        },
+        {
+          "$ref": "#/$defs/AgentRunFinished"
+        }
+      ]
+    },
+    "BaselinePushed": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "BaselinePushed"
+        },
+        "ts": {
+          "$ref": "#/$defs/IsoTimestamp"
+        },
+        "repo": {
+          "type": "string",
+          "minLength": 1
+        },
+        "commitSha": {
+          "$ref": "#/$defs/CommitSha"
+        },
+        "snapshotHash": {
+          "$ref": "#/$defs/Sha256"
+        },
+        "records": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RecordSnapshot"
+          }
+        },
+        "invalid": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "error": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "path",
+              "error"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "type",
+        "ts",
+        "repo",
+        "commitSha",
+        "snapshotHash",
+        "records",
+        "invalid"
+      ],
+      "additionalProperties": false
+    },
+    "IsoTimestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+    },
+    "CommitSha": {
+      "type": "string",
+      "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$"
+    },
+    "RecordSnapshot": {
+      "type": "object",
+      "properties": {
+        "recordId": {
+          "$ref": "#/$defs/Slug"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "status": {
+          "$ref": "#/$defs/RecordStatus"
+        },
+        "authority": {
+          "type": "string",
+          "minLength": 1
+        },
+        "acceptedBy": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "acceptedAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/IsoTimestamp"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "validation": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "facets": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/FacetKey"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/FacetValue"
+          }
+        },
+        "not": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/FacetKey"
+          },
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/FacetScalar"
+            }
+          }
+        },
+        "blobHash": {
+          "$ref": "#/$defs/ObjectHash"
+        },
+        "facetHash": {
+          "$ref": "#/$defs/Sha256"
+        }
+      },
+      "required": [
+        "recordId",
+        "version",
+        "status",
+        "authority",
+        "acceptedBy",
+        "acceptedAt",
+        "validation",
+        "facets",
+        "not",
+        "blobHash",
+        "facetHash"
+      ],
+      "additionalProperties": false
+    },
+    "Slug": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_-]*$"
+    },
+    "RecordStatus": {
+      "type": "string",
+      "enum": [
+        "proposed",
+        "accepted",
+        "superseded"
+      ]
+    },
+    "FacetKey": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+    },
+    "FacetValue": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/FacetScalar"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FacetScalar"
+          }
+        }
+      ]
+    },
+    "FacetScalar": {
+      "type": [
+        "string",
+        "number",
+        "boolean",
+        "null"
+      ]
+    },
+    "ObjectHash": {
+      "type": "string",
+      "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$"
+    },
+    "ForkPushed": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "ForkPushed"
+        },
+        "ts": {
+          "$ref": "#/$defs/IsoTimestamp"
+        },
+        "repo": {
+          "type": "string",
+          "minLength": 1
+        },
+        "commitSha": {
+          "$ref": "#/$defs/CommitSha"
+        },
+        "workItemId": {
+          "$ref": "#/$defs/WorkItemId"
+        },
+        "claims": {
+          "anyOf": [
+            {},
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "contextPaths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "type",
+        "ts",
+        "repo",
+        "commitSha",
+        "workItemId",
+        "claims",
+        "contextPaths"
+      ],
+      "additionalProperties": false
+    },
+    "WorkItemId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
+    },
+    "EvidenceRecorded": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "EvidenceRecorded"
+        },
+        "ts": {
+          "$ref": "#/$defs/IsoTimestamp"
+        },
+        "repo": {
+          "type": "string",
+          "minLength": 1
+        },
+        "commitSha": {
+          "$ref": "#/$defs/CommitSha"
+        },
+        "runId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidence": {
+          "$ref": "#/$defs/Evidence"
+        }
+      },
+      "required": [
+        "type",
+        "ts",
+        "repo",
+        "commitSha",
+        "runId",
+        "evidence"
+      ],
+      "additionalProperties": false
+    },
+    "Evidence": {
+      "type": "object",
+      "properties": {
+        "workItemId": {
+          "$ref": "#/$defs/WorkItemId"
+        },
+        "headSha": {
+          "$ref": "#/$defs/CommitSha"
+        },
+        "check": {
+          "type": "string",
+          "minLength": 1
+        },
+        "pass": {
+          "type": "boolean"
+        },
+        "output": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/EvidenceKind"
+        }
+      },
+      "required": [
+        "workItemId",
+        "headSha",
+        "check",
+        "pass",
+        "output"
+      ],
+      "additionalProperties": false
+    },
+    "EvidenceKind": {
+      "type": "string",
+      "enum": [
+        "executed-test",
+        "delta-run-check",
+        "delta-claims-check"
+      ]
+    },
+    "WorkItemRegistered": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "WorkItemRegistered"
+        },
+        "ts": {
+          "$ref": "#/$defs/IsoTimestamp"
+        },
+        "item": {
+          "$ref": "#/$defs/WorkItem"
+        },
+        "receipt": {
+          "$ref": "#/$defs/ContextReceipt"
+        },
+        "dependencies": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Dependency"
+          }
+        }
+      },
+      "required": [
+        "type",
+        "ts",
+        "item",
+        "receipt",
+        "dependencies"
+      ],
+      "additionalProperties": false
+    },
+    "WorkItem": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/WorkItemId"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "actor": {
+          "$ref": "#/$defs/Actor"
+        },
+        "forkRepo": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source": {
+          "type": "string",
+          "enum": [
+            "live",
+            "seeded"
+          ]
+        },
+        "intent": {
+          "type": "string",
+          "enum": [
+            "delivery",
+            "exploratory"
+          ]
+        },
+        "requires": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Requirement"
+          }
+        },
+        "status": {
+          "$ref": "#/$defs/WorkItemStatus"
+        },
+        "participants": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Actor"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "actor",
+        "forkRepo",
+        "source",
+        "intent",
+        "requires",
+        "status"
+      ],
+      "additionalProperties": false
+    },
+    "Actor": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "human",
+            "agent",
+            "system"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "displayName"
+      ],
+      "additionalProperties": false
+    },
+    "Requirement": {
+      "type": "string",
+      "enum": [
+        "contract-test",
+        "human-resolution"
+      ]
+    },
+    "WorkItemStatus": {
+      "type": "string",
+      "enum": [
+        "running",
+        "fresh",
+        "stale",
+        "uncertain",
+        "conflict",
+        "revalidating",
+        "ready",
+        "promoted",
+        "rejected"
+      ]
+    },
+    "ContextReceipt": {
+      "type": "object",
+      "properties": {
+        "baselineCommit": {
+          "$ref": "#/$defs/CommitSha"
+        },
+        "contextPacketHash": {
+          "$ref": "#/$defs/Sha256"
+        },
+        "accepted": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ReceiptEntry"
+          }
+        },
+        "proposedVisible": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ContextSnapshotEntry"
+          }
+        },
+        "noteRef": {
+          "$ref": "#/$defs/NoteRef"
+        }
+      },
+      "required": [
+        "baselineCommit",
+        "contextPacketHash",
+        "accepted",
+        "proposedVisible"
+      ],
+      "additionalProperties": false
+    },
+    "ReceiptEntry": {
+      "type": "object",
+      "properties": {
+        "recordId": {
+          "$ref": "#/$defs/Slug"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "blobHash": {
+          "$ref": "#/$defs/ObjectHash"
+        },
+        "facetHash": {
+          "$ref": "#/$defs/Sha256"
+        }
+      },
+      "required": [
+        "recordId",
+        "version",
+        "blobHash",
+        "facetHash"
+      ],
+      "additionalProperties": false
+    },
+    "ContextSnapshotEntry": {
+      "type": "object",
+      "properties": {
+        "recordId": {
+          "$ref": "#/$defs/Slug"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "blobHash": {
+          "$ref": "#/$defs/ObjectHash"
+        }
+      },
+      "required": [
+        "recordId",
+        "version",
+        "blobHash"
+      ],
+      "additionalProperties": false
+    },
+    "NoteRef": {
+      "type": "string",
+      "pattern": "^refs\\/notes\\/delta:(?:[0-9a-f]{40}|[0-9a-f]{64})$"
+    },
+    "Dependency": {
+      "type": "object",
+      "properties": {
+        "workItemId": {
+          "$ref": "#/$defs/WorkItemId"
+        },
+        "recordId": {
+          "$ref": "#/$defs/Slug"
+        },
+        "facetKeys": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FacetKey"
+          }
+        },
+        "basis": {
+          "type": "string",
+          "enum": [
+            "declared",
+            "verified",
+            "inferred"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "proposed",
+            "accepted",
+            "rejected"
+          ]
+        },
+        "evidenceRefs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "workItemId",
+        "recordId",
+        "facetKeys",
+        "basis",
+        "status",
+        "evidenceRefs"
+      ],
+      "additionalProperties": false
+    },
+    "DependencyDecided": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "DependencyDecided"
+        },
+        "ts": {
+          "$ref": "#/$defs/IsoTimestamp"
+        },
+        "requestId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "workItemId": {
+          "$ref": "#/$defs/WorkItemId"
+        },
+        "recordId": {
+          "$ref": "#/$defs/Slug"
+        },
+        "decision": {
+          "type": "string",
+          "enum": [
+            "accepted",
+            "rejected"
+          ]
+        },
+        "actor": {
+          "$ref": "#/$defs/Actor"
+        }
+      },
+      "required": [
+        "type",
+        "ts",
+        "requestId",
+        "workItemId",
+        "recordId",
+        "decision",
+        "actor"
+      ],
+      "additionalProperties": false
+    },
+    "ReceiptIssued": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "ReceiptIssued"
+        },
+        "ts": {
+          "$ref": "#/$defs/IsoTimestamp"
+        },
+        "workItemId": {
+          "$ref": "#/$defs/WorkItemId"
+        },
+        "receipt": {
+          "$ref": "#/$defs/ContextReceipt"
+        }
+      },
+      "required": [
+        "type",
+        "ts",
+        "workItemId",
+        "receipt"
+      ],
+      "additionalProperties": false
+    },
+    "ResolutionRecorded": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "ResolutionRecorded"
+        },
+        "ts": {
+          "$ref": "#/$defs/IsoTimestamp"
+        },
+        "requestId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "resolution": {
+          "$ref": "#/$defs/Resolution"
+        }
+      },
+      "required": [
+        "type",
+        "ts",
+        "requestId",
+        "resolution"
+      ],
+      "additionalProperties": false
+    },
+    "Resolution": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "revalidate",
+            "accept-exception",
+            "reject"
+          ]
+        },
+        "workItemId": {
+          "$ref": "#/$defs/WorkItemId"
+        },
+        "actor": {
+          "$ref": "#/$defs/Actor"
+        },
+        "rationale": {
+          "type": "string",
+          "minLength": 1
+        },
+        "scope": {
+          "type": "string",
+          "minLength": 1
+        },
+        "binding": {
+          "$ref": "#/$defs/ResolutionBinding"
+        },
+        "requestId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ts": {
+          "$ref": "#/$defs/IsoTimestamp"
+        }
+      },
+      "required": [
+        "kind",
+        "workItemId",
+        "actor",
+        "rationale",
+        "binding",
+        "ts"
+      ],
+      "additionalProperties": false
+    },
+    "ResolutionBinding": {
+      "type": "object",
+      "properties": {
+        "recordId": {
+          "$ref": "#/$defs/Slug"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "blobHash": {
+          "$ref": "#/$defs/ObjectHash"
+        },
+        "baseSha": {
+          "$ref": "#/$defs/CommitSha"
+        },
+        "forkHeadSha": {
+          "$ref": "#/$defs/CommitSha"
+        },
+        "contextSnapshotHash": {
+          "$ref": "#/$defs/Sha256"
+        }
+      },
+      "required": [
+        "recordId",
+        "version",
+        "blobHash",
+        "baseSha",
+        "forkHeadSha",
+        "contextSnapshotHash"
+      ],
+      "additionalProperties": false
+    },
+    "PromotionRequested": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "PromotionRequested"
+        },
+        "ts": {
+          "$ref": "#/$defs/IsoTimestamp"
+        },
+        "requestId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "workItemId": {
+          "$ref": "#/$defs/WorkItemId"
+        },
+        "actor": {
+          "$ref": "#/$defs/Actor"
+        },
+        "expectedBaselineCommit": {
+          "$ref": "#/$defs/CommitSha"
+        },
+        "forkHeadSha": {
+          "$ref": "#/$defs/CommitSha"
+        }
+      },
+      "required": [
+        "type",
+        "ts",
+        "requestId",
+        "workItemId",
+        "actor",
+        "expectedBaselineCommit",
+        "forkHeadSha"
+      ],
+      "additionalProperties": false
+    },
+    "PromotionMerged": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "PromotionMerged"
+        },
+        "ts": {
+          "$ref": "#/$defs/IsoTimestamp"
+        },
+        "workItemId": {
+          "$ref": "#/$defs/WorkItemId"
+        },
+        "repo": {
+          "type": "string",
+          "minLength": 1
+        },
+        "mergeCommitSha": {
+          "$ref": "#/$defs/CommitSha"
+        }
+      },
+      "required": [
+        "type",
+        "ts",
+        "workItemId",
+        "repo",
+        "mergeCommitSha"
+      ],
+      "additionalProperties": false
+    },
+    "AgentRunStarted": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "AgentRunStarted"
+        },
+        "ts": {
+          "$ref": "#/$defs/IsoTimestamp"
+        },
+        "workItemId": {
+          "$ref": "#/$defs/WorkItemId"
+        },
+        "runId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        }
+      },
+      "required": [
+        "type",
+        "ts",
+        "workItemId",
+        "runId"
+      ],
+      "additionalProperties": false
+    },
+    "AgentRunFinished": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "AgentRunFinished"
+        },
+        "ts": {
+          "$ref": "#/$defs/IsoTimestamp"
+        },
+        "workItemId": {
+          "$ref": "#/$defs/WorkItemId"
+        },
+        "runId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "outcome": {
+          "type": "string",
+          "enum": [
+            "success",
+            "failure",
+            "cancelled"
+          ]
+        }
+      },
+      "required": [
+        "type",
+        "ts",
+        "workItemId",
+        "runId",
+        "outcome"
+      ],
+      "additionalProperties": false
+    },
+    "Effect": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "REQUEST_REVALIDATION"
+            },
+            "workItemId": {
+              "$ref": "#/$defs/WorkItemId"
+            },
+            "diff": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/RecordDiff"
+              }
+            },
+            "reasonCodes": {
+              "$ref": "#/$defs/__schema4"
+            }
+          },
+          "required": [
+            "type",
+            "workItemId",
+            "diff",
+            "reasonCodes"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "BLOCK_PROMOTION"
+            },
+            "workItemId": {
+              "$ref": "#/$defs/WorkItemId"
+            },
+            "reasonCodes": {
+              "$ref": "#/$defs/__schema4"
+            }
+          },
+          "required": [
+            "type",
+            "workItemId",
+            "reasonCodes"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "REQUEST_REVIEW"
+            },
+            "workItemId": {
+              "$ref": "#/$defs/WorkItemId"
+            },
+            "message": {
+              "type": "string"
+            },
+            "reasonCodes": {
+              "$ref": "#/$defs/__schema4"
+            }
+          },
+          "required": [
+            "type",
+            "workItemId",
+            "message",
+            "reasonCodes"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "DISPATCH_WORK"
+            },
+            "workItemId": {
+              "$ref": "#/$defs/WorkItemId"
+            },
+            "mode": {
+              "type": "string",
+              "const": "revalidate"
+            },
+            "diff": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/RecordDiff"
+              }
+            },
+            "reasonCodes": {
+              "$ref": "#/$defs/__schema4"
+            }
+          },
+          "required": [
+            "type",
+            "workItemId",
+            "mode",
+            "diff",
+            "reasonCodes"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "RECORD_CONDITION"
+            },
+            "workItemId": {
+              "$ref": "#/$defs/WorkItemId"
+            },
+            "condition": {
+              "$ref": "#/$defs/Condition"
+            },
+            "reasonCodes": {
+              "$ref": "#/$defs/__schema4"
+            }
+          },
+          "required": [
+            "type",
+            "workItemId",
+            "condition",
+            "reasonCodes"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "ALLOW_PROMOTION"
+            },
+            "workItemId": {
+              "$ref": "#/$defs/WorkItemId"
+            },
+            "forkHeadSha": {
+              "$ref": "#/$defs/CommitSha"
+            },
+            "baselineCommit": {
+              "$ref": "#/$defs/CommitSha"
+            },
+            "reasonCodes": {
+              "$ref": "#/$defs/__schema4"
+            }
+          },
+          "required": [
+            "type",
+            "workItemId",
+            "forkHeadSha",
+            "baselineCommit",
+            "reasonCodes"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "NO_ACTION"
+            },
+            "workItemId": {
+              "$ref": "#/$defs/WorkItemId"
+            },
+            "recordId": {
+              "$ref": "#/$defs/Slug"
+            },
+            "message": {
+              "type": "string"
+            },
+            "reasonCodes": {
+              "$ref": "#/$defs/__schema4"
+            }
+          },
+          "required": [
+            "type",
+            "reasonCodes"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "RecordDiff": {
+      "type": "object",
+      "properties": {
+        "recordId": {
+          "$ref": "#/$defs/Slug"
+        },
+        "fromVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "toVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "changes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FacetChange"
+          }
+        }
+      },
+      "required": [
+        "recordId",
+        "fromVersion",
+        "toVersion",
+        "changes"
+      ],
+      "additionalProperties": false
+    },
+    "FacetChange": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "$ref": "#/$defs/FacetKey"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "added",
+            "removed",
+            "changed"
+          ]
+        },
+        "from": {
+          "$ref": "#/$defs/FacetValue"
+        },
+        "to": {
+          "$ref": "#/$defs/FacetValue"
+        }
+      },
+      "required": [
+        "key",
+        "kind"
+      ],
+      "additionalProperties": false
+    },
+    "__schema4": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ReasonCode"
+      }
+    },
+    "ReasonCode": {
+      "type": "string",
+      "enum": [
+        "STALE_RECEIPT",
+        "FACET_CHANGED",
+        "PROSE_ONLY",
+        "NO_DEPENDENCY_ON_CHANGED_FACETS",
+        "ALREADY_PROMOTED",
+        "NO_CONTEXT_CHANGE",
+        "VERSION_NOT_NEWER",
+        "IMMUTABLE_VERSION",
+        "RECORD_NOT_ACCEPTED",
+        "UNKNOWN_CONTEXT_VERSION",
+        "NO_CLAIMS",
+        "MALFORMED_CLAIMS",
+        "CLAIM_CONFLICT",
+        "SUPERSEDED_BASIS",
+        "CROSS_CLAIM_CONFLICT",
+        "UNDECLARED_DEP",
+        "FORK_CONTEXT_IGNORED",
+        "FORK_EDITS_CONTEXT",
+        "WRONG_RECORD",
+        "TEST_FAILED",
+        "MISSING_EVIDENCE",
+        "HUMAN_RESOLUTION_MISSING",
+        "UNRESOLVED_DEPENDENCY",
+        "REVALIDATION_PENDING",
+        "UNKNOWN_WORK_ITEM",
+        "NOT_FRESH",
+        "REVALIDATION_LIMIT",
+        "REVALIDATION_STARTED",
+        "RECEIPT_MISMATCH",
+        "REVALIDATION_NOT_REQUESTED",
+        "NOTHING_TO_REVALIDATE",
+        "REVALIDATION_IN_PROGRESS",
+        "FORBIDDEN_ACTOR",
+        "STALE_BINDING",
+        "BASELINE_MOVED",
+        "HEAD_MOVED",
+        "EXCEPTION_LAPSED",
+        "EXCEPTION_APPLIED",
+        "PROMOTION_NOT_APPROVED",
+        "STALE_EVIDENCE",
+        "TESTS_PASSED",
+        "DUPLICATE_EVENT",
+        "IDEMPOTENCY_CONFLICT",
+        "OBSERVATION_ONLY",
+        "DEPENDENCY_DECIDED",
+        "ALREADY_RESOLVED",
+        "RESOLUTION_REJECTED"
+      ]
+    },
+    "Condition": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/ConditionType"
+        },
+        "workItemId": {
+          "$ref": "#/$defs/WorkItemId"
+        },
+        "reasonCodes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ReasonCode"
+          }
+        },
+        "recordRefs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "facetKeys": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FacetKey"
+          }
+        },
+        "message": {
+          "type": "string"
+        },
+        "observedAt": {
+          "$ref": "#/$defs/IsoTimestamp"
+        }
+      },
+      "required": [
+        "type",
+        "workItemId",
+        "reasonCodes",
+        "recordRefs",
+        "facetKeys",
+        "message",
+        "observedAt"
+      ],
+      "additionalProperties": false
+    },
+    "ConditionType": {
+      "type": "string",
+      "enum": [
+        "Fresh",
+        "Stale",
+        "Uncertain",
+        "ClaimConflict",
+        "TestFailed",
+        "TestsPassed",
+        "Blocked",
+        "Ready",
+        "Promoted"
+      ]
+    }
+  }
+}
