@@ -60,6 +60,7 @@ Every mutating route requires an `Idempotency-Key` header (`[A-Za-z0-9._:~-]{1,1
 | `GET  /api/scenarios/:s/dispatches` | The re-dispatches owed to the agent runtime, one per accepted revalidate resolution: phase, run id, receipt hash, `noteRef`, `noteError`, error. `runtime: false` when the cell has no agent runtime |
 | `GET  /api/scenarios/:s/work-items/:id/gate` | Dry-run promotion gate: `{ pass, reasonCodes, blockers, waivedBy, baselineCommit, snapshotHash, forkHeadSha }` |
 | `POST /api/scenarios/:s/work-items/:id/resolutions` | `revalidate`, `accept-exception` (needs `scope`) or `reject`, each with `rationale` and the `binding` the human was looking at. `workItemId` may be repeated in the body; it must match the path |
+| `POST /api/scenarios/:s/work-items/:id/dependencies` | `{ recordId, decision: "accept" \| "reject" }`: a human decides a dependency the engine inferred from an agent's claims (R4). Reject clears the hold; accept makes it a gating dependency the receipt never delivered. The actor comes from the session, as for resolutions. `workItemId` may be repeated in the body; it must match the path |
 | `POST /api/scenarios/:s/work-items/:id/promote` | `{ expectedBaselineCommit, forkHeadSha }` (and optionally `workItemId`). Two-phase, see below |
 | `GET  /api/scenarios/:s/ws` | WebSocket upgrade, `?since=<seq>` to resume |
 
@@ -244,7 +245,7 @@ Checked against the console's live client (`apps/console/src/client/` on `claude
 
 Deviations the client must adapt to (the console adopted all five in `cloud/stage-b-console`, and was checked live against this cell in Miniflare with the in-memory Artifacts fake):
 
-1. **Work item routes are scenario-scoped**: `/api/scenarios/:s/work-items/:id/{gate,resolutions,promote}`, not `/work-items/:id/...`. A cell exists per scenario and a work item id means nothing without it.
+1. **Work item routes are scenario-scoped**: `/api/scenarios/:s/work-items/:id/{gate,resolutions,dependencies,promote}`, not `/work-items/:id/...`. A cell exists per scenario and a work item id means nothing without it.
 2. **Error bodies** are `{ "error": { "code", "message", ... } }` (the Worker's existing convention), not top-level `{ code, message, reasonCodes }`. Blocked promotes put the reason codes in `error.reasonCodes`.
 3. **Auth on the WebSocket**: `new WebSocket(url, ["delta.v1", "bearer." + base64url(secret)])`. The console's client currently opens it with no protocol and no secret.
 4. **Not implemented**: `GET .../work-items/:id/changes` (per-file diff patches), `POST .../seed` and `POST .../start` (creating repos, registering work items and dispatching agents). Use `POST .../init` and `POST .../work-items` for setup; seeding and starting belong with the agent runtime.
