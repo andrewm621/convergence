@@ -5,7 +5,7 @@
 **Target runtime:** 8:56 (the contest allows 5 to 10 minutes; hard ceiling for this script is 9:30). Times are paced at about 150 spoken words a minute plus the on-screen holds marked in each row.
 **Format:** screen recording with voiceover. Narrator and face cam are still open (PRD §13, item 4).
 
-## Naming rule (B13)
+## Naming rule (owner decision, Oct 14)
 
 Say and show "Convergence" every time: narration, on-screen text, titles, captions and copy. Delta is the reconciliation engine inside it, never the product name. Internal identifiers (`refs/notes/delta`, `delta-core`) are fine when they appear as code on screen; do not read them aloud as the product name.
 
