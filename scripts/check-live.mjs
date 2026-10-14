@@ -16,6 +16,9 @@
 //   --stop-before-revalidate   stop once notifications v2 has made WI-2 stale and blocked (WI-1 still ready, nothing
 //                              promoted), so the human revalidate, the re-dispatch and both promotions can be done on
 //                              camera in the console. Implies --keep.
+//   --stop-after-push          stop once both agents have pushed, before any decision changes (no typo fix, no v2), so
+//                              answering a held dependency, the decision change and everything after it can be done on
+//                              camera in the console. Implies --keep.
 
 const base = (process.env.WORKER_URL ?? "").replace(/\/$/, "");
 const token = process.env.DEV_TOKEN ?? "";
@@ -32,8 +35,9 @@ if (cellAt >= 0 && !(typeof cellArg === "string" && /^[a-z0-9][a-z0-9-]{0,39}$/.
 	process.exit(2);
 }
 const stopBeforeRevalidate = argv.includes("--stop-before-revalidate");
+const stopAfterPush = argv.includes("--stop-after-push");
 // A demo cell points at its repos, so deleting them at the end would break it.
-const keep = argv.includes("--keep") || cellArg !== undefined || stopBeforeRevalidate;
+const keep = argv.includes("--keep") || cellArg !== undefined || stopBeforeRevalidate || stopAfterPush;
 const runId = Date.now().toString(36);
 const scenario = cellArg ?? `live-${runId}`;
 /** Every repo this run seeds: the only ones the cleanup deletes. */
@@ -205,6 +209,16 @@ const forkPushed = ledger0.filter((e) => e.type === "ForkPushed");
 note(`ForkPushed ledger lines: ${forkPushed.length}; ts lag vs run finish: ${forkPushed.map((e) => `${e.id ?? ""}${Date.parse(e.ts) - Date.parse(run1?.AgentRunFinished?.ts ?? 0)}ms`).join(", ")}`);
 const wi2Before = await wiOf("WI-2");
 note(`WI-2 conditions after push: ${j(wi2Before?.conditions?.map((c) => c.type))}; status ${wi2Before?.item.status}; WI-1 ${await statusOf("WI-1")}`);
+
+if (stopAfterPush) {
+	const wi1Now = await wiOf("WI-1");
+	note(`stopping after both pushes, as asked: no decision has changed yet. WI-1 ${wi1Now?.item.status} ${j(wi1Now?.conditions?.map((c) => c.type))}; WI-2 ${wi2Before?.item.status}`);
+	const deps = (await get("/state")).json.dependencies ?? [];
+	note(`WI-1 dependencies: ${j(deps.filter((d) => d.workItemId === "WI-1").map((d) => `${d.recordId}:${d.status}`))}`);
+	note(`console: <worker url>/?cell=${scenario}   (token in the address bar hash, as usual)`);
+	note(`repos kept: ${created.join(", ")}`);
+	await finish();
+}
 
 // ---------------------------------------------------------------------------------------------------------
 // 3. Prose-only change, then the real v2 change
