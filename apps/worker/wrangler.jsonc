@@ -20,11 +20,11 @@
     "ENABLE_SMOKE": "0",
     // stub = scripted agent (no model key needed); claude = Claude Code headless through OpenRouter.
     "AGENT_MODE": "stub",
-    // OpenRouter model slug Claude Code is pinned to by default (only read when AGENT_MODE=claude): the cheapest one that
-    // completed the notifications task in live tests (about $0.001 per run).
-    "AGENT_MODEL": "z-ai/glm-5.3-flash",
+    // OpenRouter model slug Claude Code is pinned to by default (only read when AGENT_MODE=claude). Claude Sonnet completed every
+    // live run on Oct 14 (about $0.60 per run); cheaper models failed intermittently with unrecognized_model or stalled.
+    "AGENT_MODEL": "anthropic/claude-sonnet-5.5",
     // Other OpenRouter slugs a dispatch may select with {"model": ...}. AGENT_MODEL is always allowed. Each run is pinned to its model at the gateway.
-    "AGENT_MODELS": "openai/gpt-6-luna,minimax/minimax-m3,anthropic/claude-sonnet-5.5",
+    "AGENT_MODELS": "minimax/minimax-m3,openai/gpt-6-luna",
     // Claude Code's own caps for AGENT_MODE=claude. Its dollar estimate prices every model at Anthropic rates (about 50x too high for
     // a cheap model), so AGENT_MAX_BUDGET_USD is only a loose backstop; the real dollar cap is AGENT_MAX_COST_USD, enforced by the gateway.
     "AGENT_MAX_TURNS": "15",
