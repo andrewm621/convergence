@@ -104,6 +104,8 @@ No LLM is required to operate Convergence. Delta, the reconciliation engine insi
 | R8 Evidence | Checks are run by Convergence on the pushed files, not reported by the agent. |
 | R9 Idempotency | A repeated event (same repo and commit) produces one ledger line. Mutating requests carry an `Idempotency-Key`. |
 
+The full rules, the wire formats and the JSON Schemas are in [docs/PROTOCOL.md](docs/PROTOCOL.md) (Convergence Protocol v0.1, draft).
+
 Five named invariant tests (`packages/delta-core/src/testing/invariants.ts`, run by `invariants.test.ts`) run against the fixtures:
 
 1. unaffected work never changes status

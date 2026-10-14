@@ -12,7 +12,7 @@ Convergence is a deterministic reconciliation control plane for concurrent human
 This is a contest entry with a hard deadline: **Wed 2026-10-14, 11:59 PM PT.** Prefer working and demonstrable over complete.
 
 ## Task board
-The maintainer tracks work on a task board that is kept locally and is not published in this repo (`.maestro/` is gitignored). If you were handed a task, its goal, context pointers and acceptance criteria came with it.
+The maintainer tracks work on a task board that is kept locally and is not published in this repo (its directory is gitignored). If you were handed a task, its goal, context pointers and acceptance criteria came with it.
 - If a task has dependencies, don't start it until they are done and nobody else has a live claim on it.
 - Work to the acceptance criteria you were given and check them off as you go.
 - If you're blocked or facing a decision you can't make, ask in the channel you were given for the task. Don't guess silently.

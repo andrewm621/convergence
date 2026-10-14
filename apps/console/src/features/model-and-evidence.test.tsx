@@ -74,7 +74,7 @@ describe("honest evidence labels", () => {
 		mock.stop();
 	});
 
-	it("the ledger strip shows both Delta checks for the replayed re-run", async () => {
+	it("the ledger strip shows both checks for the replayed re-run", async () => {
 		await renderWithMock(<BottomStrip />, { beats: 8 });
 		const lines = await screen.findByRole("list", { name: "Audit log lines" });
 		const claims = within(lines).getAllByText(CLAIMS_CHECK_LABEL);

@@ -4,7 +4,7 @@
 
 ## 1. Status and scope
 
-The Convergence Protocol is a way for people and agents who work concurrently to share governed decisions. It covers code, and it covers any other work that relies on a decision someone made: a policy, a definition, a requirement. It is not specific to source code or to git, although the reference implementation stores records in git.
+The Convergence Protocol is a way for people and agents who work concurrently to share governed decisions. It covers code, and it covers any other work that relies on a decision someone made: a policy, a definition, a requirement. The rules are not specific to source code; the v0.1 wire formats assume git (commit ids, notes, forks).
 
 There is one implementation, the reference implementation: this repository, running on Cloudflare Workers, Durable Objects and Artifacts. Its reconciliation engine is Delta (`packages/delta-core`), a pure function with no I/O. Its wire formats are defined by Zod schemas in `packages/contracts`. Everything in section 3 is taken from that code. Nothing in section 3 is aspirational.
 
@@ -19,9 +19,17 @@ Not normative: section 6 (draft extensions), the REST API in [`control-loop.md`]
 
 ## 2. Model in one paragraph
 
-Accepted records are versioned. A record holds governed facets (keys with simple values) and free prose; only facets are governed. Work declares what it relied on: a receipt, pinned to exact record versions and hashes, is issued when work starts. When an accepted record changes, dependent work is found deterministically by comparing the facets it relied on against the new version. Work that relied on a superseded version cannot be promoted until a named authority resolves it: by revalidating the work against the new version, by granting a scoped exception, or by rejecting the work. Models propose, people and deterministic rules decide, and no model sits in the control loop. A record, a claim or a dependency that a model wrote is a proposal until a person accepts it.
+Accepted records are versioned. A record holds governed facets (keys with simple values) and free prose; only facets are governed. Work relies on records in two separate ways. A **receipt** says what was delivered when the work started: exact record versions and hashes. **Declared dependencies** say which records, and which facets of them, the work relies on. When an accepted record changes, dependent work is found deterministically by comparing the facets it relied on, in the version its receipt holds, against the new version. Work that relied on a superseded version cannot be promoted until a person resolves it: by revalidating the work against the new version, by granting a scoped exception, or by rejecting the work. Any human may revalidate or reject; only the record's named authority may accept an exception. Models propose, people and deterministic rules decide, and no model sits in the control loop. A record or a dependency that a model wrote is a proposal until a person accepts it. Claims are never accepted: they are compared with the accepted records and labelled unverified.
 
 Terms used below: a **cell** is one workspace's governed state (records, work items, dependencies, ledger). A **baseline** is the repository that holds the accepted records. A **fork** is the repository a work item's actor writes to. An **adapter** is the part of an implementation that turns observations (pushes, check runs, merges) into events and carries out effects.
+
+**Worked example.** The notifications scenario has two work items. WI-2 (notification preferences) relies on `notifications.default` and `notifications.cadence`. WI-1 (status badges) relies only on `status-model`.
+
+1. WI-2's receipt pins `notifications@1` (default `on`, cadence `immediate`). WI-1's receipt pins only `status-model@1`.
+2. The decision owner accepts `notifications@2`: default `opt-in`, cadence `weekly-digest`.
+3. The engine compares facets against the receipts. WI-2 relied on facets that changed, so it is Stale and promotion is blocked, even though its branch merges into the baseline without a git conflict.
+4. WI-1 relies on nothing that changed. It stays Fresh, and the ledger records `NO_ACTION` with the reason.
+5. A person revalidates WI-2. It gets a receipt at version 2, the agent reruns, and the gate clears once the checks pass.
 
 ## 3. Implemented (normative for v0.1)
 
@@ -100,6 +108,8 @@ Parsing MUST fail closed. A file is not a record if it lacks the opening or clos
 
 Anything else produces a `NO_ACTION` effect with a reason code, and the record does not govern.
 
+The engine cannot verify who wrote `accepted_by`. An adapter MUST restrict writes to the accepted baseline to authenticated humans. In the reference implementation the Worker is the only writer: it takes the acting human from the session, remembers the sha of every context change it pushes, and the poller turns a baseline commit into an accepted version only if the cell recorded that sha as a context change by the record's authority (see "Trust boundary" in [`control-loop.md`](control-loop.md)).
+
 **RecordSnapshot** ([schema](../packages/contracts/schema/record-snapshot.json)) is the parsed, hashed form the reconciler sees: `recordId`, `version`, `status`, `authority`, `acceptedBy`, `acceptedAt`, `validation`, `facets`, `not`, `blobHash`, `facetHash`. A cell keeps, per record, `current` (the accepted head version or null), `versions` (every version seen) and `proposed` (the latest proposed version, if any).
 
 ### 3.3 Work item
@@ -149,7 +159,7 @@ Representation: `.delta/claims.json` in the work item's fork, a JSON array of `{
 
 **Purpose.** The result of a check at a specific head of a work item's fork. Schema: [`evidence.json`](../packages/contracts/schema/evidence.json).
 
-Required fields: `workItemId`, `headSha`, `check`, `pass`, `output`. Optional `kind`: `executed-test`, `delta-run-check` or `delta-claims-check`. A `delta-claims-check` is derived from agent-written claims; it is informational and never counts as a test result (rule R8).
+Required fields: `workItemId`, `headSha`, `check`, `pass`, `output`. Optional `kind`: `executed-test`, `delta-run-check` or `delta-claims-check`. A `delta-claims-check` is derived from agent-written claims; it is informational and never counts as a test result (rule R8). Evidence with no `kind` counts as a test result.
 
 A **check** is a deterministic function of the pushed file contents and the accepted facets, named by the `validation` field of a record. It decides pass or fail without a model. The reference implementation ships plain text-matching checks for the notifications and shelter-intake scenarios (`scenarios/*/src/check*.ts`); the `ContractCheck` type is in `scenario-kit.ts`.
 
@@ -212,26 +222,26 @@ Implementation: `ledger.ts`, `engine.ts`, `store.ts`.
 
 ### 3.13 Cell state
 
-[`cell-state.json`](../packages/contracts/schema/cell-state.json) is the whole state of one cell as plain JSON: `schemaVersion` (1), `baselineCommit`, `snapshotHash`, `records`, `workItems`, `dependencies`, `processed` (the rule R9 dedupe table). `snapshotHash` is supplied by the adapter and is opaque to the engine. [`cell-snapshot.json`](../packages/contracts/schema/cell-snapshot.json) is the read model for a console: the state minus internals, plus the policy, the ledger tail and the ledger head.
+[`cell-state.json`](../packages/contracts/schema/cell-state.json) is the whole state of one cell as plain JSON: `schemaVersion` (1), `baselineCommit`, `snapshotHash`, `records`, `workItems`, `dependencies`, `processed` (the rule R9 dedupe table). `snapshotHash` is supplied by the adapter and is opaque to the engine. [`cell-snapshot.json`](../packages/contracts/schema/cell-snapshot.json) is the read model for a console: the state minus internals, plus the `scenario` name, the policy, the ledger tail and the ledger head.
 
 ### 3.14 Live channel: `delta.v1`
 
-A cell's updates can be streamed to a client over a WebSocket. This is part of the reference implementation's API, not of the reconciliation rules; another implementation MAY provide a different transport. If it speaks `delta.v1`, each frame is a text message holding a `WsMessage` ([schema](../packages/contracts/schema/ws-message.json)):
+A cell's updates can be streamed to a client over a WebSocket. This is part of the reference implementation's API, not of the reconciliation rules; another implementation MAY provide a different transport. The channel schemas are normative only for an implementation that offers `delta.v1`. Each frame is a text message holding a `WsMessage` ([schema](../packages/contracts/schema/ws-message.json)):
 
 - `snapshot`: a `CellSnapshot`, sent first on connect.
 - `event`: a `ReconciliationEvent` and the work items it touched, once per ledger line.
 - `agent-activity`: one line of live agent output (`workItemId`, `runId`, `kind` of `status`, `tool`, `text` or `error`, `text`, `ts`). Not stored.
 
-The reference implementation selects the `delta.v1` subprotocol, adds a top-level `meta` key to each frame (strip it before validating), and resumes with `?since=<seq>`. Authentication in the reference implementation rides in a second subprotocol value; see [`control-loop.md`](control-loop.md).
+The handshake, the extra top-level `meta` key on each frame (strip it before validating), resume with `?since=<seq>` and authentication are described in [`control-loop.md`](control-loop.md).
 
 ### 3.15 Rules R1 to R9
 
 These are the rules a conforming implementation MUST apply. Each is checked by named tests in `packages/delta-core/src`. Test pointers are `file` then the `describe` block.
 
-**R1. Staleness is facet-level.** When a new accepted version of a record is observed, every work item that is not promoted and has an accepted dependency on that record MUST be compared against it. The item is Stale if and only if a facet its dependency names (every facet, when `facetKeys` is empty) was added, removed or changed between the version in the item's receipt and the new version. Prose never causes staleness. With `staleness: record`, any new version or blob hash does. A Stale item gets a `RECORD_CONDITION`, a `REQUEST_REVIEW` and, through the Blocked condition, a `BLOCK_PROMOTION`. Only accepted versions count; the acceptance rule in section 3.2 applies. A prose-only change yields `NO_ACTION` with `PROSE_ONLY`.
+**R1. Staleness is facet-level.** When a new accepted version of a record is observed, every work item that is not promoted and has an accepted dependency on that record MUST be compared against it. The item is Stale when a facet its dependency names (every facet, when `facetKeys` is empty) was added, removed or changed between the version in the item's receipt and the new version. It is also Stale when the receipt never delivered the record (see R4), or when the version the receipt holds is unknown to the cell or ahead of the accepted head (`UNKNOWN_CONTEXT_VERSION`). Prose never causes staleness. With `staleness: record`, any new version or blob hash does. A Stale item gets a `RECORD_CONDITION`, a `REQUEST_REVIEW` and, through the Blocked condition, a `BLOCK_PROMOTION`. Only accepted versions count; the acceptance rule in section 3.2 applies. A prose-only change yields `NO_ACTION` with `PROSE_ONLY`.
 Tests: `rules-r1-r2.test.ts` ("R1 staleness is facet-level", "R1 context acceptance (authority and shape)"); invariant "prose-only edit stales nothing".
 
-**R2. Unaffected work is left alone, with the reason recorded.** A work item that does not depend on a changed facet MUST NOT change status, conditions or receipt. The implementation MUST record a `NO_ACTION` effect with `NO_DEPENDENCY_ON_CHANGED_FACETS` for it.
+**R2. Unaffected work is left alone, with the reason recorded.** A work item with no accepted dependency on a changed facet, and no claim citing the changed record, MUST NOT change status, conditions or receipt. The implementation records a `NO_ACTION` effect with `NO_DEPENDENCY_ON_CHANGED_FACETS` for each such item, except on a prose-only change, where a single `NO_ACTION` with `PROSE_ONLY` stands for all items. An item whose claims cite the changed record (or that holds an approval or exception on it) is refreshed instead, and may become a `ClaimConflict` (`SUPERSEDED_BASIS`) or lose its approval.
 Tests: `rules-r1-r2.test.ts` ("R2 unaffected work is left alone, with the reason recorded"); invariant "unaffected work never changes status".
 
 **R3. Claim conflict.** When a fork push supplies claims for its head, each claim is compared with the current accepted record it cites.
@@ -259,7 +269,7 @@ Tests: `rules-r3-r4.test.ts` ("R4 undeclared reliance", "R3b and R4 on the sales
 An `accept-exception` waives the staleness and conflict findings of the record it names, and that record's own validation check, and nothing else. It never waives unknowns, `FORK_EDITS_CONTEXT`, or another record's checks. The gate is a dry run: evaluating it changes nothing.
 Tests: `rules-r5-r9.test.ts` ("R5 promotion gate"); `freeze-fixes.test.ts` ("S1 an exception waives only the excepted record's own checks", "S3 a fork cannot smuggle context/** through a merge").
 
-**R6. Revalidation.** A `revalidate` resolution is accepted only for an item that is Stale or in conflict, only from a human, only one at a time, and at most `maxRevalidations` times. When accepted, the engine emits `REQUEST_REVALIDATION` and `DISPATCH_WORK` carrying the facet diff, and the item is `revalidating`. After the limit, the answer is `REQUEST_REVIEW` and `BLOCK_PROMOTION` (`REVALIDATION_LIMIT`), not another run. The adapter then issues a new receipt at the current versions (`ReceiptIssued`). The engine MUST take a new receipt only while a revalidation is in progress, and only if each entry matches the current accepted version, `blobHash` and `facetHash` and every accepted dependency is covered; otherwise it is refused (`RECEIPT_MISMATCH`). The receipt does not hide old claims and does not by itself make the item promotable: the revalidation ends at the agent's next push, or when the run tied to it fails or is cancelled.
+**R6. Revalidation.** A `revalidate` resolution is accepted only for an item that is Stale or in conflict, only from a human, only one at a time, and at most `maxRevalidations` times. When accepted, the engine emits `REQUEST_REVALIDATION` and `DISPATCH_WORK` carrying the facet diff, and the item is `revalidating`. After the limit, the answer is `REQUEST_REVIEW` and `BLOCK_PROMOTION` (`REVALIDATION_LIMIT`), not another run. The adapter then issues a new receipt at the current versions (`ReceiptIssued`). The engine MUST take a new receipt only while a revalidation is in progress; with none in progress it is refused (`REVALIDATION_NOT_REQUESTED`). During a revalidation it is taken only if each entry matches the current accepted version, `blobHash` and `facetHash` and every accepted dependency is covered; otherwise it is refused (`RECEIPT_MISMATCH`). The receipt does not hide old claims and does not by itself make the item promotable: the revalidation ends at the agent's next push, or when the run tied to it fails or is cancelled.
 Tests: `rules-r5-r9.test.ts` ("R6 revalidation"); `revalidation-freshness.test.ts` ("R6: one revalidation at a time"); `freeze-fixes.test.ts` ("S7 and N7 revalidation preconditions").
 
 **R7. Approval binding.** A resolution MUST be refused (`STALE_BINDING`) unless its binding equals the cell's current state: `baseSha` is the baseline commit, `contextSnapshotHash` is the current snapshot hash, `forkHeadSha` is the fork's current head (and the fork has pushed), and `recordId`, `version` and `blobHash` are the record's current accepted head. Only a human may resolve. An `accept-exception` additionally requires the actor to be the record's authority, and there must be something stale or conflicting on that record to except. An exception lapses (`EXCEPTION_LAPSED`) when its record gets a new accepted version, when the fork head moves, or when its actor stops being the record's authority; a prose-only edit that keeps the version does not lapse it. Promotion is a compare-and-swap on `expectedBaselineCommit` and `forkHeadSha` (`BASELINE_MOVED`, `HEAD_MOVED`), re-runs the gate at the current heads, and is two-phase: the engine emits `ALLOW_PROMOTION`, the adapter merges, and `PromotionMerged` re-runs the gate and is recorded as a promotion only if it still passes and an approval exists (`PROMOTION_NOT_APPROVED`).
@@ -268,14 +278,14 @@ Tests: `rules-r5-r9.test.ts` ("R7 approval binding and promotion"); `revalidatio
 **R8. Evidence is produced by the implementation, not the agent, and counts only at the current head.** Evidence counts only if it is for the work item's fork, names the item's current head, and is the latest result for its check. A new push invalidates earlier evidence. Failing evidence blocks the item whether or not `contract-test` is required. Evidence of kind `delta-claims-check` MUST NOT satisfy, fail or overwrite a validation check. The engine cannot verify who produced evidence, so the adapter MUST run checks itself on the pushed content and MUST NOT accept evidence from the agent. In the reference implementation only the Worker's internal observation hook writes evidence.
 Tests: `rules-r5-r9.test.ts` ("R8 evidence only counts at the current head"); `claims-check-evidence.test.ts`.
 
-**R9. Idempotency.** Events are deduplicated on the keys in section 3.11. Processing a duplicate MUST return `NO_ACTION` with `DUPLICATE_EVENT`, leave state and ledger unchanged, and write no ledger line, whatever the timestamp. A command whose idempotency key was already used with a different request is a conflict (`IDEMPOTENCY_CONFLICT`) and writes nothing. A work item cannot be registered twice.
+**R9. Idempotency.** Events are deduplicated on the keys in section 3.11. Processing a duplicate MUST return `NO_ACTION` with `DUPLICATE_EVENT`, leave state and ledger unchanged, and write no ledger line. For events other than commands this holds whatever the timestamp. A command (`DependencyDecided`, `ResolutionRecorded`, `PromotionRequested`) is a duplicate only if the whole event, including `ts`, is identical in canonical JSON. A command whose idempotency key was already used with any other content is a conflict (`IDEMPOTENCY_CONFLICT`) and writes nothing. A work item cannot be registered twice.
 Tests: `rules-r5-r9.test.ts` ("R9 idempotency"); invariant "replayed event yields one ledger entry".
 
 The five **named invariants** run against four scenario fixtures and every test store: unaffected work never changes status; prose-only edit stales nothing; replayed event yields one ledger entry; agent actor cannot resolve; chain breaks on any edit (`invariants.test.ts`, `testing/invariants.ts`). The hash chain itself is tested in `ledger.test.ts`.
 
 ## 4. Conformance
 
-A conforming implementation applies the rules in section 3.15, accepts and emits the objects in sections 3.1 to 3.13 with the formats given there, and produces the same state and effects as the reference engine for the same inputs.
+A conforming implementation applies the rules in section 3.15, accepts and emits the objects in sections 3.1 to 3.13 with the formats given there, and produces the same state and effects as the reference engine for the same inputs. "The same" means the same statuses, condition types, effect types and reason codes; the `message` text is informative.
 
 Today the conformance suite is the test suite of this repository, and it runs against this implementation only. It is not packaged separately, and it does not yet take an arbitrary implementation as a parameter. What exists:
 
@@ -351,7 +361,7 @@ A record MAY name its grounds, the reason behind it, as a chain such as goal, re
 
 - `observed`: seen directly by a check or a person.
 - `reported`: stated by someone who is not verified. Today's claims are reported.
-- `inferred`: derived by a rule or a model. Today's inferred dependencies are inferred.
+- `inferred`: derived by a rule or a model. R4's `basis: inferred` dependencies would be in this state.
 - `disputed`: two sources disagree and no authority has settled it.
 - `unknown`: nobody has said.
 
@@ -365,11 +375,13 @@ Who may accept a record would be pluggable. Today it is a named owner: one actor
 
 A goal is for records, dependencies, receipts and the ledger to be exportable to open provenance formats such as W3C PROV, so that a decision's history can be read by tools that know nothing about this protocol. No mapping has been defined or checked.
 
+Records are Markdown files with YAML front-matter, the same shape as the Open Knowledge Format (OKF) v0.2, an Apache-2.0 format published by Google Cloud (https://github.com/GoogleCloudPlatform/open-knowledge-format). OKF requires a `type` field, which records do not yet carry, so records are not yet valid OKF documents. OKF covers provenance and advisory trust; the protocol adds acceptance, authority, dependencies and gating. A compatibility profile (an optional `type` plus OKF's optional keys) and an exporter (status mapped as proposed→draft, accepted→stable, superseded→deprecated) are planned. Neither is implemented.
+
 ## 7. Versioning and open questions
 
 ### 7.1 Versioning of the protocol
 
-This document is **v0.1**. Wire identifiers carry their own versions: the receipt note header `delta-receipt/v1`, the WebSocket subprotocol `delta.v1`, and `CellState.schemaVersion` 1. They change only for a breaking change.
+This document is **v0.1**. Wire identifiers carry their own versions: the receipt note header `delta-receipt/v1`, the WebSocket subprotocol `delta.v1`, and `CellState.schemaVersion` 1. They change only for a breaking change. The identifiers `delta-receipt/v1`, `delta.v1`, `refs/notes/delta`, `.delta/` and `DeltaEvent` are named after the reference engine (Delta) and are kept for compatibility.
 
 Breaking changes (they MUST change a version identifier and be listed with the release):
 - removing or renaming an object, a field, an event type, an effect type or a reason code;

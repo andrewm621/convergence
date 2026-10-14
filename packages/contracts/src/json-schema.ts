@@ -16,6 +16,15 @@ import { CellSnapshot, WsMessage } from "./ws";
  * `description` says so and names them, and the Zod schema stays normative for those rules.
  */
 
+/**
+ * Descriptions for shared definitions that carry rules a JSON Schema cannot express. A definition gets its
+ * description in every file that embeds it, so a reader of any of them is told.
+ */
+const DEFINITION_DESCRIPTIONS: Readonly<Record<string, string>> = {
+	Resolution:
+		"A human disposition of a work item, bound to the exact context and fork head it was made against. Not expressed here: rationale and scope are trimmed before validation, so whitespace-only text fails Zod even though it passes JSON Schema, and scope is required when kind is accept-exception.",
+};
+
 type Entry = { file: string; title: string; description: string; schema: z.ZodType };
 
 /** One entry per top-level wire object documented in docs/PROTOCOL.md section 3. */
@@ -73,7 +82,7 @@ export const SCHEMA_ENTRIES: readonly Entry[] = [
 	{
 		file: "resolution",
 		title: "Resolution",
-		description: "A human disposition of a work item, bound to the exact context and fork head it was made against. Not expressed here: scope is required when kind is accept-exception.",
+		description: DEFINITION_DESCRIPTIONS["Resolution"] as string,
 		schema: Resolution,
 	},
 	{
@@ -129,9 +138,11 @@ const NAMED_SCHEMAS: ReadonlyArray<readonly [string, z.ZodType]> = Object.entrie
 );
 
 function namesExcept(root: z.ZodType) {
-	const registry = z.registry<{ id: string }>();
+	const registry = z.registry<{ id: string; description?: string }>();
 	for (const [name, schema] of NAMED_SCHEMAS) {
-		if (schema !== root && !registry.has(schema)) registry.add(schema, { id: name });
+		if (schema === root || registry.has(schema)) continue;
+		const description = DEFINITION_DESCRIPTIONS[name];
+		registry.add(schema, description ? { id: name, description } : { id: name });
 	}
 	return registry;
 }

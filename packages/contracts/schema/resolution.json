@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Resolution",
-  "description": "A human disposition of a work item, bound to the exact context and fork head it was made against. Not expressed here: scope is required when kind is accept-exception.",
+  "description": "A human disposition of a work item, bound to the exact context and fork head it was made against. Not expressed here: rationale and scope are trimmed before validation, so whitespace-only text fails Zod even though it passes JSON Schema, and scope is required when kind is accept-exception.",
   "type": "object",
   "properties": {
     "kind": {

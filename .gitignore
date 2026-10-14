@@ -36,7 +36,7 @@ worker-configuration.d.ts.bak
 !.vscode/extensions.json
 .idea/
 
-# Maestro task board: kept locally, not published
+# Local task board: kept locally, not published
 .maestro/
 
 # Claude Code agent worktrees

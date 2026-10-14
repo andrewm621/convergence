@@ -44,14 +44,21 @@ describe("JSON Schemas match the Zod contracts", () => {
 		});
 	}
 
-	it("every schema is closed (strict objects) and names a draft", () => {
-		for (const text of Object.values(generated)) {
+	it("every schema names a draft, and every object with fixed properties is closed", () => {
+		// Maps (z.record) are objects too, with a schema for additionalProperties; only objects with named properties must be closed.
+		const unclosed = (node: unknown, path: string): string[] => {
+			if (node === null || typeof node !== "object") return [];
+			if (Array.isArray(node)) return node.flatMap((child, index) => unclosed(child, `${path}/${index}`));
+			const object = node as Record<string, unknown>;
+			const here = object["type"] === "object" && "properties" in object && object["additionalProperties"] !== false ? [path] : [];
+			return [...here, ...Object.entries(object).flatMap(([key, child]) => unclosed(child, `${path}/${key}`))];
+		};
+		for (const [name, text] of Object.entries(generated)) {
 			const schema = JSON.parse(text) as Record<string, unknown>;
-			expect(schema["$schema"]).toBe("https://json-schema.org/draft/2020-12/schema");
-			expect(schema["title"]).toEqual(expect.any(String));
+			expect(schema["$schema"], name).toBe("https://json-schema.org/draft/2020-12/schema");
+			expect(schema["title"], name).toEqual(expect.any(String));
+			expect(unclosed(schema, name), `${name} has open objects`).toEqual([]);
 		}
-		const frontMatter = JSON.parse(generated["context-record-front-matter.json"] as string) as { additionalProperties?: unknown };
-		expect(frontMatter.additionalProperties).toBe(false);
 	});
 
 	it("generator entries cover the exported wire schemas they claim to", () => {

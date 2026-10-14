@@ -120,7 +120,7 @@ Notes:
 
 ## Still unverified
 
-- **A container-run contract test suite (R8).** Not built. What the loop records is the Worker's own pure check on the pushed files (`kind: "delta-run-check"`, `cell/contract-checks.ts`), which is real Delta-run evidence but narrower than a test run; sales-ops has no check. The Worker's claims check (`kind: "delta-claims-check"`) is informational and never satisfies `requires: ["contract-test"]`.
+- **A container-run contract test suite (R8).** Not built. What the loop records is the Worker's own pure check on the pushed files (`kind: "delta-run-check"`, `cell/contract-checks.ts`), which is real Worker-run evidence but narrower than a test run; sales-ops has no check. The Worker's claims check (`kind: "delta-claims-check"`) is informational and never satisfies `requires: ["contract-test"]`.
 - **A browser's WebSocket handshake** (Node's client was used, with the same subprotocol), and reconnect with `?since=`.
 - Poller failure paths against the real service (backoff, degraded notes, a baseline far ahead), and alarm cadence over a long idle period.
 - **Queues: not used.** Heads are polled from a Durable Object alarm, so there is no Queue path to verify.
