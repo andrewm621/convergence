@@ -108,7 +108,7 @@ export function ActorChip({ actor, label, className }: { actor: Pick<Actor, "kin
 		<Badge tone={actor.kind === "human" ? "primary" : "outline"} data-actor={actor.kind} className={className}>
 			<Icon aria-hidden />
 			<span className="sr-only">{actor.kind}: </span>
-			{label ?? (LETTERED_AGENT.test(actor.displayName) ? "Agent" : actor.displayName)}
+			<span className="truncate">{label ?? (LETTERED_AGENT.test(actor.displayName) ? "Agent" : actor.displayName)}</span>
 		</Badge>
 	);
 }

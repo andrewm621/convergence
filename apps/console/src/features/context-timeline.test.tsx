@@ -86,6 +86,7 @@ describe("propose change", () => {
 		// A decision change must say why.
 		await user.click(screen.getByRole("button", { name: "Make v2 the decision" }));
 		expect(await screen.findByText("Say why the decision changed.")).toBeInTheDocument();
+		expect(screen.getByLabelText("Why this change")).toHaveFocus();
 
 		await user.type(screen.getByLabelText("Why this change"), "Opt-in only.");
 		await user.click(screen.getByRole("button", { name: "Make v2 the decision" }));

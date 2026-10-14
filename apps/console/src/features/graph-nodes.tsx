@@ -104,9 +104,9 @@ export function WorkItemNode({ data }: NodeProps & { data: ItemData }) {
 		>
 			<Handle type="source" position={Position.Left} id="dep" />
 			<div className="flex items-center gap-2">
-				<span className="font-mono text-[13px] font-semibold">{wi.item.id}</span>
+				<span className="shrink-0 font-mono text-[13px] font-semibold whitespace-nowrap">{wi.item.id}</span>
 				{running && <Loader className="size-3.5 shrink-0 text-info motion-safe:animate-spin" aria-hidden />}
-				<ActorChip actor={wi.item.actor} label={scenarioMeta(client.scenario, client.kind === "live").agentLabel ?? agentModelFor(view, wi.item.id) ?? undefined} className="min-w-0 text-[13px]" />
+				<ActorChip actor={wi.item.actor} label={scenarioMeta(client.scenario, client.kind === "live").agentLabel ?? agentModelFor(view, wi.item.id) ?? undefined} className="min-w-0 shrink text-[13px] [&>svg]:shrink-0" />
 				<StatusChip status={wi.item.status} leftAlone={quiet !== null} excepted={excepted} className="ml-auto text-[13px]" />
 			</div>
 			<p className="truncate leading-tight font-semibold" style={{ fontSize: FIT.itemTitlePx }} title={wi.item.title}>
@@ -147,7 +147,7 @@ export function ClusterNode({ data }: NodeProps & { data: ClusterData }) {
 			<p className="px-3 pb-2.5 text-[13px] text-muted-foreground">
 				Synthetic, no model behind them.{" "}
 				{Object.entries(counts)
-					.map(([status, n]) => `${n} ${status}`)
+					.map(([status, n]) => `${n} ${status === "agent working" && n !== 1 ? "agents working" : status}`)
 					.join(" · ")}
 			</p>
 			<div className="nodrag nopan grid px-3 pb-3" style={{ gridTemplateColumns: `repeat(${data.columns}, ${TILE.width}px)`, gap: TILE.gap }}>

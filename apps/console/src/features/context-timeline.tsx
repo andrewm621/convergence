@@ -322,8 +322,15 @@ export function ChangeEditor({ recordId, snapshot, onClose }: { recordId: string
 	// Prose edits get an automatic reason; a decision change must say why.
 	const effectiveRationale = rationale.trim() === "" && changes.length === 0 && proseChanged ? WORDING_REASON : rationale.trim();
 
+	const whyRef = useRef<HTMLInputElement>(null);
+
 	async function submit() {
 		setSubmitted(true);
+		if (!nothingToCommit && !moved && !keyProblem && effectiveRationale === "") {
+			// The reason field can sit below the fold: bring it into view.
+			whyRef.current?.focus();
+			whyRef.current?.scrollIntoView({ block: "center" });
+		}
 		if (nothingToCommit || moved || keyProblem || effectiveRationale === "") return;
 		setSubmitting(true);
 		markChangeSent();
@@ -397,6 +404,7 @@ export function ChangeEditor({ recordId, snapshot, onClose }: { recordId: string
 			<div className="space-y-1">
 				<Label htmlFor={`why-${recordId}`}>Why this change</Label>
 				<Input
+					ref={whyRef}
 					id={`why-${recordId}`}
 					value={rationale}
 					onChange={(e) => {
