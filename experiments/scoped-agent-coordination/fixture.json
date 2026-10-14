@@ -1,0 +1,67 @@
+{
+  "project": "andrewm621/convergence",
+  "source": "scenarios/delta-convergence-build/src/records.ts",
+  "historicalReconstruction": true,
+  "note": "Decisions and commit ids are from the repo's existing build-history scenario. Agent packets and outputs below are experimental stand-ins.",
+  "change": {
+    "recordId": "evidence-policy",
+    "authority": "decision-owner",
+    "from": {
+      "version": 1, "commit": "7d7fa09fcb5c7deb442302412e7747e3f132e916",
+      "facets": {
+        "evidence.counts-as-test": "claims-check",
+        "evidence.claims-check-role": "test",
+        "evidence.required-facets": "none"
+      }
+    },
+    "to": {
+      "version": 2, "commit": "835083048a2807f22e5ba40959b13f82a3b9345a",
+      "facets": {
+        "evidence.counts-as-test": "delta-run-check",
+        "evidence.claims-check-role": "informational",
+        "evidence.required-facets": "none"
+      }
+    }
+  },
+  "roles": [
+    {
+      "id": "builder", "workItemId": "WI-1",
+      "task": "Inspect the M4 revalidation loop and report which check gates promotion.",
+      "baselineRef": "7d7fa09fcb5c7deb442302412e7747e3f132e916",
+      "artifactRef": "ce882f2ecdd1b6f66f3d0804fa2eb169cc093dd4",
+      "receipt": {"recordId":"evidence-policy","version":1},
+      "dependsOn": ["evidence.counts-as-test", "evidence.claims-check-role", "evidence.required-facets"],
+      "visibleKnowledge": {"focus":"implementation","priorPractice":"a claims check gates the work item"},
+      "capabilities": ["inspect-code","propose-code"]
+    },
+    {
+      "id": "console", "workItemId": "WI-2",
+      "task": "Review how the console labels agent claims versus executed verification.",
+      "baselineRef": "7d7fa09fcb5c7deb442302412e7747e3f132e916",
+      "artifactRef": "668970268c10adb56035a6a9721a3dd8e2eb4b81",
+      "receipt": {"recordId":"evidence-policy","version":1},
+      "dependsOn": ["evidence.counts-as-test", "evidence.claims-check-role"],
+      "visibleKnowledge": {"focus":"review UX","priorPractice":"claims checks were presented as tests"},
+      "capabilities": ["inspect-console","propose-ui"]
+    },
+    {
+      "id": "docs", "workItemId": "WI-7",
+      "task": "Check the console identity label; unrelated to evidence policy.",
+      "baselineRef": "30368947b30fc5f4ee8f6d34a9e7721e9c2d9529",
+      "artifactRef": "30368947b30fc5f4ee8f6d34a9e7721e9c2d9529",
+      "receipt": {"recordId":"demo-identity","version":1},
+      "dependsOn": ["identity.label"],
+      "visibleKnowledge": {"focus":"identity label","expected":"Decision owner (demo identity)"},
+      "capabilities": ["inspect-docs","propose-docs"]
+    },
+    {
+      "id": "red-team", "workItemId": "REVIEW-1",
+      "task": "Challenge whether an agent claims check is independent proof of test execution.",
+      "baselineRef": "835083048a2807f22e5ba40959b13f82a3b9345a",
+      "receipt": {"recordId":"evidence-policy","version":2},
+      "dependsOn": ["evidence.counts-as-test"],
+      "visibleKnowledge": {"focus":"verification criteria","evidenceType":"agent-asserted claims only","trustedTestReceipt":null},
+      "capabilities": ["inspect-redacted-claims","propose-finding"]
+    }
+  ]
+}
