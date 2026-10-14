@@ -397,6 +397,35 @@ A goal is for records, dependencies, receipts and the ledger to be exportable to
 
 Records are Markdown files with YAML front-matter, the same shape as the Open Knowledge Format (OKF) v0.2, an Apache-2.0 format published by Google Cloud (https://github.com/GoogleCloudPlatform/open-knowledge-format). OKF requires a `type` field, which records do not yet carry, so records are not yet valid OKF documents. OKF covers provenance and advisory trust; the protocol adds acceptance, authority, dependencies and gating. A compatibility profile (an optional `type` plus OKF's optional keys) and an exporter (status mapped as proposed→draft, accepted→stable, superseded→deprecated) are planned. Neither is implemented.
 
+### 6.6 Record kinds (Draft, not implemented)
+
+v0.1 treats every record as a decision or a definition: a version governs because its named authority accepted it. The draft adds a `kind` field, because authority works differently for different kinds of record:
+
+- `decision` and `definition`: accepted by the named authority, as today.
+- `fact`: backed by evidence. Accepting a fact does not make it true, so acceptance and evidence are kept as separate fields.
+- `assumption`: carries a review-by date, after which work that relies on it would be flagged.
+- `commitment`: names the parties, the conditions, the undertaking, a fulfilment criterion, and how it is revised or released.
+
+Open questions: whether a commitment is a record kind or a separate object (see 7.2), what flags work when a fact's evidence is withdrawn, and how a review-by date passes when the engine reads no clock (an adapter would have to supply it as an event).
+
+### 6.7 Update and correction (Draft, not implemented)
+
+v0.1 treats every change as an update. An update supersedes the old version going forward: work done against the old version was right at the time, so promoted work is left alone and only in-flight work is flagged (R1 skips promoted items). A correction declares that the earlier version was wrong. Work already promoted on it may also be wrong, so the flag would reach promoted work too, and the ledger would record the change as a correction, not an update. The draft adds a field on the new version, such as `change: update | correction`, set by the authority that accepts it.
+
+Open question: what a flag on promoted work leads to. The gate has nothing left to block, so a correction needs a follow-up (a new work item, a review request or a reversal), and v0.1 has no object for it.
+
+### 6.8 Location-independent references (Draft, not implemented)
+
+A record would be identified by its id, version and content hash wherever it is stored. Git (`context/**.md` in the baseline) becomes one storage binding among others. The rules in section 3.15 already work on ids, versions and hashes; the v0.1 wire formats assume git. A receipt pins `baselineCommit`, a commit id, and travels as a git note under `refs/notes/delta`; resolutions and promotions name fork heads and baseline commits; evidence names a head; claims live at `.delta/claims.json` in the fork. A non-git binding would need its own receipt carrier and its own notion of a head.
+
+Open question: whether a receipt that holds only ids, versions and hashes is enough, or whether each binding must also pin a snapshot of its store, as `baselineCommit` does today.
+
+### 6.9 Materiality (Draft, not implemented)
+
+v0.1 already flags at facet level, not record level: a new version flags only work whose relied-on facets changed (R1), and other work is left alone (R2). Even so, a version change is not proof that the work is incompatible. A flagged item may be stale but compatible: the facet changed, and the work happens to satisfy the new value. The flag says the work has to be looked at again; revalidation decides (R6). The draft would show a check run against the new version next to the flag, so the person resolving it can see whether the work still passes.
+
+Open question: whether a deterministic check that passes at the new version may ever clear a flag without a person. Today it cannot: a Stale item needs a revalidation or an exception before it can be promoted (R5, R6, R7).
+
 ## 7. Versioning and open questions
 
 ### 7.1 Versioning of the protocol
