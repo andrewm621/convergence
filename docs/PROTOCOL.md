@@ -287,10 +287,13 @@ The five **named invariants** run against four scenario fixtures and every test 
 
 A conforming implementation applies the rules in section 3.15, accepts and emits the objects in sections 3.1 to 3.13 with the formats given there, and produces the same state and effects as the reference engine for the same inputs. "The same" means the same statuses, condition types, effect types and reason codes; the `message` text is informative.
 
-Today the conformance suite is the test suite of this repository, and it runs against this implementation only. It is not packaged separately, and it does not yet take an arbitrary implementation as a parameter. What exists:
+The conformance kit in [`conformance/`](../conformance/README.md) checks an implementation from the outside, in any language. It holds JSON test vectors generated from the reference engine over the scenario fixtures. Each vector gives a cell state, a policy and one event, and the expected result projected to the fields above: statuses, condition types, effect types and reason codes, plus the ids, versions and hashes that the inputs fix. Every rule R1 to R9, and R3b, has positive and negative vectors, and the worked example of section 2 is a named sequence. The runner takes the implementation as a shell command, writes `{given, when}` to its stdin, reads `{state, effects}` from its stdout and compares the projections. Passing means the same normative result on these vectors. It does not certify an adapter's git or Artifacts handling, its security or its authorization, which one reconcile step cannot show.
+
+The rest of the conformance suite is the test suite of this repository, and it runs against this implementation only. What exists:
 
 | Part | Files | Checks |
 |---|---|---|
+| Conformance kit | `conformance/` (vectors, `run.ts`, `adapters/reference.ts`) | Rules R1 to R9 against any implementation over stdin and stdout; the reference passes every vector, and deliberately broken engines fail the vectors for the rule they break |
 | Rules R1 to R9 | `packages/delta-core/src/rules-r1-r2.test.ts`, `rules-r3-r4.test.ts`, `rules-r5-r9.test.ts`, `revalidation-freshness.test.ts`, `claims-check-evidence.test.ts`, `freeze-fixes.test.ts` | Each rule, with positive and negative cases, on the notifications and sales-ops fixtures |
 | Named invariants | `invariants.test.ts` with `testing/invariants.ts` | Five invariants on each of four fixtures (notifications, sales-ops, shelter-intake, delta-convergence-build) and each test store |
 | Ledger | `ledger.test.ts` | Hash chain, tamper detection, anchors |
@@ -306,7 +309,9 @@ Run it:
 pnpm install
 pnpm --filter delta-core test      # rules, invariants, ledger, stores, purity, scenarios
 pnpm --filter contracts test       # wire formats and JSON Schemas
-pnpm -r test                       # everything, including the Worker adapter
+pnpm -r test                       # everything, including the Worker adapter and the conformance kit
+pnpm conformance                   # the conformance vectors against the reference engine
+node conformance/run.ts --impl "<command>"   # ... or against another implementation
 ```
 
 After changing a contract, regenerate the JSON Schemas with `pnpm --filter contracts schema`. The test fails until the committed files match.
