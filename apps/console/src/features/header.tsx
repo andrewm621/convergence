@@ -1,4 +1,4 @@
-import { Film, Info, KeyRound, Moon, Radio, Sun, TriangleAlert, User, WifiOff } from "lucide-react";
+import { Film, Info, KeyRound, LayoutList, Moon, Network, Radio, Sun, TriangleAlert, User, WifiOff } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -6,6 +6,7 @@ import { promptForToken } from "@/client/auth";
 import { SCENARIOS, type ConnectionState, type PollerHealth, type ScenarioName } from "@/client/types";
 import { ACTING_AS, POLL_INTERVAL_MS } from "@/config";
 import { cn } from "@/lib/utils";
+import type { ViewMode } from "@/state/console-context";
 import { SCENARIO_META, SYNTHETIC_NOTE, scenarioMeta } from "./scenario-meta";
 
 export function ScenarioSwitcher({ value, onChange, live = false }: { value: ScenarioName; onChange(next: ScenarioName): void; live?: boolean }) {
@@ -30,6 +31,39 @@ export function ScenarioSwitcher({ value, onChange, live = false }: { value: Sce
 						<Icon className="size-3.5" aria-hidden />
 						{meta.label}{" "}
 						<span className="hidden text-xs font-normal text-muted-foreground 2xl:inline">· {meta.kind}</span>
+					</button>
+				);
+			})}
+		</div>
+	);
+}
+
+const MODES: { value: ViewMode; label: string; icon: typeof Radio; hint: string }[] = [
+	{ value: "work", label: "Work", icon: LayoutList, hint: "What needs you, and where the rest of the work stands" },
+	{ value: "map", label: "Map", icon: Network, hint: "Who is building on which decision, as a graph" },
+];
+
+/** Work | Map: the new shell's two views. */
+export function ModeSwitcher({ value, onChange }: { value: ViewMode; onChange(next: ViewMode): void }) {
+	return (
+		<div role="radiogroup" aria-label="View" data-testid="mode-switcher" className="inline-flex shrink-0 items-center rounded-lg border bg-muted p-0.5">
+			{MODES.map(({ value: mode, label, icon: Icon, hint }) => {
+				const active = mode === value;
+				return (
+					<button
+						key={mode}
+						type="button"
+						role="radio"
+						aria-checked={active}
+						title={hint}
+						onClick={() => onChange(mode)}
+						className={cn(
+							"inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-[13px] font-medium whitespace-nowrap transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
+							active ? "bg-card text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground",
+						)}
+					>
+						<Icon className="size-3.5" aria-hidden />
+						{label}
 					</button>
 				);
 			})}
@@ -105,8 +139,13 @@ export function Header({
 	connection,
 	poller = null,
 	live = false,
+	mode,
+	onMode,
 }: {
 	scenario: ScenarioName;
+	/** The new shell's Work | Map control. Left out, the header has none (the classic shell). */
+	mode?: ViewMode;
+	onMode?(next: ViewMode): void;
 	/** The live client, not the mock. */
 	live?: boolean;
 	onScenario(next: ScenarioName): void;
@@ -135,6 +174,7 @@ export function Header({
 					</div>
 				</div>
 				<div className="h-6 w-px shrink-0 bg-border" aria-hidden />
+				{mode && onMode && <ModeSwitcher value={mode} onChange={onMode} />}
 				<ScenarioSwitcher value={scenario} onChange={onScenario} live={live} />
 				<div className="ml-auto flex shrink-0 items-center gap-3">
 					<PollerBadge poller={poller} />

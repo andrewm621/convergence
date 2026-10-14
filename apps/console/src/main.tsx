@@ -2,7 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { bootstrapToken } from "@/client/auth";
 import { readRuntime } from "@/client/create-client";
-import { App } from "./app";
+import { App, readUi } from "./app";
 import "./index.css";
 
 const root = document.getElementById("root");
@@ -14,6 +14,6 @@ if (!runtime.mock) bootstrapToken();
 
 createRoot(root).render(
 	<StrictMode>
-		<App runtime={runtime} />
+		<App runtime={runtime} ui={readUi(window.location.search)} />
 	</StrictMode>,
 );

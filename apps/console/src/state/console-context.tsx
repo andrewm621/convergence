@@ -11,6 +11,9 @@ export type EditorRequest = { recordId: string; facets: Record<string, FacetValu
 
 export type InspectorTab = "why" | "receipt" | "semantic" | "changes" | "actions";
 
+/** The new shell's two views: Work (home trays and item pages) and Map (the work graph with the side pane). */
+export type ViewMode = "work" | "map";
+
 type ConsoleContextValue = {
 	client: ConsoleClient;
 	view: ViewState;
@@ -19,6 +22,8 @@ type ConsoleContextValue = {
 	select(id: string | null): void;
 	tab: InspectorTab;
 	setTab(tab: InspectorTab): void;
+	mode: ViewMode;
+	setMode(mode: ViewMode): void;
 	editorRequest: EditorRequest | null;
 	requestEditor(request: Omit<EditorRequest, "nonce"> | null): void;
 	toasts: Toast[];
@@ -47,6 +52,7 @@ export function ConsoleProvider({ client, children, flushMs = 24 }: { client: Co
 	const [connection, setConnection] = useState<ConnectionState>("connecting");
 	const [selectedId, setSelectedId] = useState<string | null>(null);
 	const [tab, setTab] = useState<InspectorTab>("why");
+	const [mode, setMode] = useState<ViewMode>("work");
 	const [editorRequest, setEditorRequest] = useState<EditorRequest | null>(null);
 	const [toasts, setToasts] = useState<Toast[]>([]);
 	const [observed, setObserved] = useState<ObservedEvaluation | null>(null);
@@ -111,8 +117,8 @@ export function ConsoleProvider({ client, children, flushMs = 24 }: { client: Co
 	const select = useCallback((id: string | null) => setSelectedId(id), []);
 
 	const value = useMemo<ConsoleContextValue>(
-		() => ({ client, view, connection, selectedId, select, tab, setTab, editorRequest, requestEditor, toasts, notify, markChangeSent, clearChangeSent, observed }),
-		[client, view, connection, selectedId, select, tab, editorRequest, requestEditor, toasts, notify, markChangeSent, clearChangeSent, observed],
+		() => ({ client, view, connection, selectedId, select, tab, setTab, mode, setMode, editorRequest, requestEditor, toasts, notify, markChangeSent, clearChangeSent, observed }),
+		[client, view, connection, selectedId, select, tab, mode, editorRequest, requestEditor, toasts, notify, markChangeSent, clearChangeSent, observed],
 	);
 	return (
 		<ConsoleContext.Provider value={value}>

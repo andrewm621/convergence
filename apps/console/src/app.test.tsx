@@ -1,7 +1,7 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
-import { App } from "./app";
+import { App, readUi } from "./app";
 import { readRuntime, type Runtime } from "@/client/create-client";
 import { STATUS_META } from "@/components/status";
 import { ACTING_AS } from "@/config";
@@ -26,8 +26,8 @@ describe("the console, mock-driven end to end", () => {
 		expect(screen.getByRole("radiogroup", { name: "Scenario" })).toBeInTheDocument();
 	});
 
-	it("shows the one-screen layout: context, graph, inspector, activity and ledger", async () => {
-		render(<App runtime={runtime} />);
+	it("keeps the classic one-screen layout at ?ui=classic: context, graph, inspector, activity and ledger", async () => {
+		render(<App runtime={runtime} ui="classic" />);
 		for (const name of ["Decisions", "Work graph", "Selected work", "Agents at work", "Audit log"]) {
 			expect(await screen.findByRole("region", { name })).toBeInTheDocument();
 		}
@@ -35,7 +35,7 @@ describe("the console, mock-driven end to end", () => {
 
 	it("walks the beats: both agents run, the decision changes, and WI-2 (only) turns stale", async () => {
 		const user = userEvent.setup();
-		render(<App runtime={runtime} />);
+		render(<App runtime={runtime} ui="classic" />);
 		await next(user, 1);
 		const graph = await screen.findByRole("region", { name: "Work graph" });
 		await waitFor(() => expect(within(graph).getByRole("button", { name: /WI-1 .*Agent working/ })).toBeInTheDocument());
@@ -58,7 +58,7 @@ describe("the console, mock-driven end to end", () => {
 
 	it("every status chip carries its label as text, not just a colour", async () => {
 		const user = userEvent.setup();
-		render(<App runtime={runtime} />);
+		render(<App runtime={runtime} ui="classic" />);
 		await next(user, 5);
 		await screen.findByRole("button", { name: /WI-2 .*Blocked/ });
 		const chips = document.querySelectorAll("[data-status]");
@@ -84,7 +84,7 @@ describe("the console, mock-driven end to end", () => {
 		const { unmount } = render(<App runtime={runtime} />);
 		expect(screen.queryByRole("radio", { name: /Northwind/ })).toBeNull();
 		unmount();
-		render(<App runtime={{ ...runtime, scenario: "sales-ops" }} />);
+		render(<App runtime={{ ...runtime, scenario: "sales-ops" }} ui="classic" />);
 		expect(screen.getByRole("radio", { name: /Northwind Sales Ops/ })).toBeInTheDocument();
 		expect(await screen.findByRole("heading", { name: "qualified-lead" })).toBeInTheDocument();
 		await next(user, 4);
@@ -97,7 +97,7 @@ describe("the console, mock-driven end to end", () => {
 
 	it("switches to the Larkhaven County shelter scenario, and keeps the synthetic note in view", async () => {
 		const user = userEvent.setup();
-		render(<App runtime={runtime} />);
+		render(<App runtime={runtime} ui="classic" />);
 		expect(screen.queryByTestId("scenario-note")).toBeNull();
 		expect(screen.queryByRole("radio", { name: /Northwind/ })).toBeNull();
 		await user.click(screen.getByRole("radio", { name: /Larkhaven County Shelter · knowledge work/ }));
@@ -138,6 +138,73 @@ describe("the console, mock-driven end to end", () => {
 		expect(document.documentElement.classList.contains("dark")).toBe(!before);
 		await user.click(screen.getByRole("button", { name: /Switch to (dark|light) theme/ }));
 		expect(document.documentElement.classList.contains("dark")).toBe(before);
+	});
+});
+
+describe("the new shell (the default): home trays, item pages, and a Map", () => {
+	it("is the default, and ?ui=classic keeps the old one", () => {
+		expect(readUi("?mock=1")).toBe("new");
+		expect(readUi("?mock=1&ui=classic")).toBe("classic");
+		expect(readUi("?ui=other")).toBe("new");
+	});
+
+	it("opens on the home: decisions, the trays, activity and the audit log, with no graph mounted", async () => {
+		render(<App runtime={runtime} />);
+		for (const name of ["Decisions", "Home", "Agents at work", "Audit log"]) expect(await screen.findByRole("region", { name })).toBeInTheDocument();
+		expect(screen.queryByRole("region", { name: "Work graph" })).toBeNull();
+		expect(document.querySelector(".react-flow")).toBeNull();
+		expect(within(screen.getByRole("radiogroup", { name: "View" })).getByRole("radio", { name: "Work" })).toBeChecked();
+		expect(screen.getByTestId("acting-as")).toHaveTextContent("Acting as: Decision owner (demo identity)");
+	});
+
+	it("walks the beats: WI-2 moves to Needs you with the stamp, the strip reads 1 blocked · 1 left alone, and its page opens on Why blocked?", async () => {
+		const user = userEvent.setup();
+		render(<App runtime={runtime} />);
+		await next(user, 1);
+		// The step selects WI-2; go back to the home.
+		await user.click(await screen.findByTestId("item-back"));
+		await waitFor(() => expect(screen.getByTestId("tray-count-working")).toHaveTextContent("2"));
+		expect(screen.getByTestId("tray-count-needs-you")).toHaveTextContent("0");
+
+		await next(user, 3); // typo, draft, commit v2
+		await waitFor(() => expect(screen.getByTestId("results-strip")).toHaveTextContent("1 blocked"));
+		expect(screen.getByTestId("results-strip")).toHaveTextContent("1 left alone");
+		await user.click(await screen.findByTestId("item-back"));
+		await waitFor(() => expect(screen.getByTestId("tray-count-needs-you")).toHaveTextContent("1"));
+		expect(screen.getByTestId("row-reason-WI-2")).toHaveTextContent("Built on notifications v1 · now v2");
+
+		await user.click(within(screen.getByRole("list", { name: "Needs you" })).getByRole("button", { name: /WI-2/ }));
+		const page = await screen.findByTestId("item-page");
+		expect(page).toHaveAttribute("data-work-item", "WI-2");
+		expect(within(page).getByRole("tab", { name: "Why blocked?" })).toHaveAttribute("aria-selected", "true");
+		expect(within(page).getByTestId("revalidate-button")).toBeInTheDocument();
+		expect(within(page).getByTestId("promote-button")).toBeDisabled();
+		expect(within(page).getByTestId("built-on")).toHaveTextContent("built on v1, now v2");
+		expect(within(page).getByTestId("item-back")).toHaveTextContent("Needs you");
+	});
+
+	it("switches to the Map: the graph and the side pane, and back to Work", async () => {
+		const user = userEvent.setup();
+		render(<App runtime={runtime} />);
+		await next(user, 4);
+		await user.click(screen.getByRole("radio", { name: "Map" }));
+		const graph = await screen.findByRole("region", { name: "Work graph" });
+		await waitFor(() => expect(within(graph).getByRole("button", { name: /WI-2 .*Blocked/ })).toBeInTheDocument());
+		expect(screen.getByTestId("inspector")).toHaveAttribute("data-work-item", "WI-2");
+		expect(screen.queryByTestId("item-page")).toBeNull();
+		await user.click(screen.getByRole("radio", { name: "Work" }));
+		expect(await screen.findByTestId("item-page")).toBeInTheDocument();
+		expect(screen.queryByRole("region", { name: "Work graph" })).toBeNull();
+	});
+
+	it("keeps the replay controls hidden across a change of view", async () => {
+		const user = userEvent.setup();
+		render(<App runtime={runtime} />);
+		await screen.findByTestId("mock-controls");
+		await user.click(screen.getByRole("button", { name: "Hide controls (h)" }));
+		expect(screen.queryByTestId("mock-controls")).toBeNull();
+		await user.click(screen.getByRole("radio", { name: "Map" }));
+		expect(screen.queryByTestId("mock-controls")).toBeNull();
 	});
 });
 

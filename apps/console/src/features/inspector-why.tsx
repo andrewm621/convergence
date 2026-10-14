@@ -45,7 +45,7 @@ const CONDITION_LABEL: Record<ConditionType, string> = {
  * `agent-asserted, unverified`, `test-verified`. Anything nobody has decided reads
  * "Awaiting human" and never wears a success badge.
  */
-export function WhyTab({ wi }: { wi: WorkItemState }) {
+export function WhyTab({ wi, showResolutions = true }: { wi: WorkItemState; /** The item page puts these at its top instead. */ showResolutions?: boolean }) {
 	const { view, setTab } = useConsole();
 	const { gate } = useGate(wi.item.id);
 	const analysis = useMemo(() => analysisOf(view, wi.item.id), [view, wi.item.id]);
@@ -136,9 +136,11 @@ export function WhyTab({ wi }: { wi: WorkItemState }) {
 								)}
 							</span>
 						</p>
-						<div className="mt-3 border-t border-danger/25 pt-3">
-							<Resolutions wi={wi} />
-						</div>
+						{showResolutions && (
+							<div className="mt-3 border-t border-danger/25 pt-3">
+								<Resolutions wi={wi} />
+							</div>
+						)}
 					</>
 				) : excepted.length > 0 ? (
 					<p className="mt-1.5 text-[13px] leading-relaxed" data-testid="passes-with-exception">

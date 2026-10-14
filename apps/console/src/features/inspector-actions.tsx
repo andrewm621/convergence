@@ -17,16 +17,18 @@ import { useGate } from "@/state/use-gate";
 import { PromoteButton } from "./promote-button";
 import { DEFAULT_SCOPE_EXAMPLE, scenarioMeta } from "./scenario-meta";
 
-export function ActionsTab({ wi }: { wi: WorkItemState }) {
+export function ActionsTab({ wi, withButtons = true }: { wi: WorkItemState; /** The item page has Merge and the sign-offs at its top, so its tab leaves them out. */ withButtons?: boolean }) {
 	const id = wi.item.id;
 	return (
 		<div className="space-y-5 p-4" data-testid="actions-tab">
 			<GatePreview workItemId={id} />
-			<section aria-label="Merge" className="space-y-2">
-				<h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Merge</h3>
-				<PromoteButton workItemId={id} showReasons />
-			</section>
-			<Resolutions wi={wi} />
+			{withButtons && (
+				<section aria-label="Merge" className="space-y-2">
+					<h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Merge</h3>
+					<PromoteButton workItemId={id} showReasons />
+				</section>
+			)}
+			{withButtons && <Resolutions wi={wi} />}
 			<ResolutionHistory wi={wi} />
 		</div>
 	);
@@ -112,8 +114,11 @@ type Open = "exception" | "reject" | null;
 /** What a recorded sign-off is called on screen. The raw kind stays in `data-resolution`. */
 const RESOLUTION_LABEL: Record<string, string> = { revalidate: "Revalidate", "accept-exception": "Allow with exception", reject: "Reject" };
 
-/** The three human choices, each with what it does. Shown under the reason on the Why tab, and again on the Actions tab. */
-export function Resolutions({ wi }: { wi: WorkItemState }) {
+/**
+ * The three human choices, each with what it does. Shown under the reason on the Why tab, and again on the Actions tab.
+ * `show` splits them for the item page: Revalidate on its own as the primary action, the rest under "More".
+ */
+export function Resolutions({ wi, show = "all" }: { wi: WorkItemState; show?: "all" | "revalidate" | "more" }) {
 	const { view, client, notify } = useConsole();
 	const [open, setOpen] = useState<Open>(null);
 	const [busy, setBusy] = useState<string | null>(null);
@@ -175,18 +180,19 @@ export function Resolutions({ wi }: { wi: WorkItemState }) {
 		if (rerunClosed) setConfirmRerun(false);
 	}, [rerunClosed]);
 
+	const all = show === "all";
 	return (
-		<section aria-label="Resolve" className="space-y-3" data-testid="resolve-actions">
-			<h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Resolve</h3>
+		<section aria-label={all ? "Resolve" : show === "revalidate" ? "Revalidate" : "More choices"} className="space-y-3" data-testid={all ? "resolve-actions" : `resolve-${show}`}>
+			{all && <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Resolve</h3>}
 			<div className="space-y-2.5">
-				{!ready && (
+				{!ready && show !== "more" && (
 					<ResolveRow
 						note={revalidateNote}
 						button={
 							<UnavailableHint available={!readOnly} reason={readOnly ?? ""}>
 								<Popover open={confirmRerun} onOpenChange={setConfirmRerun}>
 									<PopoverTrigger asChild>
-										<Button size="sm" variant="outline" className="w-full justify-start" data-testid="revalidate-button" disabled={Boolean(reason) || wi.revalidating || busy !== null || runsUsedUp}>
+										<Button size="sm" variant={all ? "outline" : "default"} className="w-full justify-start" data-testid="revalidate-button" disabled={Boolean(reason) || wi.revalidating || busy !== null || runsUsedUp}>
 											{busy === "Revalidate" ? <Loader className="animate-spin" aria-hidden /> : <RefreshCw aria-hidden />}
 											Revalidate
 										</Button>
@@ -225,7 +231,7 @@ export function Resolutions({ wi }: { wi: WorkItemState }) {
 						}
 					/>
 				)}
-				{!ready && (
+				{!ready && show !== "revalidate" && (
 					<ResolveRow
 						note="Lifts the block from this decision, for a scope you name. Other blocks stay. Ends at its next version or the agent's next push."
 						button={
@@ -237,16 +243,18 @@ export function Resolutions({ wi }: { wi: WorkItemState }) {
 						}
 					/>
 				)}
-				<ResolveRow
-					note="Ends this work. The reason goes in the audit log."
-					button={
-						<UnavailableHint available={!readOnly} reason={readOnly ?? ""}>
-							<Button size="sm" variant="outline" className="w-full justify-start" disabled={Boolean(reason) || busy !== null} aria-expanded={open === "reject"} onClick={() => setOpen(open === "reject" ? null : "reject")}>
-								<ThumbsDown aria-hidden /> Reject
-							</Button>
-						</UnavailableHint>
-					}
-				/>
+				{show !== "revalidate" && (
+					<ResolveRow
+						note="Ends this work. The reason goes in the audit log."
+						button={
+							<UnavailableHint available={!readOnly} reason={readOnly ?? ""}>
+								<Button size="sm" variant="outline" className="w-full justify-start" disabled={Boolean(reason) || busy !== null} aria-expanded={open === "reject"} onClick={() => setOpen(open === "reject" ? null : "reject")}>
+									<ThumbsDown aria-hidden /> Reject
+								</Button>
+							</UnavailableHint>
+						}
+					/>
+				)}
 			</div>
 			{reason && <p className="text-xs text-muted-foreground">{reason}</p>}
 			{!reason && wi.revalidating && <p className="text-xs text-muted-foreground">Revalidation is running. The agent will push again on the current decisions.</p>}

@@ -55,6 +55,15 @@ export function WorkGraph() {
 	);
 }
 
+/** The results strip for the last decision change, timed the same way as on the graph. For the Work view's home and item pages. */
+export function CurrentResultsStrip() {
+	const { view, client, observed } = useConsole();
+	const evaluation = currentEvaluation(view);
+	const live = client.kind === "live";
+	const ms = live ? (evaluation && observed && observed.seq === evaluation.seq ? observed.ms : null) : (evaluation?.ms ?? null);
+	return <ResultsStrip evaluation={evaluation} ms={ms} measuredHere={live} />;
+}
+
 function GraphCanvas() {
 	const { view, selectedId, select, client } = useConsole();
 	const dark = useIsDark();
