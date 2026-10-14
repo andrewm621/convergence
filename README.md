@@ -2,7 +2,11 @@
 
 A decision shouldn't just be written down. The system should know what depends on it.
 
-It works like a lockfile for decisions. Each agent's context is pinned to the exact version of every decision it was given, so when one changes, you know exactly whose work was built on the old version. That work gets blocked from merging, even if it sits in a different file and git merges it clean, until a named human resolves it. Everything else stays green, and no model makes any of those calls.
+It works like a lockfile for decisions. Each agent's context is pinned to the exact version of every decision it was given. When one changes, you know whose work was built on the old version, and that work is blocked from merging until a named human resolves it, even when git merges it clean. Everything else stays green, and no model makes those calls.
+
+Convergence is a protocol for governed decisions: a shared contract that lets people and agents see which work relied on which accepted decision, in code or in any other knowledge work. This repo is the first implementation. The protocol is a v0.1 draft; see [docs/PROTOCOL.md](docs/PROTOCOL.md).
+
+We're not necessarily trying to give every agent the same knowledge. We're trying to make independent work possible without losing accountability for the assumptions and commitments behind it.
 
 ## Try it in 60 seconds
 
@@ -32,6 +36,10 @@ Heads up on that second route: `wrangler dev` has no local emulator for Cloudfla
 Built for the Cloudflare ["Build the next GitHub"](https://www.cloudflare.com/git-competition/) challenge on Workers, Durable Objects, Artifacts and Sandbox containers.
 
 Built with AI coding agents, directed and reviewed by the decision owner.
+
+## Protocol and conformance
+
+[`docs/PROTOCOL.md`](docs/PROTOCOL.md) is the Convergence Protocol v0.1 (draft). This repository is its reference implementation. [`conformance/`](conformance/) holds language-neutral test vectors and a runner, so any implementation can check itself: `pnpm conformance`, or `node conformance/run.ts --impl "<your command>"`. Passing means the same normative state and effects on the vectors. It is not a certification of security or storage handling.
 
 ## The problem
 
@@ -369,7 +377,14 @@ These were compared from each tool's published documentation, not tested hands-o
 
 ## Where this goes
 
-<!-- TODO(andrew): "Where this goes" section. Your call on what to say, if anything. Not built and not promised in this README: authority and approvals as first-class objects, an MCP server so any agent can fetch its receipt and post claims, AI adapters for dependency inference, a what-if view. -->
+None of this is built. These are drafts from section 6 of the protocol, and they may change.
+
+- **Scoped acceptance.** There's no global "accepted." An authority accepts a decision within a named scope, and importing one doesn't import its authority.
+- **Coordination levels.** Observe, advise, verify or enforce, so a team can start by watching. Today there's only enforce.
+- **Reasons and evidence.** Record why a decision was made, and whether each reason was observed, reported, inferred, disputed or unknown. Unknown stays unknown.
+- **Pluggable governance.** Who may accept a decision becomes a plug-in: one named owner today; delegation or a vote could come later. A vote is an input, not the truth.
+
+Details and open questions are in [docs/PROTOCOL.md](docs/PROTOCOL.md).
 
 ## License
 
