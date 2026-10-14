@@ -1,8 +1,7 @@
-<!-- TODO(andrew): re-read for the rename to "Convergence" (Oct 14) -->
 # Convergence: demo video script
 
 **Status:** draft v3. Synced to the deployed console's labels (Change this decision, What it was given, Why blocked?, Allow with exception, Merge, Audit log), with the decision owner's approved changes: segment 10 filmed live with a replay fallback, the "what if" graphic folded into the close, and a new "Where this comes from" segment. It is final only when it matches what the deployed console actually does on recording day.
-**Target runtime:** 8:56 (the contest allows 5 to 10 minutes; hard ceiling for this script is 9:30). Times are paced at about 150 spoken words a minute plus the on-screen holds marked in each row.
+**Target runtime:** 8:59 (the contest allows 5 to 10 minutes; hard ceiling for this script is 9:30). Times are paced at about 150 spoken words a minute plus the on-screen holds marked in each row.
 **Format:** screen recording with voiceover. Narrator and face cam are still open (PRD §13, item 4).
 
 ## Naming rule
@@ -43,13 +42,13 @@ If a live step fails and a fallback goes in, change the on-screen tag and the na
 | 10 | Scenario B: Larkhaven County (fictional), same engine | 5:35 | 7:26 | 1:51 | LIVE (replay fallback); exception and lapse beats REPLAY |
 | 11 | Other approaches (one sentence) | 7:26 | 7:44 | 0:18 | GRAPHIC |
 | 11b | Where this comes from | 7:44 | 8:28 | 0:44 | GRAPHIC (decision owner's voice) |
-| 12 | Close | 8:28 | 8:56 | 0:28 | GRAPHIC over console |
+| 12 | Close | 8:28 | 8:59 | 0:31 | GRAPHIC over console |
 
-**Total: 8:56.** Narration runs about 1,180 words. Where the screen is doing the work, let it breathe. The 34 s of headroom under 9:30 is for holds and transitions that run long in the edit.
+**Total: 8:59.** Narration runs about 1,220 words. Where the screen is doing the work, let it breathe. The 31 s of headroom under 9:30 is for holds and transitions that run long in the edit.
 
 **Must not cut:** concurrent forks, receipts, the control shot, the Why blocked? tab, the LIVE / SEEDED / REPLAY tags, and the Larkhaven County act (live, with the replay beats tagged).
 
-**Trim list if the edit runs long (past about 9:15):** cut the second half of segment 6 (about 8 s), trim the segment 10 setup to the policy card only (about 6 s), shorten segment 9 narration (about 5 s), drop the optional last two sentences of segment 11b (about 7 s).
+**Trim list if the edit runs long (past about 9:15):** cut the second half of segment 6 (about 8 s), trim the segment 10 setup to the policy card only (about 6 s), shorten segment 9 narration (about 5 s), drop the optional last two sentences of segment 11b (about 7 s). The separate protocol beat (below) is not in this total; placed inside the main cut it adds about 30 s, to about 9:29.
 
 ---
 
@@ -153,18 +152,28 @@ If a live step fails and a fallback goes in, change the on-screen tag and the na
 
 | Time | Mode | On screen | Narration | Proof point | B-roll / fallback |
 |---|---|---|---|---|---|
-| 7:44 to 8:08 | GRAPHIC | Three short lines, building one at a time: "**Strata**: decisions, reasons, history." · "**Delta**: keeps checking that work still fits what was decided." · "**Convergence**: people and agents, one governed basis for action." | "This comes out of how I've been working for a while, in three parts. Strata is the memory: what we decided, why, and what happened. Delta is the coordination: a controller that keeps checking whether the work in flight still fits what was decided. Convergence is where people and agents meet, on a shared basis for action that somebody governs." | The methodology behind the build, named as concepts only. | None needed. |
-| 8:08 to 8:28 | GRAPHIC over a still of the Why blocked? card | One line: "Models propose. People and deterministic rules decide." | "Governance is the point. Getting agents to do work keeps getting easier. Keeping that work tied to what we decided is the hard part. So models propose, and people and deterministic rules decide. This gives agents bounded context and a limit enforced at the merge. It doesn't solve AI alignment." | The same rule as the control loop: no model calls decide a condition, an authorization or a merge (AGENTS.md conventions; segment 1). The limit is enforced at the merge gate, not in the agent's runtime, which is why the narration says "at the merge". | The last two sentences are optional: drop them first if the edit runs long (about 7 s). |
+| 7:44 to 8:09 | GRAPHIC | Three short lines, building one at a time: "**Strata**: decisions, reasons, history." · "**Delta**: keeps checking that work still fits what was decided." · "**Convergence**: a shared protocol for governed decisions." | "This comes out of how I've been working, in three parts. Strata is the memory: what we decided, why, and what happened. Delta is the coordination: it keeps checking whether work in flight still fits what was decided. Convergence is the shared contract: one way for people and agents, in code or any other work, to build on the same governed decisions." | The methodology behind the build, named as concepts only. | None needed. |
+| 8:09 to 8:28 | GRAPHIC over a still of the Why blocked? card | One line: "Models propose. People and deterministic rules decide." | "Getting agents to do work keeps getting easier. Keeping that work tied to what we decided is the hard part. So models propose, and people and deterministic rules decide. This gives agents bounded context and a limit enforced at the merge. It doesn't solve AI alignment." | The same rule as the control loop: no model calls decide a condition, an authorization or a merge (AGENTS.md conventions; segment 1). The limit is enforced at the merge gate, not in the agent's runtime, which is why the narration says "at the merge". | The last two sentences are optional: drop them first if the edit runs long (about 7 s). |
 
-## 12. Close (8:28 to 8:56) · GRAPHIC over console
+## 12. Close (8:28 to 8:59) · GRAPHIC over console
 
 | Time | Mode | On screen | Narration | Proof point | B-roll / fallback |
 |---|---|---|---|---|---|
-| 8:28 to 8:56 | GRAPHIC over a still of the final console | One line: "Only gates work that flows through Convergence. Only knows declared or claimed dependencies. Previews one change; no side-by-side alternatives." Then: "MIT licensed. Replay runs without credentials. See the README." | "What it doesn't do: it only gates work that flows through it, and it only knows dependencies that are declared or claimed. It can preview one change before you commit it. Comparing alternatives side by side isn't built. The README lists the rest. Most stale work is a promise made on a fact that changed, and Convergence is how you find those promises before they merge." | The honesty package (PRD §8) as one line, plus the commit-time preview's limit (README "Implemented vs not": the preview is built, full what-if branching is not). The licence and the no-credentials replay are on screen rather than spoken, to fit the slot. `[VERIFY: README "What Convergence does not do" and "Implemented vs not" say the same thing, and the replay is on the README's first screen, tested from a fresh clone]` | None needed. |
+| 8:28 to 8:40 | GRAPHIC over a still of the final console | One line: "Only gates work that flows through Convergence. Only knows declared or claimed dependencies. Previews one change; no side-by-side alternatives." | "It only gates work that flows through it, and it only knows dependencies that are declared or claimed." | The honesty package (PRD §8) as one line, plus the commit-time preview's limit (README "Implemented vs not": the preview is built, full what-if branching is not). The preview limit is on screen rather than spoken, to fit the slot. `[VERIFY: README "What Convergence does not do" and "Implemented vs not" say the same thing]` | None needed. |
+| 8:40 to 8:50 | GRAPHIC | "Convergence Protocol v0.1 (draft). This app is its first implementation. docs/PROTOCOL.md" | "Underneath the app, the records, receipts and rules are a protocol: a shared contract for decisions, so people and agents can rely on the same ones. This app is the first implementation. The protocol is a draft." | The protocol is a v0.1 draft and this repo is its reference implementation (README "Protocol and conformance"). | None needed. |
+| 8:50 to 8:59 | GRAPHIC over a still of the final console | "MIT licensed. Replay runs without credentials. See the README." | "Most stale work is a promise made on a fact that changed. Convergence is how you find those promises before they merge." | The licence and the no-credentials replay are on screen rather than spoken, to fit the slot. `[VERIFY: the replay is on the README's first screen, tested from a fresh clone]` | None needed. |
+
+## Protocol beat (separate clip, ~30 s; placement decided in edit) · GRAPHIC and LIVE terminal
+
+> **Placement:** not part of the 8:59 run of show above. If it goes inside the main cut, runtime rises to about 9:29 (ceiling 9:30); otherwise trim 11b's optional line (the last two sentences of its second row).
+
+| Time | Mode | On screen | Narration | Proof point | B-roll / fallback |
+|---|---|---|---|---|---|
+| about 0:00 to 0:30 | GRAPHIC, then LIVE (terminal) | `docs/PROTOCOL.md` scrolling to "The protocol in plain terms". Then a terminal (20 pt or larger) running `pnpm conformance`, ending on `PASS: 79/79 vectors passed (protocol convergence/0.1)`. | (1) "We're not necessarily trying to give every agent the same knowledge. We're trying to make independent work possible without losing accountability for the assumptions and commitments behind it." (2) "An update changes what happens next. A correction changes what already happened, and that's when you most need to know who relied on it." (3) "The protocol is a draft. This app is one implementation, and the conformance kit lets anyone check their own." | The conformance kit passes on the reference implementation. `[VERIFY: pnpm conformance prints exactly that PASS line on the recording machine, and the terminal text is legible at 1080p]` | If the run fails or is slow, show the PROTOCOL.md scroll only and drop the third sentence's second clause. Never mock the PASS line. |
 
 ---
 
-The standalone "where this goes" what-if graphic is cut: the commit-time preview is real and on screen in segments 4 and 10, and its limit is one clause in segment 12. A token-revocation beat is **not** included; the PRD lists it as not adopted. Add it only if that work ships.
+The standalone "where this goes" what-if graphic is cut: the commit-time preview is real and on screen in segments 4 and 10, and its limit is one line on screen in segment 12. A token-revocation beat is **not** included; the PRD lists it as not adopted. Add it only if that work ships.
 
 ---
 
@@ -223,5 +232,5 @@ The standalone "where this goes" what-if graphic is cut: the commit-time preview
 - Resolved (B6b): Larkhaven County is filmed live, with the replay as the safety net. The exception and lapse beats come from the replay and stay tagged.
 - Resolved: the county is now "Larkhaven County", a name with no real-world match (the earlier name collided with real counties). The script still labels it "fictional" everywhere.
 - The volunteer briefing is left open in the replay beat of segment 10 to show the gate. Say if you'd rather revalidate it too.
-- Resolved: the standalone "what if" graphic is cut, and its one clause is in segment 12.
+- Resolved: the standalone "what if" graphic is cut, and its one line is on screen in segment 12.
 - Segment 11b placement: before the close (as written) or right after "I'm Andrew."

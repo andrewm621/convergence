@@ -36,7 +36,7 @@ export const LIVE_BUILD_NOTE_LEAD = "Live:";
 export const LIVE_BUILD_NOTE = `${LIVE_BUILD_NOTE_LEAD} this repo's own build decisions since Oct 13. Earlier history is the replay.`;
 
 /** Where the shas in the build replay live. */
-export const REPO_URL = "https://github.com/andrewm621/delta-convergence";
+export const REPO_URL = "https://github.com/andrewm621/convergence";
 
 export const SCENARIO_META: Record<ScenarioName, ScenarioMeta> = {
 	notifications: { label: "Notifications", kind: "coding", icon: Code2, scopeExample: "e.g. src/notifications/delivery.ts" },

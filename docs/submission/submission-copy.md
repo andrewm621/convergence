@@ -10,6 +10,16 @@ Convergence
 
 Git tells you when two agents changed the same lines. Convergence tells you when two agents are building from different decisions, and won't let the stale one merge.
 
+## 2a. Short description (49 words)
+
+Convergence is a draft protocol for governed decisions; this is its first implementation. When an accepted decision changes mid-flight, it finds the agent work built on the old version, blocks that work from merging until a named human resolves it, and leaves the rest alone. No model makes those calls.
+
+## 2b. Tagline (11 words)
+
+A protocol for knowing which work was built on which decision.
+
+<!-- Alternate tagline (12 words): When a decision changes, find the work built on the old one. -->
+
 ## 3. Vision (143 words)
 
 Agents rarely collide on lines of code. They collide on meaning. A decision changes mid-flight, one agent keeps building on the old version, and both branches still merge clean.

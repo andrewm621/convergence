@@ -355,7 +355,7 @@ for (let attempt = 1; attempt <= 2 && !revalidated; attempt++) {
 	check("the cell holds a new receipt at shelter-intake-policy v2 (issued by the Worker before the dispatch)", after?.receipt?.accepted?.some((e) => e.recordId === POLICY_ID && e.version === 2), j(after?.receipt?.accepted?.map((e) => `${e.recordId}@${e.version}`)));
 	const atHead = (after?.evidence ?? []).filter((e) => e.headSha === after?.headSha);
 	const ran = atHead.filter((e) => e.kind === "delta-run-check");
-	check("the Worker ran the shelter contract check itself on the pushed file (kind delta-run-check, names the file and sha)", ran.length >= 1 && ran.every((e) => /Delta-run contract check .* at [0-9a-f]{7}, reading .*front-desk\.md/.test(e.output)), j(ran.map((e) => `${e.check}:${e.pass}`)));
+	check("the Worker ran the shelter contract check itself on the pushed file (kind delta-run-check, names the file and sha)", ran.length >= 1 && ran.every((e) => /Convergence contract check .* at [0-9a-f]{7}, reading .*front-desk\.md/.test(e.output)), j(ran.map((e) => `${e.check}:${e.pass}`)));
 	for (const e of ran) note(`evidence: pass=${e.pass} ${e.output}`);
 	const gateR = await get("/work-items/SH-1/gate");
 	revalidated = (await statusOf("SH-1")) === "ready" && gateR.json?.pass === true;

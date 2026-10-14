@@ -5,7 +5,7 @@ Instructions for any coding agent working in this repo: Claude Code, Cursor (loc
 ## What this is
 Convergence is a deterministic reconciliation control plane for concurrent human and agent work, built on Cloudflare Workers and Artifacts. When an accepted decision changes mid-flight, it finds the work that relied on the old version, blocks it from merging, and drives a human-approved reconciliation. No LLM is needed for the control loop.
 
-**Naming:** the product is "Convergence". Delta is the reconciliation engine inside it (`packages/delta-core`); never use "Delta" alone as the product name. Identifiers keep the old name where renaming would break something (the `delta-convergence` Worker and repo, the `delta-convergence-build` scenario).
+**Naming:** the product is "Convergence". Delta is the reconciliation engine inside it (`packages/delta-core`); never use "Delta" alone as the product name. Identifiers keep the old name where renaming would break something (the `delta-convergence` Worker, the `delta-convergence-build` scenario).
 
 **The spec is [`docs/PRD.md`](docs/PRD.md).** Read §4 (contracts and rules R1–R9), §5 (architecture and repo layout) and §9 (build plan) before changing anything. The PRD wins over your assumptions; if you think it's wrong, say so in your task channel (or in the PR) and don't silently diverge.
 

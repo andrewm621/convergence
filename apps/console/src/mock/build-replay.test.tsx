@@ -179,8 +179,8 @@ describe("the build replay: shas and actions", () => {
 		const tab = await screen.findByTestId("receipt-tab");
 		const links = within(tab).getAllByTestId("commit-link");
 		const hrefs = links.map((link) => link.getAttribute("href"));
-		expect(hrefs).toContain(`https://github.com/andrewm621/delta-convergence/commit/${bundle.commits.wi1Head}`);
-		expect(hrefs).toContain(`https://github.com/andrewm621/delta-convergence/commit/${bundle.commits.baselineV1}`);
+		expect(hrefs).toContain(`https://github.com/andrewm621/convergence/commit/${bundle.commits.wi1Head}`);
+		expect(hrefs).toContain(`https://github.com/andrewm621/convergence/commit/${bundle.commits.baselineV1}`);
 		expect(links.some((link) => link.textContent?.startsWith("ce882f2"))).toBe(true);
 		expect(links.every((link) => !/[0-9a-f]{20}/.test(link.textContent ?? ""))).toBe(true);
 		expect(within(tab).queryByTestId("not-in-git")).toBeNull();
@@ -207,7 +207,7 @@ describe("the build replay: shas and actions", () => {
 		await renderWithMock(<Inspector />, { scenario: SCENARIO, beats: 1, select: "WI-4" });
 		await user.click(await screen.findByRole("tab", { name: "Changes" }));
 		const changes = await screen.findByTestId("changes-recorded");
-		expect(within(changes).getByTestId("commit-link")).toHaveAttribute("href", `https://github.com/andrewm621/delta-convergence/commit/${bundle.commits.wi4Head}`);
+		expect(within(changes).getByTestId("commit-link")).toHaveAttribute("href", `https://github.com/andrewm621/convergence/commit/${bundle.commits.wi4Head}`);
 	});
 
 	it("disables Revalidate, Allow with exception, Reject and Promote, and says why", async () => {
