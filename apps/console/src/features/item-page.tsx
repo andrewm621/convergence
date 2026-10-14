@@ -35,7 +35,7 @@ export function verdictOf(view: ViewState, wi: WorkItemState, analysis: Analysis
 	if (status === "uncertain") {
 		const outside = analysis?.outsideReceipt[0];
 		return {
-			text: outside ? `Held: its claims rely on ${outside.recordId}, which it wasn't given. Someone has to accept or reject that.` : "Held: Convergence can't tell whether this is built on the current decisions.",
+			text: outside ? `Held: its claims rely on ${outside.recordId}, which it wasn't given. Reject or accept that dependency below.` : "Held: Convergence can't tell whether this is built on the current decisions.",
 			tone: "warning",
 		};
 	}
@@ -82,7 +82,9 @@ export function ItemPage({ wi, backLabel, onBack }: { wi: WorkItemState; backLab
 	const blocked = status !== "promoted" && gate !== null && !gate.pass && analysis !== null && hasProblem(analysis);
 	const needsYou = status === "stale" || status === "conflict" || status === "uncertain";
 	const done = status === "promoted" || status === "rejected";
-	const undeclared = !done && (analysis?.outsideReceipt.length ?? 0) > 0;
+	// Held on a dependency it was never given: the dependency question is the action, not Revalidate.
+	const undeclared =
+		!done && (analysis?.outsideReceipt ?? []).some((o) => view.dependencies.some((d) => d.workItemId === wi.item.id && d.recordId === o.recordId && d.status === "proposed"));
 	const stillWorking = running && (status === "stale" || status === "conflict");
 
 	return (
@@ -113,17 +115,21 @@ export function ItemPage({ wi, backLabel, onBack }: { wi: WorkItemState; backLab
 						</p>
 					</header>
 
-					{undeclared && <DependencyDecision workItemId={wi.item.id} />}
+					{/* Renders nothing unless there is an open dependency question, or one was just answered here. */}
+					{!done && <DependencyDecision workItemId={wi.item.id} />}
 
 					{!done && (
 						<div className="space-y-3 rounded-xl border bg-card p-4" data-testid="item-actions">
 							<div className="flex flex-wrap items-start gap-3">
-								{needsYou && (
+								{needsYou && !undeclared ? (
 									<div className="min-w-0 flex-1">
 										<Resolutions wi={wi} show="revalidate" />
 									</div>
+								) : (
+									<p className="min-w-0 flex-1 pt-1 text-[13px] text-muted-foreground">
+										{undeclared ? "Answer the dependency question above first." : status === "ready" ? "Merge asks you to confirm, then checks again before it merges." : "Merge opens once the work passes the merge check."}
+									</p>
 								)}
-								{!needsYou && <p className="min-w-0 flex-1 pt-1 text-[13px] text-muted-foreground">{status === "ready" ? "Merge asks you to confirm, then checks again before it merges." : "Merge opens once the work passes the merge check."}</p>}
 								<PromoteButton workItemId={wi.item.id} />
 							</div>
 							<div>

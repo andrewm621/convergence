@@ -473,7 +473,10 @@ export function reasonSentences(view: ViewState, analysis: Analysis): string[] {
 		if (!described.has(conflict.subject)) sentences.push(conflict.message);
 	}
 	if (analysis.failedChecks.length > 0) sentences.push(`A check on this work is failing: ${analysis.failedChecks.map((c) => c.split("/").pop() ?? c).join(", ")}.`);
-	for (const finding of analysis.uncertain.slice(0, 2)) sentences.push(finding.message);
+	// The engine's sentence for an undeclared dependency names the receipt; say it in plain words instead.
+	for (const finding of analysis.uncertain.slice(0, 2)) {
+		sentences.push(finding.reasonCodes.includes("UNDECLARED_DEP") && finding.recordId ? `Its claims rely on ${finding.recordId}, which it wasn't given.` : finding.message);
+	}
 	return sentences;
 }
 

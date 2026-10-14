@@ -1,4 +1,5 @@
 import { parseRecordRef, type WorkItemState } from "contracts";
+import { NOT_GIVEN_TEXT } from "@/lib/reasons";
 import { analysisOf, changedSettings, currentRecord, quietOf, type ChangedSetting } from "./derive";
 import type { ViewState } from "./store";
 
@@ -61,7 +62,7 @@ export function builtOnRows(view: ViewState, wi: WorkItemState): BuiltOnRow[] {
 			builtOnVersion: citedVersion(wi, outside.recordId),
 			currentVersion: currentRecord(view, outside.recordId)?.version ?? null,
 			changedSettings: [],
-			detail: "its claims rely on this, but it wasn't given it",
+			detail: NOT_GIVEN_TEXT.detail,
 		});
 	}
 
