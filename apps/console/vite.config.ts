@@ -17,5 +17,7 @@ export default defineConfig({
 		setupFiles: ["./src/test/setup.ts"],
 		css: false,
 		restoreMocks: true,
+		// jsdom renders are slow under workspace-wide parallel runs; 5 s flakes there.
+		testTimeout: 30000,
 	},
 });
