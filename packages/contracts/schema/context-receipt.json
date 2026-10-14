@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ContextReceipt",
+  "description": "What was delivered to a work item, pinned to exact versions and hashes. The body of the git note at refs/notes/delta (after the delta-receipt/v1 header line). noteRef is a pointer and is not written into the note body.",
+  "type": "object",
+  "properties": {
+    "baselineCommit": {
+      "$ref": "#/$defs/CommitSha"
+    },
+    "contextPacketHash": {
+      "$ref": "#/$defs/Sha256"
+    },
+    "accepted": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ReceiptEntry"
+      }
+    },
+    "proposedVisible": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ContextSnapshotEntry"
+      }
+    },
+    "noteRef": {
+      "$ref": "#/$defs/NoteRef"
+    }
+  },
+  "required": [
+    "baselineCommit",
+    "contextPacketHash",
+    "accepted",
+    "proposedVisible"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "CommitSha": {
+      "type": "string",
+      "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$"
+    },
+    "Sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "ReceiptEntry": {
+      "type": "object",
+      "properties": {
+        "recordId": {
+          "$ref": "#/$defs/Slug"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "blobHash": {
+          "$ref": "#/$defs/ObjectHash"
+        },
+        "facetHash": {
+          "$ref": "#/$defs/Sha256"
+        }
+      },
+      "required": [
+        "recordId",
+        "version",
+        "blobHash",
+        "facetHash"
+      ],
+      "additionalProperties": false
+    },
+    "Slug": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_-]*$"
+    },
+    "ObjectHash": {
+      "type": "string",
+      "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$"
+    },
+    "ContextSnapshotEntry": {
+      "type": "object",
+      "properties": {
+        "recordId": {
+          "$ref": "#/$defs/Slug"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "blobHash": {
+          "$ref": "#/$defs/ObjectHash"
+        }
+      },
+      "required": [
+        "recordId",
+        "version",
+        "blobHash"
+      ],
+      "additionalProperties": false
+    },
+    "NoteRef": {
+      "type": "string",
+      "pattern": "^refs\\/notes\\/delta:(?:[0-9a-f]{40}|[0-9a-f]{64})$"
+    }
+  }
+}

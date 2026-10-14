@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ClaimsFile",
+  "description": "The contents of .delta/claims.json in a work item's fork: a list of structured, self-reported assertions.",
+  "type": "array",
+  "items": {
+    "$ref": "#/$defs/Claim"
+  },
+  "$defs": {
+    "Claim": {
+      "type": "object",
+      "properties": {
+        "subject": {
+          "$ref": "#/$defs/FacetKey"
+        },
+        "value": {
+          "$ref": "#/$defs/FacetValue"
+        },
+        "basedOn": {
+          "$ref": "#/$defs/RecordRefString"
+        }
+      },
+      "required": [
+        "subject",
+        "value",
+        "basedOn"
+      ],
+      "additionalProperties": false
+    },
+    "FacetKey": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+    },
+    "FacetValue": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/FacetScalar"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FacetScalar"
+          }
+        }
+      ]
+    },
+    "FacetScalar": {
+      "type": [
+        "string",
+        "number",
+        "boolean",
+        "null"
+      ]
+    },
+    "RecordRefString": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_-]*@[1-9][0-9]*$"
+    }
+  }
+}

@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Resolution",
+  "description": "A human disposition of a work item, bound to the exact context and fork head it was made against. Not expressed here: scope is required when kind is accept-exception.",
+  "type": "object",
+  "properties": {
+    "kind": {
+      "type": "string",
+      "enum": [
+        "revalidate",
+        "accept-exception",
+        "reject"
+      ]
+    },
+    "workItemId": {
+      "$ref": "#/$defs/WorkItemId"
+    },
+    "actor": {
+      "$ref": "#/$defs/Actor"
+    },
+    "rationale": {
+      "type": "string",
+      "minLength": 1
+    },
+    "scope": {
+      "type": "string",
+      "minLength": 1
+    },
+    "binding": {
+      "$ref": "#/$defs/ResolutionBinding"
+    },
+    "requestId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "ts": {
+      "$ref": "#/$defs/IsoTimestamp"
+    }
+  },
+  "required": [
+    "kind",
+    "workItemId",
+    "actor",
+    "rationale",
+    "binding",
+    "ts"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "WorkItemId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
+    },
+    "Actor": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "human",
+            "agent",
+            "system"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "displayName"
+      ],
+      "additionalProperties": false
+    },
+    "ResolutionBinding": {
+      "type": "object",
+      "properties": {
+        "recordId": {
+          "$ref": "#/$defs/Slug"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "blobHash": {
+          "$ref": "#/$defs/ObjectHash"
+        },
+        "baseSha": {
+          "$ref": "#/$defs/CommitSha"
+        },
+        "forkHeadSha": {
+          "$ref": "#/$defs/CommitSha"
+        },
+        "contextSnapshotHash": {
+          "$ref": "#/$defs/Sha256"
+        }
+      },
+      "required": [
+        "recordId",
+        "version",
+        "blobHash",
+        "baseSha",
+        "forkHeadSha",
+        "contextSnapshotHash"
+      ],
+      "additionalProperties": false
+    },
+    "Slug": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_-]*$"
+    },
+    "ObjectHash": {
+      "type": "string",
+      "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$"
+    },
+    "CommitSha": {
+      "type": "string",
+      "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$"
+    },
+    "Sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "IsoTimestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+    }
+  }
+}

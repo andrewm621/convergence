@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "WorkItem",
+  "description": "A task for one actor on its own fork.",
+  "type": "object",
+  "properties": {
+    "id": {
+      "$ref": "#/$defs/WorkItemId"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "actor": {
+      "$ref": "#/$defs/Actor"
+    },
+    "forkRepo": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source": {
+      "type": "string",
+      "enum": [
+        "live",
+        "seeded"
+      ]
+    },
+    "intent": {
+      "type": "string",
+      "enum": [
+        "delivery",
+        "exploratory"
+      ]
+    },
+    "requires": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Requirement"
+      }
+    },
+    "status": {
+      "$ref": "#/$defs/WorkItemStatus"
+    },
+    "participants": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Actor"
+      }
+    }
+  },
+  "required": [
+    "id",
+    "title",
+    "actor",
+    "forkRepo",
+    "source",
+    "intent",
+    "requires",
+    "status"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "WorkItemId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
+    },
+    "Actor": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "human",
+            "agent",
+            "system"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "displayName"
+      ],
+      "additionalProperties": false
+    },
+    "Requirement": {
+      "type": "string",
+      "enum": [
+        "contract-test",
+        "human-resolution"
+      ]
+    },
+    "WorkItemStatus": {
+      "type": "string",
+      "enum": [
+        "running",
+        "fresh",
+        "stale",
+        "uncertain",
+        "conflict",
+        "revalidating",
+        "ready",
+        "promoted",
+        "rejected"
+      ]
+    }
+  }
+}

@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Dependency",
+  "description": "A declared, verified or inferred reliance of a work item on a record (and optionally on named facets of it).",
+  "type": "object",
+  "properties": {
+    "workItemId": {
+      "$ref": "#/$defs/WorkItemId"
+    },
+    "recordId": {
+      "$ref": "#/$defs/Slug"
+    },
+    "facetKeys": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/FacetKey"
+      }
+    },
+    "basis": {
+      "type": "string",
+      "enum": [
+        "declared",
+        "verified",
+        "inferred"
+      ]
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "proposed",
+        "accepted",
+        "rejected"
+      ]
+    },
+    "evidenceRefs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "workItemId",
+    "recordId",
+    "facetKeys",
+    "basis",
+    "status",
+    "evidenceRefs"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "WorkItemId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
+    },
+    "Slug": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_-]*$"
+    },
+    "FacetKey": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+    }
+  }
+}

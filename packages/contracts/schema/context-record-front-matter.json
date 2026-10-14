@@ -1,0 +1,172 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ContextRecordFrontMatter",
+  "description": "YAML front-matter of a context record file (context/**.md), as a JSON object. Not expressed here: an accepted record must have accepted_by and accepted_at; supersedes must name an earlier version of the same record; every key of `not` must be a key of `facets`.",
+  "type": "object",
+  "properties": {
+    "id": {
+      "$ref": "#/$defs/Slug"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "status": {
+      "$ref": "#/$defs/RecordStatus"
+    },
+    "authority": {
+      "type": "string",
+      "minLength": 1
+    },
+    "proposed_by": {
+      "type": "string",
+      "minLength": 1
+    },
+    "accepted_by": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "accepted_at": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/IsoTimestamp"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "supersedes": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/RecordRefString"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "validation": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "decision": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "facets": {
+      "type": "object",
+      "propertyNames": {
+        "$ref": "#/$defs/FacetKey"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/FacetValue"
+      }
+    },
+    "not": {
+      "anyOf": [
+        {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/FacetKey"
+          },
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/FacetScalar"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/FacetScalar"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "id",
+    "version",
+    "status",
+    "authority",
+    "proposed_by",
+    "facets"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "Slug": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_-]*$"
+    },
+    "RecordStatus": {
+      "type": "string",
+      "enum": [
+        "proposed",
+        "accepted",
+        "superseded"
+      ]
+    },
+    "IsoTimestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+    },
+    "RecordRefString": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_-]*@[1-9][0-9]*$"
+    },
+    "FacetKey": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+    },
+    "FacetValue": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/FacetScalar"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FacetScalar"
+          }
+        }
+      ]
+    },
+    "FacetScalar": {
+      "type": [
+        "string",
+        "number",
+        "boolean",
+        "null"
+      ]
+    }
+  }
+}
