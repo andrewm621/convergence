@@ -152,6 +152,31 @@ importers:
         specifier: workspace:*
         version: link:../../scenarios/sales-ops
 
+  conformance:
+    dependencies:
+      contracts:
+        specifier: workspace:*
+        version: link:../packages/contracts
+      delta-core:
+        specifier: workspace:*
+        version: link:../packages/delta-core
+      scenario-delta-convergence-build:
+        specifier: workspace:*
+        version: link:../scenarios/delta-convergence-build
+      scenario-notifications:
+        specifier: workspace:*
+        version: link:../scenarios/notifications
+      scenario-sales-ops:
+        specifier: workspace:*
+        version: link:../scenarios/sales-ops
+      scenario-shelter-intake:
+        specifier: workspace:*
+        version: link:../scenarios/shelter-intake
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.5
+        version: 26.6.5
+
   packages/contracts:
     dependencies:
       yaml:

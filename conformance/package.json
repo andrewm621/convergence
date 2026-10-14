@@ -1,0 +1,23 @@
+{
+  "name": "conformance",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "conformance": "node run.ts --impl \"node --import ./ts-hooks.mjs adapters/reference.ts\"",
+    "vectors": "node --import ./ts-hooks.mjs scripts/export-vectors.ts",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "contracts": "workspace:*",
+    "delta-core": "workspace:*",
+    "scenario-delta-convergence-build": "workspace:*",
+    "scenario-notifications": "workspace:*",
+    "scenario-sales-ops": "workspace:*",
+    "scenario-shelter-intake": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5"
+  }
+}
