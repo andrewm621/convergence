@@ -333,6 +333,58 @@ describe("gate, resolutions and promotion", () => {
 		expect(res.status).toBe(400);
 	});
 
+	// WI-1 cites notifications@1, which its receipt never carried: held (uncertain), with an inferred dependency proposed.
+	async function heldOnUndeclared() {
+		const s = await scenario();
+		const sha = await w.world(s, { op: "push", repo: WI1, files: { ".delta/claims.json": JSON.stringify(claims.wi1Undeclared), "src/wi1.ts": "export const badge = 1;\n" }, author: "workitem-wi-1" });
+		await until(async () => (await item(s, "WI-1"))?.headSha === sha, 8000, "the poller to see the push");
+		expect((await item(s, "WI-1"))?.item.status).toBe("uncertain");
+		return s;
+	}
+
+	it("a human rejects an inferred dependency: the hold clears, replay and key conflict follow the key", async () => {
+		const s = await heldOnUndeclared();
+		const k = key("dep");
+		const body = { recordId: "notifications", decision: "reject" };
+		const ok = await post(s, "/work-items/WI-1/dependencies", body, k);
+		expect(ok.status).toBe(200);
+		expect(ok.body.recorded).toBe(true);
+		expect(reasons(await lastOf(s, "DependencyDecided"))).toContain("DEPENDENCY_DECIDED");
+		expect((await item(s, "WI-1"))?.item.status).not.toBe("uncertain");
+		expect((await get(s, "/state")).body.dependencies.find((d: { recordId: string; workItemId: string }) => d.recordId === "notifications" && d.workItemId === "WI-1").status).toBe("rejected");
+		const replay = await post(s, "/work-items/WI-1/dependencies", body, k);
+		expect(replay.body).toEqual(ok.body);
+		expect((await ledger(s)).filter((e) => e.type === "DependencyDecided")).toHaveLength(1);
+		expect((await post(s, "/work-items/WI-1/dependencies", { ...body, decision: "accept" }, k)).body.error.code).toBe("IDEMPOTENCY_CONFLICT");
+	});
+
+	it("a human accepts an inferred dependency: it becomes a gating dependency the receipt never delivered", async () => {
+		const s = await heldOnUndeclared();
+		const res = await post(s, "/work-items/WI-1/dependencies", { recordId: "notifications", decision: "accept" });
+		expect(res.status).toBe(200);
+		expect((await get(s, "/state")).body.dependencies.find((d: { recordId: string; workItemId: string }) => d.recordId === "notifications" && d.workItemId === "WI-1").status).toBe("accepted");
+		expect((await item(s, "WI-1"))?.conditions.map((c) => c.type)).toContain("Stale");
+	});
+
+	it("refuses a dependency decision from an agent, for an unknown work item, for a record that is not inferred, and a body with an actor", async () => {
+		const s = await heldOnUndeclared();
+		const asAgent = await post(s, "/work-items/WI-1/dependencies", { recordId: "notifications", decision: "reject" }, key(), { "X-Delta-Principal": "agent:agent-b" });
+		expect([asAgent.status, asAgent.body.error.code]).toEqual([403, "FORBIDDEN_ACTOR"]);
+		const unknown = await post(s, "/work-items/WI-9/dependencies", { recordId: "notifications", decision: "reject" });
+		expect([unknown.status, unknown.body.error.code]).toEqual([404, "UNKNOWN_WORK_ITEM"]);
+		const notInferred = await post(s, "/work-items/WI-1/dependencies", { recordId: "status-model", decision: "reject" });
+		expect([notInferred.status, notInferred.body.error.code]).toEqual([409, "ALREADY_RESOLVED"]);
+		const withActor = await post(s, "/work-items/WI-1/dependencies", { recordId: "notifications", decision: "reject", actor: { kind: "human", id: "decision-owner" } });
+		expect([withActor.status, withActor.body.error.code]).toEqual([400, "INVALID_INPUT"]);
+		const mismatch = await post(s, "/work-items/WI-1/dependencies", { workItemId: "WI-2", recordId: "notifications", decision: "reject" });
+		expect([mismatch.status, mismatch.body.error.code]).toEqual([400, "WORK_ITEM_MISMATCH"]);
+		expect((await item(s, "WI-1"))?.item.status).toBe("uncertain");
+		const decided = await post(s, "/work-items/WI-1/dependencies", { recordId: "notifications", decision: "reject" });
+		expect(decided.status).toBe(200);
+		const again = await post(s, "/work-items/WI-1/dependencies", { recordId: "notifications", decision: "reject" });
+		expect([again.status, again.body.error.code]).toEqual([409, "ALREADY_RESOLVED"]);
+	});
+
 	it("promotes unaffected work: request, merge, record, with a compare-and-swap on the baseline", async () => {
 		const s = await staleConflict();
 		await w.world(s, { op: "push", repo: WI1, files: { ".delta/claims.json": JSON.stringify(claims.wi1), "src/wi1.ts": "export const badge = 1;\n" }, author: "workitem-wi-1" });

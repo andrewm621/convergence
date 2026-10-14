@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { ReasonChip } from "@/components/status";
-import { GENERIC_REASON, REASON_META, reasonMeta } from "./reasons";
+import { ReasonChip, StatusChip } from "@/components/status";
+import { GENERIC_REASON, NOT_GIVEN_TEXT, REASON_META, reasonMeta } from "./reasons";
 
 describe("reason codes in plain English", () => {
 	it("explains every listed code in three short lines", () => {
@@ -42,5 +42,16 @@ describe("reason codes in plain English", () => {
 	it("still gives an unlisted code a tooltip", () => {
 		render(<ReasonChip code="SOMETHING_NEW" />);
 		expect(document.querySelector("[data-reason='SOMETHING_NEW']")?.getAttribute("title")).toContain(GENERIC_REASON.summary);
+	});
+
+	it("calls an uncertain work item Held on its chip, and keeps the status in data-status", () => {
+		render(<StatusChip status="uncertain" />);
+		const chip = document.querySelector("[data-status='uncertain']") as HTMLElement;
+		expect(chip.textContent).toBe("Held");
+	});
+
+	it("has a plain line for a decision the agent cites but was never given", () => {
+		expect(NOT_GIVEN_TEXT.detail).toBe("Not given \u2014 the agent says it relied on this");
+		expect(NOT_GIVEN_TEXT.detail).not.toMatch(/\b(stale|receipts?|facets?|records?|gate|promot\w*)\b/i);
 	});
 });

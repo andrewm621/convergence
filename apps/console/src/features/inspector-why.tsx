@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { useConsole } from "@/state/console-context";
 import { actorLabel, analysisOf, builtOnStamps, currentRecord, leftAlone, reasonSentences, reliedFacets, semanticDiff, signOffFor, validExceptions } from "@/state/derive";
 import { useGate } from "@/state/use-gate";
+import { DependencyDecision } from "./dependency-decision";
 import { Resolutions } from "./inspector-actions";
 import { ReceiptFacetList } from "./receipt-facets";
 
@@ -45,7 +46,7 @@ const CONDITION_LABEL: Record<ConditionType, string> = {
  * `agent-asserted, unverified`, `test-verified`. Anything nobody has decided reads
  * "Awaiting human" and never wears a success badge.
  */
-export function WhyTab({ wi, showResolutions = true }: { wi: WorkItemState; /** The item page puts these at its top instead. */ showResolutions?: boolean }) {
+export function WhyTab({ wi, showResolutions = true }: { wi: WorkItemState; /** The item page puts these (and the dependency question) at its top instead. */ showResolutions?: boolean }) {
 	const { view, setTab } = useConsole();
 	const { gate } = useGate(wi.item.id);
 	const analysis = useMemo(() => analysisOf(view, wi.item.id), [view, wi.item.id]);
@@ -91,6 +92,7 @@ export function WhyTab({ wi, showResolutions = true }: { wi: WorkItemState; /** 
 
 	return (
 		<div className="space-y-4 p-4" data-testid="why-tab">
+			{showResolutions && <DependencyDecision workItemId={wi.item.id} />}
 			<div
 				className={cn("rounded-xl border p-3.5", showReason ? "border-danger/35 bg-danger-soft" : blocked ? "border-warning/35 bg-warning-soft" : promoted ? "border-merged/30 bg-merged-soft" : "bg-card")}
 				data-testid="reason-card"

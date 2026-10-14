@@ -247,6 +247,21 @@ describe("live client: commands", () => {
 		expect(String(fetchImpl.mock.calls[2]?.[0])).toBe("http://delta.test/api/scenarios/notifications/work-items/WI-2/resolutions");
 	});
 
+	it("posts a dependency decision to the work item's dependencies route with the key, and passes a refusal through", async () => {
+		const fetchImpl = vi.fn<typeof fetch>();
+		const client = createLiveClient({ scenario: "notifications", apiBase: "http://delta.test", fetchImpl, WebSocketImpl: FakeSocket as unknown as typeof WebSocket, token: () => SECRET });
+		fetchImpl.mockResolvedValueOnce(new Response(JSON.stringify({ recorded: true, outcome: "applied", seq: 9, effects: [] }), { status: 200 }));
+		expect(await client.api.decideDependency({ workItemId: "WI-1", recordId: "notifications", decision: "reject" }, "key-dep")).toEqual({ ok: true, message: undefined });
+		const init = fetchImpl.mock.calls[0]?.[1] as RequestInit;
+		expect(String(fetchImpl.mock.calls[0]?.[0])).toBe("http://delta.test/api/scenarios/notifications/work-items/WI-1/dependencies");
+		expect(init.method).toBe("POST");
+		expect((init.headers as Record<string, string>)["Idempotency-Key"]).toBe("key-dep");
+		expect(JSON.parse(String(init.body))).toEqual({ recordId: "notifications", decision: "reject" });
+
+		fetchImpl.mockResolvedValueOnce(new Response(JSON.stringify({ error: { code: "ALREADY_RESOLVED", message: "No proposed dependency to decide." } }), { status: 409 }));
+		expect(await client.api.decideDependency({ workItemId: "WI-1", recordId: "status-model", decision: "accept" }, "key-dep-2")).toEqual({ ok: false, code: "ALREADY_RESOLVED", message: "No proposed dependency to decide." });
+	});
+
 	it("sends the baseline commit a context change was made on, and passes the Worker's BASELINE_MOVED refusal through", async () => {
 		const fetchImpl = vi.fn<typeof fetch>();
 		const client = createLiveClient({ scenario: "notifications", apiBase: "http://delta.test", fetchImpl, WebSocketImpl: FakeSocket as unknown as typeof WebSocket, token: () => SECRET });
