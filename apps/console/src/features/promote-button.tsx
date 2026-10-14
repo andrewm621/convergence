@@ -1,5 +1,6 @@
-import { GitMerge, Loader, Lock } from "lucide-react";
+import { CircleCheck, GitMerge, Loader, Lock, TriangleAlert } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { newIdempotencyKey } from "@/client/types";
 import { ReasonChip } from "@/components/status";
 import { Button } from "@/components/ui/button";
@@ -139,6 +140,7 @@ export function PromoteButton({ workItemId, className, showReasons = false }: { 
 					role="dialog"
 					aria-labelledby={sheetTitleId}
 					data-testid="merge-sheet"
+					className="w-[24rem] p-5 shadow-xl ring-1 ring-border"
 					onCloseAutoFocus={() => {
 						holdTip.current = true;
 						setTipOpen(false);
@@ -149,36 +151,49 @@ export function PromoteButton({ workItemId, className, showReasons = false }: { 
 						cancelRef.current?.focus();
 					}}
 				>
-					<div className="space-y-2.5 text-[13px] leading-relaxed">
-						<h3 id={sheetTitleId} className="text-sm font-semibold">
+					<div className="space-y-3 text-[13px] leading-snug">
+						<h3 id={sheetTitleId} className="text-base font-semibold tracking-tight">
 							Merging {wi.item.title}
 						</h3>
-						{sheet?.checks && (
-							<p data-testid="merge-checked">
-								<span className="font-semibold">Checked just now:</span> {sheet.checks.map((c) => c.text).join(", ")}.
+						<div className="space-y-2.5 rounded-lg border bg-muted/40 p-3">
+							{sheet?.checks && (
+								<p data-testid="merge-checked" className="flex items-start gap-2">
+									<CircleCheck className="mt-0.5 size-4 shrink-0 text-success" aria-hidden />
+									<span>
+										<span className="font-semibold">Checked just now:</span> {sheet.checks.map((c) => c.text).join(", ")}.
+									</span>
+								</p>
+							)}
+							{waivers.length > 0 && (
+								<p data-testid="merge-exception" className="flex items-start gap-2 font-medium text-warning">
+									<TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
+									<span>{waivers.map((w) => `Passes with an accepted exception from ${w.signer}${w.scope ? `: ${w.scope}` : ""}.`).join(" ")}</span>
+								</p>
+							)}
+							<p data-testid="merge-not-checked" className="flex items-start gap-2 text-warning">
+								<TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
+								<span>
+									<span className="font-semibold">Not checked:</span> whether the work is right.
+								</span>
 							</p>
-						)}
-						{waivers.length > 0 && (
-							<p data-testid="merge-exception" className="font-medium text-warning">
-								{waivers.map((w) => `Passes with an accepted exception from ${w.signer}${w.scope ? `: ${w.scope}` : ""}.`).join(" ")}
-							</p>
-						)}
-						<p data-testid="merge-not-checked">
-							<span className="font-semibold">Not checked:</span> whether the work is right.
+						</div>
+						<p className="text-xs text-muted-foreground">Checked again at merge.</p>
+						<p data-testid="merge-audit" className="text-xs text-muted-foreground">
+							Recorded in the audit log under {DEMO_IDENTITY.label}.
 						</p>
-						<p>Checked again at merge.</p>
-						<p data-testid="merge-audit">Recorded in the audit log under {DEMO_IDENTITY.label}.</p>
 					</div>
-					<div className="mt-4 flex gap-2">
-						<Button size="sm" onClick={() => void promote()} disabled={!canPromote} data-testid="merge-confirm">
-							<GitMerge aria-hidden /> Merge
-						</Button>
-						<Button ref={cancelRef} size="sm" variant="ghost" onClick={() => setSheetOpen(false)} data-testid="merge-cancel">
+					<div className="mt-4 flex items-center justify-end gap-2">
+						<Button ref={cancelRef} variant="ghost" onClick={() => setSheetOpen(false)} data-testid="merge-cancel">
 							Cancel
+						</Button>
+						<Button onClick={() => void promote()} disabled={!canPromote} data-testid="merge-confirm">
+							<GitMerge aria-hidden /> Merge
 						</Button>
 					</div>
 				</PopoverContent>
 			</Popover>
+			{/* Dims the page behind the sheet so it reads as a deliberate confirm. A click on it closes the sheet, like any click outside. */}
+			{sheetOpen && createPortal(<div className="fixed inset-0 z-40 bg-background/70 backdrop-blur-[1px]" data-testid="merge-backdrop" aria-hidden />, document.body)}
 			{/* Always on the page: touch and screen-reader users get the reasons without a hover. */}
 			<span id={reasonsId} className={showReasons && reasons.length > 0 ? "mt-2 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground" : "sr-only"}>
 				{reasons.length > 0 ? (

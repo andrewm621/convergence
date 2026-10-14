@@ -64,13 +64,13 @@ export function DependencyDecision({ workItemId }: { workItemId: string }) {
 						</p>
 						<div className="mt-3 flex flex-wrap gap-2">
 							<UnavailableHint available={!readOnly} reason={readOnly ?? ""}>
-								<Button size="sm" variant="outline" data-testid="dependency-reject" disabled={Boolean(readOnly) || busy !== null} onClick={() => void decide(recordId, "reject")}>
+								<Button data-testid="dependency-reject" disabled={Boolean(readOnly) || busy !== null} onClick={() => void decide(recordId, "reject")}>
 									{working && busy?.decision === "reject" ? <Loader className="animate-spin" aria-hidden /> : <ThumbsDown aria-hidden />}
 									Reject this dependency
 								</Button>
 							</UnavailableHint>
 							<UnavailableHint available={!readOnly} reason={readOnly ?? ""}>
-								<Button size="sm" variant="outline" data-testid="dependency-accept" disabled={Boolean(readOnly) || busy !== null} onClick={() => void decide(recordId, "accept")}>
+								<Button variant="outline" data-testid="dependency-accept" disabled={Boolean(readOnly) || busy !== null} onClick={() => void decide(recordId, "accept")}>
 									{working && busy?.decision === "accept" ? <Loader className="animate-spin" aria-hidden /> : <ThumbsUp aria-hidden />}
 									Accept this dependency
 								</Button>
@@ -80,11 +80,16 @@ export function DependencyDecision({ workItemId }: { workItemId: string }) {
 				);
 			})}
 			{answered && open.length === 0 && (
-				<p className="flex items-start gap-2 text-[13px] leading-relaxed" role="status" data-testid="dependency-answered" data-decision={answered.decision}>
-					<CircleCheck className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
+				<p
+					className="flex items-start gap-2 rounded-xl border border-success/35 bg-success-soft px-3.5 py-2.5 text-sm leading-relaxed"
+					role="status"
+					data-testid="dependency-answered"
+					data-decision={answered.decision}
+				>
+					<CircleCheck className="mt-0.5 size-4 shrink-0 text-success" aria-hidden />
 					{answered.decision === "reject"
-						? `Rejected. This work no longer counts on ${recordName(answered.recordId)}.`
-						: `Accepted. ${recordName(answered.recordId)} now counts as something this work depends on. It was built without it, so it needs a redo.`}
+						? `Rejected. This work no longer counts on ${recordName(answered.recordId)}. Recorded in the audit log.`
+						: `Accepted. ${recordName(answered.recordId)} now counts as something this work depends on, so it needs a re-run on the current version. Recorded in the audit log.`}
 				</p>
 			)}
 		</section>
