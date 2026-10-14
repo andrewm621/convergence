@@ -1,0 +1,28 @@
+name: Scoped coordination proof
+
+on:
+  push:
+    branches:
+      - experiment/scoped-agent-coordination
+  pull_request:
+    paths:
+      - "experiments/scoped-agent-coordination/**"
+      - ".github/workflows/scoped-coordination-proof.yml"
+
+jobs:
+  scoped-proof:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Validate role-scoped coordination invariants
+        run: node --test experiments/scoped-agent-coordination/proof.test.mjs
+      - name: Generate deterministic report
+        run: node experiments/scoped-agent-coordination/proof.mjs simulate
+      - name: Check report contains expected results
+        run: |
+          node -e "const r=require('./experiments/scoped-agent-coordination/run-output/report.json');const x=Object.fromEntries(r.results.map(y=>[y.actor,y.status]));if(x.builder!=='revalidation-required'||x.console!=='revalidation-required'||x.docs!=='unaffected'||x['red-team']!=='finding-proposed')process.exit(1);"
