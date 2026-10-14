@@ -23,7 +23,7 @@ import {
 	processEvent,
 	type ProcessResult,
 } from "delta-core";
-import { PromoteRequest, RegisterRequest, ResolveRequest, InitRequest, failure, invalidInput, refusalOf, type CellResult, type PollerMeta, type WsFrame, type WsMeta } from "./api";
+import { DependencyDecisionRequest, PromoteRequest, RegisterRequest, ResolveRequest, InitRequest, failure, invalidInput, refusalOf, type CellResult, type PollerMeta, type WsFrame, type WsMeta } from "./api";
 import { WS_PROTOCOL } from "./auth";
 import type { AgentRuntimePort } from "./agent-port";
 import { ContextChangeRequest, planContextChange } from "./context-change";
@@ -958,6 +958,35 @@ export abstract class CellBase extends DurableObject<Env> {
 			};
 			const checked = DeltaEvent.safeParse(event);
 			if (!checked.success) return invalidInput(checked.error, "resolution");
+			const result = await this.#submit(checked.data);
+			const refusal = refusalOf(result.effects);
+			const seq = result.entry?.seq ?? null;
+			if (refusal) {
+				return { status: refusal.status, body: { error: { code: refusal.code, message: refusal.message }, recorded: seq !== null, seq, effects: result.effects } };
+			}
+			return { status: 200, body: { recorded: true, outcome: result.outcome, seq, effects: result.effects } };
+		});
+	}
+
+	/** R4: a human accepts or rejects an inferred dependency. Reject clears the hold; accept makes the record gate this work. */
+	decideDependency(workItemId: string, input: unknown, actor: Actor, key: string): Promise<CellResult> {
+		return this.#idempotent(key, `dependency:${workItemId}`, { actor, input }, async () => {
+			const parsed = DependencyDecisionRequest.safeParse(input);
+			if (!parsed.success) return invalidInput(parsed.error, "dependency decision");
+			const req = parsed.data;
+			if (req.workItemId !== undefined && req.workItemId !== workItemId) return failure(400, "WORK_ITEM_MISMATCH", "workItemId in the body does not match the path");
+			// The actor is the authenticated session's, handed in by the Worker; the body has no such field.
+			const event = {
+				type: "DependencyDecided" as const,
+				ts: this.now(),
+				requestId: key,
+				workItemId,
+				recordId: req.recordId,
+				decision: req.decision === "accept" ? ("accepted" as const) : ("rejected" as const),
+				actor,
+			};
+			const checked = DeltaEvent.safeParse(event);
+			if (!checked.success) return invalidInput(checked.error, "dependency decision");
 			const result = await this.#submit(checked.data);
 			const refusal = refusalOf(result.effects);
 			const seq = result.entry?.seq ?? null;

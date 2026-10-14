@@ -41,6 +41,16 @@ export const ResolveRequest = z.strictObject({
 });
 export type ResolveRequest = z.infer<typeof ResolveRequest>;
 
+/** R4: a human accepts or rejects a dependency the reconciler inferred from an agent's claims. */
+export const DependencyDecisionRequest = z.strictObject({
+	/** Optional, for clients that repeat the path's id in the body. It must match the path. */
+	workItemId: WorkItemId.optional(),
+	/** The record the claims rely on without having been given it. */
+	recordId: Slug,
+	decision: z.enum(["accept", "reject"]),
+});
+export type DependencyDecisionRequest = z.infer<typeof DependencyDecisionRequest>;
+
 export const PromoteRequest = z.strictObject({
 	/** Optional, for clients that repeat the path's id in the body. It must match the path. */
 	workItemId: WorkItemId.optional(),

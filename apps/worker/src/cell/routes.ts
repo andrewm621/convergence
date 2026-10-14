@@ -117,6 +117,13 @@ cellApi.post("/scenarios/:scenario/work-items/:id/resolutions", jsonBody, (c) =>
 	return mutate(c, (key, body) => cell(c).resolve(id.id, body, c.get("actor"), key));
 });
 
+// R4: accept or reject a dependency the reconciler inferred from an agent's claims.
+cellApi.post("/scenarios/:scenario/work-items/:id/dependencies", jsonBody, (c) => {
+	const id = workItemId(c);
+	if ("response" in id) return id.response;
+	return mutate(c, (key, body) => cell(c).decideDependency(id.id, body, c.get("actor"), key));
+});
+
 cellApi.post("/scenarios/:scenario/work-items/:id/promote", jsonBody, (c) => {
 	const id = workItemId(c);
 	if ("response" in id) return id.response;
