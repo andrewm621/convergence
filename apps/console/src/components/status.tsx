@@ -22,7 +22,7 @@ import {
 import { createContext, useContext, useId } from "react";
 import { Badge } from "@/components/ui/badge";
 import { CLAIMS_CHECK_HINT } from "@/lib/evidence";
-import { reasonText } from "@/lib/reasons";
+import { reasonLabel, reasonText } from "@/lib/reasons";
 import { cn } from "@/lib/utils";
 
 type Tone = "neutral" | "outline" | "primary" | "success" | "warning" | "danger" | "info" | "merged";
@@ -149,13 +149,22 @@ export function EpistemicChip({ kind, className }: { kind: EpistemicKind; classN
 	);
 }
 
-/** The code stays on screen (it is searchable); its tooltip says what it means, the rule behind it, and what to do next. */
-export function ReasonChip({ code, className }: { code: ReasonCode | string; className?: string }) {
+/**
+ * The code stays on screen (it is searchable); its tooltip says what it means, the rule behind it, and what to do next.
+ * `plain` swaps the boxed monospace code for its short plain label (the audit log); the code stays in `data-reason` and the tooltip.
+ */
+export function ReasonChip({ code, className, plain = false }: { code: ReasonCode | string; className?: string; plain?: boolean }) {
 	const describedBy = useId();
 	const text = reasonText(code);
 	return (
-		<Badge tone="outline" className={cn("font-mono text-[11px] font-medium", className)} data-reason={code} title={text} aria-describedby={describedBy}>
-			{code}
+		<Badge
+			tone="outline"
+			className={cn(plain ? "text-[11px] font-normal" : "font-mono text-[11px] font-medium", className)}
+			data-reason={code}
+			title={plain ? `${code}: ${text}` : text}
+			aria-describedby={describedBy}
+		>
+			{plain ? reasonLabel(code) : code}
 			<span id={describedBy} className="sr-only">
 				{text}
 			</span>

@@ -1,7 +1,7 @@
 import { parseRecordRef, type Claim, type Dependency, type FacetValue, type Policy, type ReasonCode, type ReceiptEntry, type ReconciliationEvent, type RecordSnapshot, type Resolution, type WorkItemState } from "contracts";
 import { analyze, authorityFor, classifyExceptions, diffFacets, evaluateGate, facetValuesEqual, findStale, type Analysis } from "delta-core";
 import { DEMO_IDENTITY } from "@/config";
-import { describeCheck } from "@/lib/evidence";
+import { checkDisplayName, describeCheck } from "@/lib/evidence";
 import { plural } from "@/lib/format";
 import { stillBlocked, toCellState, type Evaluation, type ViewState } from "./store";
 
@@ -207,10 +207,12 @@ function describeLine(entry: ReconciliationEvent): Omit<LedgerSummary, "noAction
 		case "EvidenceRecorded":
 			const notTest = describeCheck(event.evidence);
 			if (notTest) {
-				const check = event.evidence.check.split("/").pop() ?? event.evidence.check;
-				return { label: notTest.label, hint: notTest.hint, detail: event.evidence.pass ? check : `failed: ${check}`, workItemId: event.evidence.workItemId, reasonCodes: reasons };
+				// The claims check's label already names it, so its detail is just the result rather than repeating the name.
+				const check = notTest.kind === "delta-claims-check" ? null : checkDisplayName(event.evidence.check);
+				const detail = check === null ? (event.evidence.pass ? "passed" : "failed") : event.evidence.pass ? check : `failed: ${check}`;
+				return { label: notTest.label, hint: notTest.hint, detail, workItemId: event.evidence.workItemId, reasonCodes: reasons };
 			}
-			return { label: event.evidence.pass ? "Check passed" : "Check failed", detail: event.evidence.check.split("/").pop() ?? event.evidence.check, workItemId: event.evidence.workItemId, reasonCodes: reasons };
+			return { label: event.evidence.pass ? "Check passed" : "Check failed", detail: checkDisplayName(event.evidence.check), workItemId: event.evidence.workItemId, reasonCodes: reasons };
 		case "DependencyDecided":
 			return { label: `Dependency ${event.decision}`, detail: event.recordId, workItemId: event.workItemId, reasonCodes: reasons };
 		case "ReceiptIssued":
@@ -569,16 +571,20 @@ export { stillBlocked };
  * The last evaluation's counts, brought up to date with what has happened since: of the work the change
  * made stale, how many still are, and how many have been merged, revalidated or ruled on in the meantime.
  */
-export function currentEvaluation(view: ViewState): (Evaluation & { resolved: number }) | null {
+export function currentEvaluation(view: ViewState): (Evaluation & { resolved: number; rerunning: number; alreadyRerunning: number }) | null {
 	const evaluation = view.evaluation;
 	if (!evaluation) return null;
 	const still = (ids: readonly string[]) => ids.filter((id) => stillBlocked(view.workItems[id])).length;
+	// Of the work still counted as blocked, the part the agent is already redoing: the strip says "re-running", not "blocked".
+	const rerunning = (ids: readonly string[]) => ids.filter((id) => view.workItems[id]?.item.status === "revalidating").length;
 	const stale = still(evaluation.staleIds);
 	const alreadyStale = still(evaluation.alreadyStaleIds);
 	return {
 		...evaluation,
 		stale,
 		alreadyStale,
+		rerunning: rerunning(evaluation.staleIds),
+		alreadyRerunning: rerunning(evaluation.alreadyStaleIds),
 		resolved: evaluation.stale - stale + (evaluation.alreadyStale - alreadyStale),
 	};
 }

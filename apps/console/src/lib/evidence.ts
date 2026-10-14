@@ -25,3 +25,9 @@ export function describeCheck(evidence: Pick<Evidence, "kind">): CheckDescriptor
 
 /** The check name the Worker records its claims check under. */
 export const CLAIMS_CHECK_NAME = "delta:claims-vs-receipt";
+
+/** What a check is called on screen: the Worker's internal claims-check name reads as plain words, any other name loses its path. */
+export function checkDisplayName(check: string): string {
+	if (check === CLAIMS_CHECK_NAME) return "Claims check";
+	return check.split("/").pop() ?? check;
+}

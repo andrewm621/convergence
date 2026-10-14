@@ -167,6 +167,25 @@ describe("the evaluation strip's timing", () => {
 		expect(screen.getByTestId("results-strip").getAttribute("title")).toContain("7 items checked");
 	});
 
+	it("says re-running, not blocked, for work the agent is already redoing", () => {
+		render(<ResultsStrip evaluation={{ ...evaluation, rerunning: 1, alreadyRerunning: 0 }} />);
+		const strip = screen.getByTestId("results-strip");
+		expect(strip).toHaveTextContent("1 re-running·1 left alone");
+		expect(strip).not.toHaveTextContent("blocked");
+	});
+
+	it("keeps blocked and re-running apart when both exist", () => {
+		render(<ResultsStrip evaluation={{ ...evaluation, evaluated: 4, stale: 3, untouched: 1, rerunning: 1, alreadyRerunning: 0 }} />);
+		expect(screen.getByTestId("results-strip")).toHaveTextContent("2 blocked·1 re-running·1 left alone");
+	});
+
+	it("drops the code chip for a wording-only change", () => {
+		render(<ResultsStrip evaluation={{ ...evaluation, proseOnly: true, evaluated: 0, stale: 0, untouched: 0 }} />);
+		const strip = screen.getByTestId("results-strip");
+		expect(strip).toHaveTextContent("wording only");
+		expect(strip).not.toHaveTextContent("PROSE_ONLY");
+	});
+
 	it("shows no time at all when there is no honest number", () => {
 		render(<ResultsStrip evaluation={evaluation} ms={null} measuredHere />);
 		expect(screen.getByTestId("results-strip").getAttribute("title")).not.toMatch(/Measured|Reconciler time/);

@@ -153,7 +153,8 @@ describe("the build replay: labelling", () => {
 			if (i < 5) await waitFor(() => expect(screen.getByRole("button", { name: "Next step" })).toBeEnabled(), { timeout: 8000 });
 		}
 		await waitFor(() => expect(screen.getByRole("button", { name: "Next step" })).toBeDisabled(), { timeout: 8000 });
-		await waitFor(() => expect(document.body.textContent).toMatch(/PROSE_ONLY/), { timeout: 8000 });
+		// The audit log says it in plain words and keeps the code in data-reason.
+		await waitFor(() => expect(document.querySelector("[data-reason='PROSE_ONLY']")).toHaveTextContent("Wording only"), { timeout: 8000 });
 		// The replayed v1 naming record still says "Delta Convergence": that is history, not the product's current name.
 		expect(document.body.textContent ?? "").not.toMatch(/\bDelta\b(?! Convergence)/);
 	});

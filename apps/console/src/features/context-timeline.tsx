@@ -59,7 +59,7 @@ export function ContextTimeline() {
 /** `truncateTitle`: the title is a work item's own, so it may be long; it shortens with an ellipsis instead of pushing the header wider. */
 export function PaneHeader({ title, subtitle, meta, children, truncateTitle = false }: { title: string; subtitle?: string; meta?: string; children?: ReactNode; truncateTitle?: boolean }) {
 	return (
-		<div className="flex min-h-11 shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b px-4 py-1.5">
+		<div className="flex h-12 shrink-0 items-center gap-x-2 border-b px-4">
 			<h2 className={cn("text-[13px] font-semibold tracking-tight", truncateTitle ? "min-w-0 truncate" : "shrink-0 whitespace-nowrap")} title={truncateTitle ? title : undefined}>
 				{title}
 			</h2>

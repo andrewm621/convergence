@@ -1,7 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { ReasonChip, StatusChip } from "@/components/status";
-import { GENERIC_REASON, NOT_GIVEN_TEXT, REASON_META, reasonMeta } from "./reasons";
+import { ReasonCode } from "contracts";
+import { GENERIC_REASON, NOT_GIVEN_TEXT, primaryReason, REASON_META, reasonLabel, reasonMeta } from "./reasons";
 
 describe("reason codes in plain English", () => {
 	it("explains every listed code in three short lines", () => {
@@ -48,6 +49,32 @@ describe("reason codes in plain English", () => {
 		render(<StatusChip status="uncertain" />);
 		const chip = document.querySelector("[data-status='uncertain']") as HTMLElement;
 		expect(chip.textContent).toBe("Held");
+	});
+
+	it("names every code in a few plain words, and humanises one it does not know", () => {
+		expect(reasonLabel("STALE_RECEIPT")).toBe("Built on an old version");
+		expect(reasonLabel("NO_ACTION")).toBe("No action");
+		expect(reasonLabel("SOME_NEW_CODE")).toBe("Some new code");
+		for (const code of ReasonCode.options) {
+			const label = reasonLabel(code);
+			expect(label, code).not.toMatch(/[A-Z]{3,}|_/);
+			expect(label.length, code).toBeLessThanOrEqual(28);
+		}
+	});
+
+	it("picks the most important code of several", () => {
+		expect(primaryReason(["FACET_CHANGED", "STALE_RECEIPT"])).toBe("STALE_RECEIPT");
+		expect(primaryReason(["NO_DEPENDENCY_ON_CHANGED_FACETS", "SUPERSEDED_BASIS"])).toBe("SUPERSEDED_BASIS");
+		expect(primaryReason(["TESTS_PASSED", "SOMETHING_NEW"])).toBe("SOMETHING_NEW");
+		expect(primaryReason([])).toBeUndefined();
+	});
+
+	it("shows a plain chip as words, with the code kept in data-reason and the tooltip", () => {
+		render(<ReasonChip plain code="STALE_RECEIPT" />);
+		const chip = document.querySelector("[data-reason='STALE_RECEIPT']") as HTMLElement;
+		expect(chip.firstChild?.textContent).toBe("Built on an old version");
+		expect(chip.className).not.toContain("font-mono");
+		expect(chip.getAttribute("title")).toMatch(/^STALE_RECEIPT: /);
 	});
 
 	it("has a plain line for a decision the agent cites but was never given", () => {

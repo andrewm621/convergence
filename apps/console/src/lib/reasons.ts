@@ -150,3 +150,99 @@ export function reasonText(code: string): string {
 	const { summary, rule, next } = reasonMeta(code);
 	return `${summary} ${rule} Next: ${next}`;
 }
+
+/**
+ * Short sentence-case names for the codes, for places where a boxed code would read as noise (the audit log). The code
+ * itself stays on the chip as `data-reason` and in its tooltip. `NO_ACTION` is an effect type, not a reason code, but the
+ * audit log shows it the same way.
+ */
+const REASON_LABEL: Record<ReasonCode | "NO_ACTION", string> = {
+	STALE_RECEIPT: "Built on an old version",
+	FACET_CHANGED: "Setting changed",
+	PROSE_ONLY: "Wording only",
+	NO_DEPENDENCY_ON_CHANGED_FACETS: "Not affected",
+	ALREADY_PROMOTED: "Already merged",
+	NO_CONTEXT_CHANGE: "Nothing changed",
+	VERSION_NOT_NEWER: "Not a newer version",
+	IMMUTABLE_VERSION: "Version can't change",
+	RECORD_NOT_ACCEPTED: "Decision not accepted",
+	UNKNOWN_CONTEXT_VERSION: "Unknown version",
+	NO_CLAIMS: "No claims given",
+	MALFORMED_CLAIMS: "Claims unreadable",
+	CLAIM_CONFLICT: "Claims conflict",
+	SUPERSEDED_BASIS: "Claim cites an old version",
+	CROSS_CLAIM_CONFLICT: "Claims disagree",
+	UNDECLARED_DEP: "Cites something not given",
+	FORK_CONTEXT_IGNORED: "Own copy ignored",
+	FORK_EDITS_CONTEXT: "Edited a decision",
+	WRONG_RECORD: "Wrong decision",
+	TEST_FAILED: "Check failed",
+	MISSING_EVIDENCE: "Evidence missing",
+	HUMAN_RESOLUTION_MISSING: "Awaiting a person",
+	UNRESOLVED_DEPENDENCY: "Dependency undecided",
+	REVALIDATION_PENDING: "Re-run pending",
+	UNKNOWN_WORK_ITEM: "Unknown work item",
+	NOT_FRESH: "Not up to date",
+	REVALIDATION_LIMIT: "Re-run limit reached",
+	REVALIDATION_STARTED: "Re-run started",
+	RECEIPT_MISMATCH: "Handed a different version",
+	REVALIDATION_NOT_REQUESTED: "Re-run not requested",
+	NOTHING_TO_REVALIDATE: "Nothing to re-run",
+	REVALIDATION_IN_PROGRESS: "Re-run in progress",
+	FORBIDDEN_ACTOR: "Not allowed",
+	STALE_BINDING: "Out of date",
+	BASELINE_MOVED: "Baseline moved",
+	HEAD_MOVED: "Work changed since",
+	EXCEPTION_LAPSED: "Exception ended",
+	EXCEPTION_APPLIED: "Exception applied",
+	PROMOTION_NOT_APPROVED: "Merge not approved",
+	STALE_EVIDENCE: "Check out of date",
+	TESTS_PASSED: "Check passed",
+	DUPLICATE_EVENT: "Duplicate",
+	IDEMPOTENCY_CONFLICT: "Conflicting retry",
+	OBSERVATION_ONLY: "Noted",
+	DEPENDENCY_DECIDED: "Dependency decided",
+	ALREADY_RESOLVED: "Already resolved",
+	RESOLUTION_REJECTED: "Sign-off refused",
+	NO_ACTION: "No action",
+};
+
+/** A short plain label for a code. A code with no entry reads as its words ("SOME_NEW_CODE" becomes "Some new code"). */
+export function reasonLabel(code: string): string {
+	const known = (REASON_LABEL as Record<string, string | undefined>)[code];
+	if (known) return known;
+	const words = code.toLowerCase().replace(/[_-]+/g, " ").trim();
+	return words ? words.charAt(0).toUpperCase() + words.slice(1) : code;
+}
+
+/** Most important first. A line can carry several codes but shows one; the rest stay in its tooltip. */
+const REASON_PRIORITY: readonly string[] = [
+	"STALE_RECEIPT",
+	"CLAIM_CONFLICT",
+	"CROSS_CLAIM_CONFLICT",
+	"SUPERSEDED_BASIS",
+	"UNDECLARED_DEP",
+	"UNKNOWN_CONTEXT_VERSION",
+	"MALFORMED_CLAIMS",
+	"NO_CLAIMS",
+	"EXCEPTION_LAPSED",
+	"TEST_FAILED",
+	"MISSING_EVIDENCE",
+	"REVALIDATION_PENDING",
+	"FACET_CHANGED",
+	"EXCEPTION_APPLIED",
+	"PROSE_ONLY",
+	"NO_DEPENDENCY_ON_CHANGED_FACETS",
+	"TESTS_PASSED",
+	"NO_ACTION",
+];
+
+/** The single most important code of a line, or undefined for none. A code the list doesn't name ranks just ahead of the quiet ones. */
+export function primaryReason(codes: readonly string[]): string | undefined {
+	const unlisted = REASON_PRIORITY.indexOf("PROSE_ONLY") - 0.5;
+	const rank = (code: string) => {
+		const at = REASON_PRIORITY.indexOf(code);
+		return at === -1 ? unlisted : at;
+	};
+	return [...codes].sort((a, b) => rank(a) - rank(b))[0];
+}

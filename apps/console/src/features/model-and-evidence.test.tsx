@@ -82,6 +82,22 @@ describe("honest evidence labels", () => {
 		expect(within(lines).getAllByText("Convergence contract check")[0]).toHaveAttribute("title", RUN_CHECK_HINT);
 	});
 
+	it("the ledger strip says what happened in plain words: one chip a line, the code kept in data-reason, no raw check name", async () => {
+		await renderWithMock(<BottomStrip />, { beats: 5 });
+		const lines = await screen.findByRole("list", { name: "Audit log lines" });
+		const chips = [...lines.querySelectorAll("[data-reason]")] as HTMLElement[];
+		expect(chips.length).toBeGreaterThan(0);
+		for (const li of lines.querySelectorAll("li[data-seq]")) expect(li.querySelectorAll("[data-reason]").length).toBeLessThanOrEqual(1);
+		for (const chip of chips) {
+			const code = chip.getAttribute("data-reason") ?? "";
+			expect(chip.firstChild?.textContent).not.toBe(code);
+			expect(chip.className).not.toContain("font-mono");
+			expect(chip.getAttribute("title")).toContain(code);
+		}
+		expect(lines.textContent).not.toMatch(/delta:claims-vs-receipt|\+\d/);
+		expect(lines.textContent).not.toMatch(/\b[A-Z]{3,}_[A-Z_]+\b/);
+	});
+
 	it("the Why chain shows the claims check on its own row, apart from the contract checks that satisfy the gate", async () => {
 		await renderWithMock(<Selected>{() => <Inspector />}</Selected>, { beats: 8, select: "WI-2" });
 		const checks = await screen.findByRole("list", { name: "Checks" });
