@@ -2,7 +2,7 @@ import { parseContextRecord, type Claim, type FacetValue, type Policy } from "co
 import * as build from "scenario-delta-convergence-build";
 import { POINTER_SCENARIO } from "./cell/pointer-scenario";
 
-// The seed for Delta Convergence governing its own build (docs/dogfooding.md): the replay's end state, written as repos.
+// The seed for Convergence governing its own build (docs/dogfooding.md): the replay's end state, written as repos.
 // The baseline holds the six records at their latest versions. Each of the seven work items gets a fork whose only
 // content is a pointer to the real work and the claims the work holds as of seeding. Nothing is replayed; the replay is
 // the console's mock.

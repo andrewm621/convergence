@@ -1,10 +1,10 @@
-# Delta Convergence governs its own build
+# Convergence governs its own build
 
-> **Retrofitted from this repo's git history: these decisions were made before Delta Convergence was recording them; the replay reconstructs them. Dependencies are declared by us. No automated evidence: humans resolve.**
+> **Retrofitted from this repo's git history: these decisions were made before Convergence was recording them; the replay reconstructs them. Dependencies are declared by us. No automated evidence: humans resolve.**
 
-This is a replay, not a live run. While building Delta Convergence we changed our own accepted decisions mid-flight, and each change left some of our own work built on the old version. This package writes those decisions down as context records, declares what each piece of work relied on, and replays the real changes through the real `reconcile`.
+This is a replay, not a live run. While building Convergence we changed our own accepted decisions mid-flight, and each change left some of our own work built on the old version. This package writes those decisions down as context records, declares what each piece of work relied on, and replays the real changes through the real `reconcile`.
 
-Nothing here was detected by Delta Convergence at the time. The records, the dependency lists and the claims are our reconstruction, and the result is only as good as the dependencies we declared.
+Nothing here was detected by Convergence at the time. The records, the dependency lists and the claims are our reconstruction, and the result is only as good as the dependencies we declared.
 
 The scenario is a fixture, like `shelter-intake`: plain data, built by `buildDogfoodBuildScenario()`, ready for the console to pick up later.
 
@@ -49,7 +49,7 @@ Times are the commits' own author times (US Eastern). The replay applies them in
 | Oct 12 23:27 | WI-7 pushed: the console identity header | `3036894` | #4 | Claims the label. Fresh |
 | Oct 12 23:47 | WI-1 pushed (first version): the claims check counts as a test | `7d7fa09` | #6 | Claims evidence policy v1. Fresh |
 | Oct 12 23:54 | WI-2 pushed (first version): evidence labels, built on v1 | first version of PR #7, since rewritten when the branch was rebased; its sha is not cited | #7 | Claims evidence policy v1. Fresh |
-| Oct 13 00:04 | **Evidence policy v2**: only a check Delta Convergence runs counts; the claims check is informational | `8350830` | #6 | WI-1, WI-2, WI-3 stale. WI-4 to WI-7 untouched |
+| Oct 13 00:04 | **Evidence policy v2**: only a check Convergence runs counts; the claims check is informational | `8350830` | #6 | WI-1, WI-2, WI-3 stale. WI-4 to WI-7 untouched |
 | Oct 13 00:18 | **Evidence policy v3**: run checks take the facets they assert from the receipt | `2f3d2c8` | #6 | WI-1 gains `evidence.required-facets` as a stale facet; no other item does. WI-4 to WI-7 untouched |
 | invented | **Product naming wording edit**: no facet moves | none | none | `NO_ACTION` with `PROSE_ONLY`. Nothing is re-evaluated |
 
@@ -63,7 +63,7 @@ Real: the commits, their times and the PR numbers in the table; the order; the v
 
 Reconstructed by us:
 
-- **The dependencies and the claims.** We declared them after the fact. Delta Convergence did not infer them. WI-3 makes no claim about the evidence rule, because the video script was written before that rule existed; we declare the dependency afterwards, and it goes stale on it through the declaration alone.
+- **The dependencies and the claims.** We declared them after the fact. Convergence did not infer them. WI-3 makes no claim about the evidence rule, because the video script was written before that rule existed; we declare the dependency afterwards, and it goes stale on it through the declaration alone.
 - **The starting state.** All six records are at v1 when the replay begins, and the work items are registered then (replay setup, timestamped before the first commit, not history). The evidence policy's first commit (`7d7fa09`) is later than the rename, so having it in the starting state puts it slightly ahead of the commits. Nothing depends on that gap, but it is a gap.
 - **WI-1 and WI-2 heads.** Both are merge commits, not the commits their first versions were pushed in, so the head sha is later than the push time on the same event.
 - **WI-5 and the wording edit are not in git.** They carry the all-zero sha (`0000000000000000000000000000000000000000`), which reads as "none", and are labelled "not in git" in the fixture. The shared brief lives in Notion. The product-naming wording edit is the one invented event in the replay: it has no commit. We kept it because it is the negative control, a change that must not move anything.

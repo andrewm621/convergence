@@ -1,4 +1,4 @@
-# Delta Convergence
+# Convergence
 
 A decision shouldn't just be written down. The system should know what depends on it.
 
@@ -39,20 +39,20 @@ Two agents work on the same codebase. The decision owner decides that notificati
 
 Git sees no conflict, because nobody touched the same line. The delivery branch merges clean and still ships the wrong behavior. The status badge branch is fine, and nothing should slow it down.
 
-Git versions files. Nothing versions the **accepted decision that governs the work**, or records which work was built on which version. Delta Convergence adds that record. When an agent starts, it is handed a **receipt**: a record of exactly which decision versions it was given, with a hash of each. When a decision changes, the receipts say whose work is affected.
+Git versions files. Nothing versions the **accepted decision that governs the work**, or records which work was built on which version. Convergence adds that record. When an agent starts, it is handed a **receipt**: a record of exactly which decision versions it was given, with a hash of each. When a decision changes, the receipts say whose work is affected.
 
 The same thing happens outside code. Take a synthetic flood shelter, in a fictional place called Larkhaven County. The intake policy changes: pets are now admitted if crated, and ID is no longer required. A front-desk script, the door signage and a volunteer briefing were each drafted from the old policy, and nothing marks them out of date. The supply list and the shift schedule never depended on those rules, and should be left alone.
 
-| Question | Git + CI + PR review | Delta Convergence |
+| Question | Git + CI + PR review | Convergence |
 |---|---|---|
 | Do the two branches merge cleanly? | Yes | Not its job. It does not replace the merge. |
 | Does each branch pass its own checks? | Yes | Not its job. |
 | Which decision version was this work built on? | Not recorded | Recorded in the receipt: record, version, hash. |
 | The decision just changed. Which in-flight work is affected? | Unknown | The work that declared a dependency on what changed, with the changed fields named. |
 | Which work is not affected? | Unknown | Left alone, with a reason recorded. |
-| Can the stale work merge? | Yes | Not through Delta Convergence, until a human resolves it. |
+| Can the stale work merge? | Yes | Not through Convergence, until a human resolves it. |
 
-The last row has a catch. It only holds for work that goes through Delta Convergence. See [Honest limits](#honest-limits).
+The last row has a catch. It only holds for work that goes through Convergence. See [Honest limits](#honest-limits).
 
 ## How it works
 
@@ -65,7 +65,7 @@ Terms, each in one sentence:
 | **Receipt** | The record of which decision versions and hashes an agent was handed. It proves delivery, not that the agent read or followed them. It is also written as a git note on the agent's fork (`refs/notes/delta`) when a revalidation is dispatched. |
 | **Stale** | A work item whose receipt points at a version of a facet it depends on that has since changed. Stale is not the same as wrong. |
 | **Claim** | A structured statement an agent makes about its own output (`.delta/claims.json`). It is self-reported, so the console labels it "agent-asserted, unverified". |
-| **Evidence** | The result of a check that Delta Convergence itself runs on the pushed files. It does not depend on the agent being honest. |
+| **Evidence** | The result of a check that Convergence itself runs on the pushed files. It does not depend on the agent being honest. |
 | **Gate** | The test for promotion: the work is fresh and its required checks passed at the current heads, or a human holding the right authority granted a scoped exception. Anything unknown blocks. |
 | **Resolution** | A human decision on stale work: revalidate (re-run the agent on the new decision), accept an exception (scoped, with a rationale), or reject. Agents cannot resolve. |
 | **Ledger** | An append-only, hash-chained log. Every observation, effect and refusal is a line, with a reason code. |
@@ -87,7 +87,7 @@ Models do the work and propose changes. They never authorize anything. Staleness
 reconcile(state, event, policy) -> { state, effects }
 ```
 
-No LLM is required to operate Delta Convergence. In this repo, `packages/delta-core` is pure: no I/O, clock, randomness, network or model SDK. `packages/delta-core/src/purity.test.ts` scans the sources for those and fails if any appear.
+No LLM is required to operate Convergence. Delta, the reconciliation engine inside it (`packages/delta-core`), is pure: no I/O, clock, randomness, network or model SDK. `packages/delta-core/src/purity.test.ts` scans the sources for those and fails if any appear.
 
 ### The rules, in plain words
 
@@ -101,7 +101,7 @@ No LLM is required to operate Delta Convergence. In this repo, `packages/delta-c
 | R5 Gate | Promotion needs a fresh item with passing required checks, or a bound exception. A fork that edits `context/**` can never be promoted. |
 | R6 Revalidation | Revalidating issues a new receipt at the current versions and re-runs the agent. After `maxRevalidations` loops, it asks for review instead. |
 | R7 Binding | A resolution is bound to the decision version and hash, the base commit and the fork head. Promotion re-checks the gate at merge time. |
-| R8 Evidence | Checks are run by Delta Convergence on the pushed files, not reported by the agent. |
+| R8 Evidence | Checks are run by Convergence on the pushed files, not reported by the agent. |
 | R9 Idempotency | A repeated event (same repo and commit) produces one ledger line. Mutating requests carry an `Idempotency-Key`. |
 
 Five named invariant tests (`packages/delta-core/src/testing/invariants.ts`, run by `invariants.test.ts`) run against the fixtures:
@@ -120,7 +120,7 @@ All of these run through the same engine, with different fixtures.
 
 | | **Notifications** (coding) | **Larkhaven County shelter** (knowledge work) | **Our own build** |
 |---|---|---|---|
-| What it is | A small TypeScript status service | A fictional county's flood shelter, five drafts from one intake policy | This repo's own decisions, governed by Delta Convergence |
+| What it is | A small TypeScript status service | A fictional county's flood shelter, five drafts from one intake policy | This repo's own decisions, governed by Convergence |
 | Decision that changes | `notifications` v1 (on by default, immediate) becomes v2 (opt-in, weekly digest) | `shelter-intake-policy` v1 to v2 (pets, ID), then v3 (capacity note) | Six decision records, for example what counts as a contract test, or the name of the fictional county |
 | Goes stale | WI-2 notification delivery | Front-desk script, door signage, volunteer briefing | Whatever declared a dependency on the changed facet |
 | Left alone | WI-1 status badges | Supply list, shift schedule | The rest, including a negative control |
@@ -132,7 +132,7 @@ All of these run through the same engine, with different fixtures.
 
 **Larkhaven County shelter** is a synthetic scenario, not operational guidance. The county, its flood and its volunteer network are invented, and nothing in it should be used as an alert, as eligibility guidance or as an operating instruction. The console keeps that note on screen while it is open. The console replays it from fixtures, engine tests walk through it, and it has also been run live with real agents on the deployed Worker (below). Details: [`scenarios/shelter-intake/README.md`](scenarios/shelter-intake/README.md).
 
-**Our own build** is Delta Convergence governing its own build. The replay (`?mock=1&scenario=delta-convergence-build`) reconstructs our decisions from this repo's git history, and the console says it is retrofitted: nothing in it was detected at the time. A live cell has recorded real decisions since Oct 13. Its work items are pointers to real pull requests, it never dispatches an agent and never merges, and humans resolve outside the console. Details and the commands: [`docs/dogfooding.md`](docs/dogfooding.md).
+**Our own build** is Convergence governing its own build. The replay (`?mock=1&scenario=delta-convergence-build`) reconstructs our decisions from this repo's git history, and the console says it is retrofitted: nothing in it was detected at the time. A live cell has recorded real decisions since Oct 13. Its work items are pointers to real pull requests, it never dispatches an agent and never merges, and humans resolve outside the console. Details and the commands: [`docs/dogfooding.md`](docs/dogfooding.md).
 
 Seeded work items (`source: seeded`) have no model behind them and are always labelled as seeded. A fourth fixture, Northwind sales ops, is still in the repo and in the engine tests, and is hidden from the console tabs (`?scenario=sales-ops` opens it in replay).
 
@@ -283,7 +283,7 @@ What these tests are, plainly:
 
 - The contract and rule tests are written by us ahead of time, as fixed fixtures and assertions. No model generates or judges them when they run.
 - The Worker tests run the Durable Object in a local workerd (Miniflare) against an in-memory fake of Artifacts. They do not touch the real service. The real service was exercised separately by the live scripts above, by hand, and those runs are recorded in `docs/live-verification.md`, not in `pnpm -r test`.
-- The "contract check" that Delta Convergence runs on an agent's pushed files is a plain-text match that the code declares each governed facet with the accepted value (for example `export const NOTIFICATIONS_DEFAULT = "opt-in";`). It is not a test suite and it does not run the project's code. A commented-out declaration with the right literal also matches. The product says "Delta Convergence contract check", never "tests passed".
+- The "contract check" that Convergence runs on an agent's pushed files is a plain-text match that the code declares each governed facet with the accepted value (for example `export const NOTIFICATIONS_DEFAULT = "opt-in";`). It is not a test suite and it does not run the project's code. A commented-out declaration with the right literal also matches. The product says "Convergence contract check", never "tests passed".
 
 ## Honest limits
 
@@ -295,13 +295,13 @@ What these tests are, plainly:
 
 And the limits of the system itself:
 
-- **Dependencies are declared, not inferred.** If a dependency is neither declared nor claimed, Delta Convergence does not know about it, and nothing goes stale. It does not read arbitrary text.
+- **Dependencies are declared, not inferred.** If a dependency is neither declared nor claimed, Convergence does not know about it, and nothing goes stale. It does not read arbitrary text.
 - **It only gates actions that flow through it.** Someone with their own repo credentials can walk around it. The Worker is meant to be the only writer to the baseline.
-- **Claims are self-reported.** Only the checks that Delta Convergence runs are verified, and only for what the check asserts. See [Tests](#tests) for how narrow that is.
+- **Claims are self-reported.** Only the checks that Convergence runs are verified, and only for what the check asserts. See [Tests](#tests) for how narrow that is.
 - **One Durable Object per workspace.** Events for a scenario are applied one at a time, which keeps the ledger consistent and caps throughput for that scenario. Scale beyond that has not been tested.
 - **Polling latency.** Pushes are noticed on a poll (3 s by default) rather than pushed to the Worker. On the deployed Worker, a decision change showed up as stale in 1.2 to 4 seconds in recorded runs. That timing includes the commit push itself.
 - **Identity is simulated.** The demo uses one shared bearer token and a labelled "Decision owner (demo identity)". In the solo demo, one person holds both exception and promote authority. Real per-user auth is not built.
-- **A merge can still conflict.** If a fork's text conflicts with the baseline at promotion, the promote is refused with `MERGE_CONFLICT`. Delta Convergence reports it and does not resolve it.
+- **A merge can still conflict.** If a fork's text conflicts with the baseline at promotion, the promote is refused with `MERGE_CONFLICT`. Convergence reports it and does not resolve it.
 - **A permanently unreadable blob wedges a cell.** The poller never skips a baseline commit, so promotes and context changes return `503 POLLER_BEHIND`, and there is no operator escape yet.
 - **A crash mid-promote, then a retry, returns a 409 rather than resuming.**
 - **Replay is replay.** The console's replay mode runs the real rule code on scripted events. The agents, git and the clock are scripted, and the header says so. The fan-out strip and the build history are replay or seeded, not live agents, and the shelter act in the console is replay too; its live run is the separate script above.
@@ -327,7 +327,7 @@ As of 2026-10-13, checked against `main`. "Built" means code on `main` with test
 | Sandbox agent runtime, concurrent runs, credential isolation | Built, observed live | Concurrent stub runs on separate forks were seen overlapping. Gateways enforce request, token and dollar caps |
 | Agents through OpenRouter (`AGENT_MODE=claude`) | Observed live on the deployed Worker; default deploy is stub | `openai/gpt-6-luna`, `z-ai/glm-5.3-flash` and `minimax/minimax-m3` each completed the notifications task on a fork with a verified push. The shelter run on Oct 13 used GLM. A Claude Sonnet run also completed, but it finished before the decision changed, so the demo uses GLM. |
 | Receipts as git notes | Partly | Written by the Worker when a revalidation is dispatched and read back with `git notes --ref=delta show` on Artifacts. The first receipt a fork gets is not yet written as a note. |
-| Checks run by Delta Convergence (R8) at the pushed head | Built, narrow | Plain-text match for Notifications and the shelter scenario. No project test suite is run. Sales ops has no check. |
+| Checks run by Convergence (R8) at the pushed head | Built, narrow | Plain-text match for Notifications and the shelter scenario. No project test suite is run. Sales ops has no check. |
 | Convergence Console: work graph, inspector, "Why is this blocked?", actions | Built | Live client and replay. Live mode was checked in a headless browser on the deployed Worker |
 | Impact preview in the decision editor | Built | Worked out from the console's view, so it runs in live mode and replay. `impact.test.ts` commits through the replay engine and checks the preview matched, for each story's decision change and for one-setting edits at every step of all three stories |
 | Replay mode (`?mock=1`) | Built | Deployed URL above returns 200. Replay is labelled as replay in the header |
@@ -348,21 +348,21 @@ A preview at commit time is built: before the Decision owner commits a new versi
 
 ## Why not X?
 
-These were compared from each tool's published documentation, not tested hands-on. Each does its own job well, and this table is about the one thing Delta Convergence adds. Corrections welcome.
+These were compared from each tool's published documentation, not tested hands-on. Each does its own job well, and this table is about the one thing Convergence adds. Corrections welcome.
 
-| Alternative | What it is for | What Delta Convergence adds |
+| Alternative | What it is for | What Convergence adds |
 |---|---|---|
 | **Git + CI + PR review** | Line-level conflicts, per-branch checks, review history. | A record of which decision version a branch was built on, so two branches that merge clean and pass can still be caught when a decision moves. |
 | **Spec tools + CI** (for example [Spec Kit](https://github.com/github/spec-kit)) | Turn a spec into a plan and tasks, and check code against it at one moment. | Tracking of which in-flight work was built on which version of the spec, and a gate when the spec changes mid-flight. |
 | **Parallel-agent tools + PRs** | Run many agents on isolated branches or worktrees, then review the diffs. | A check that the agents were building from the same decisions. In these tools the merge is the gate. Here the decision version is. |
 | **Broadcast notifications** | Tell everyone something changed. | Who is affected, who is not, and a block on the affected work. |
-| **[AGENTS.md](https://agents.md)** | A convention for giving agents project instructions. | A receipt of what was delivered, staleness and a gate. Delta Convergence uses the same convention to hand instructions to an agent. |
+| **[AGENTS.md](https://agents.md)** | A convention for giving agents project instructions. | A receipt of what was delivered, staleness and a gate. Convergence uses the same convention to hand instructions to an agent. |
 
 ## Prior art and credit
 
-- **Kubernetes controllers.** The shape of comparing desired state against actual state. Delta Convergence compares accepted decisions with in-flight work instead of infrastructure.
-- **Git and [Radicle](https://radicle.xyz).** Signed provenance of who authored which change, as described in their public docs: Radicle says it verifies the authenticity and authorship of repository data, including issues and code review. Delta Convergence tracks a different thing: which work depended on which accepted decision.
-- **Requirements traceability and "suspect links".** Traceability tools flag downstream items when an upstream requirement changes, and the idea is theirs. For example, the open-source [Doorstop](https://doorstop.readthedocs.io) keeps requirements in version control, stores a fingerprint of the parent item in each link, and reports the link as suspect during validation when that fingerprint changes. Delta Convergence borrows the idea and points it at accepted decisions and the agent work built from them, adding a receipt of what was handed over and a promotion gate. We do not claim novelty over suspect links, and we have not compared against commercial traceability tools.
+- **Kubernetes controllers.** The shape of comparing desired state against actual state. Convergence compares accepted decisions with in-flight work instead of infrastructure.
+- **Git and [Radicle](https://radicle.xyz).** Signed provenance of who authored which change, as described in their public docs: Radicle says it verifies the authenticity and authorship of repository data, including issues and code review. Convergence tracks a different thing: which work depended on which accepted decision.
+- **Requirements traceability and "suspect links".** Traceability tools flag downstream items when an upstream requirement changes, and the idea is theirs. For example, the open-source [Doorstop](https://doorstop.readthedocs.io) keeps requirements in version control, stores a fingerprint of the parent item in each link, and reports the link as suspect during validation when that fingerprint changes. Convergence borrows the idea and points it at accepted decisions and the agent work built from them, adding a receipt of what was handed over and a promotion gate. We do not claim novelty over suspect links, and we have not compared against commercial traceability tools.
 - **Our own earlier spikes.** The Artifacts in-memory fs for isomorphic-git, the ledger hash chain and the graph layout patterns are the author's own prior code, reused. The commit history of this repo stays inside the contest window.
 
 ## Where this goes

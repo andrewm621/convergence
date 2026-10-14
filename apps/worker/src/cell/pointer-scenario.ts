@@ -1,4 +1,4 @@
-// Delta Convergence governing its own build (docs/dogfooding.md). The work items of that cell are pointers to real
+// Convergence governing its own build (docs/dogfooding.md). The work items of that cell are pointers to real
 // pull requests and documents, not forks an agent works in, so the cell must never start an agent or merge one.
 
 /** The scenario id the console's replay uses. A live cell is this id, or this id followed by `-<name>`. */

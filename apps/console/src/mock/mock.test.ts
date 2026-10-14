@@ -265,7 +265,7 @@ describe("mock replay of the shelter scenario (knowledge work) uses the same eng
 		const script = shelterIntakeScript(await buildShelterIntakeScenario());
 		const words = [...script.beats.flatMap((beat) => [beat.title, beat.caption]), script.label, SCENARIO_META["shelter-intake"].label, SCENARIO_META["shelter-intake"].note ?? ""].join("\n");
 		expect(words).not.toMatch(/\bcode\b|\bcommit|\bmerge|\brepo\b|\bPR\b|\bdeploy|\bpush/i);
-		expect(words.replace(/Delta Convergence/g, "")).not.toMatch(/\bDelta\b/);
+		expect(words).not.toMatch(/\bDelta\b/);
 		expect(words).toContain("Synthetic scenario. Not operational guidance.");
 	});
 });

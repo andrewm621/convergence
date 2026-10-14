@@ -29,7 +29,7 @@ export const SYNTHETIC_NOTE = "Synthetic scenario. Not operational guidance.";
 
 /** The note that must stay visible on the replay of our own build. */
 export const BUILD_NOTE_LEAD = "Retrofitted from this repo's git history.";
-export const BUILD_NOTE = `${BUILD_NOTE_LEAD} Decisions made before Delta Convergence was recording them; dependencies declared by us; humans resolve.`;
+export const BUILD_NOTE = `${BUILD_NOTE_LEAD} Decisions made before Convergence was recording them; dependencies declared by us; humans resolve.`;
 
 /** The note on the live workspace of our own build, which starts where the replay ends. */
 export const LIVE_BUILD_NOTE_LEAD = "Live:";

@@ -41,7 +41,7 @@ export const STATUS_META: Record<WorkItemStatus, StatusMeta> = {
 	revalidating: { label: "revalidating", tone: "info", icon: RefreshCw, description: "Re-running on the current decisions." },
 	ready: { label: "Ready to merge", tone: "primary", icon: CheckCheck, description: "Cleared by the merge check. A human decides whether to merge." },
 	promoted: { label: "Merged", tone: "merged", icon: GitMerge, description: "Merged into the baseline." },
-	uncertain: { label: "uncertain", tone: "warning", icon: HelpCircle, description: "Delta Convergence cannot tell: claims are missing or rely on something undeclared." },
+	uncertain: { label: "uncertain", tone: "warning", icon: HelpCircle, description: "Convergence cannot tell: claims are missing or rely on something undeclared." },
 	rejected: { label: "rejected", tone: "neutral", icon: CircleSlash, description: "A human rejected this work." },
 };
 
@@ -60,7 +60,7 @@ export function useDegraded(): boolean {
  */
 export function statusMeta(status: WorkItemStatus, degraded: boolean, leftAlone = false, excepted = false): StatusMeta {
 	if (degraded && (status === "fresh" || status === "ready")) {
-		return { label: "unconfirmed", tone: "warning", icon: HelpCircle, description: "The poller is degraded, so Delta Convergence cannot confirm that no decision it depends on has changed." };
+		return { label: "unconfirmed", tone: "warning", icon: HelpCircle, description: "The poller is degraded, so Convergence cannot confirm that no decision it depends on has changed." };
 	}
 	// Work with no recorded dependency on what changed stays green, even while its agent is still working. Never while the
 	// poller is degraded: a baseline change may be sitting unread, and unknown is not unaffected.
@@ -127,13 +127,13 @@ export type EpistemicKind = "recorded" | "asserted" | "verified" | "claims-check
 
 /**
  * How much to trust a link in the Why chain. Accepted records and Resolutions are `recorded`;
- * an agent's claims are `agent-asserted, unverified`; Delta Convergence-run checks are `test-verified`;
+ * an agent's claims are `agent-asserted, unverified`; Convergence-run checks are `test-verified`;
  * anything nobody has decided reads `Awaiting human` and never wears a success badge.
  */
 export const EPISTEMIC_META: Record<EpistemicKind, { text: string; tone: Tone; icon: typeof Lock; dashed: boolean; hint: string }> = {
 	recorded: { text: "recorded", tone: "primary", icon: Lock, dashed: false, hint: "An accepted decision or a human sign-off, in the audit log." },
-	asserted: { text: "agent-asserted, unverified", tone: "warning", icon: Bot, dashed: true, hint: "The agent's own word. Delta Convergence has not checked it." },
-	verified: { text: "test-verified", tone: "info", icon: FlaskConical, dashed: false, hint: "A check Delta Convergence ran itself at this head." },
+	asserted: { text: "agent-asserted, unverified", tone: "warning", icon: Bot, dashed: true, hint: "The agent's own word. Convergence has not checked it." },
+	verified: { text: "test-verified", tone: "info", icon: FlaskConical, dashed: false, hint: "A check Convergence ran itself at this head." },
 	"claims-checked": { text: "claims-checked, not tested", tone: "info", icon: ShieldCheck, dashed: true, hint: CLAIMS_CHECK_HINT },
 	awaiting: { text: "Awaiting human", tone: "neutral", icon: Hourglass, dashed: true, hint: "Nobody has decided this yet." },
 };

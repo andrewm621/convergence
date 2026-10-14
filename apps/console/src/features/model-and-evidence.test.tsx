@@ -63,8 +63,8 @@ describe("honest evidence labels", () => {
 		expect(claims.hint).toBe("The Worker verified that the agent's claims at the pushed commit cite the current decision versions. It did not run the test suite.");
 
 		const run = summarizeLedgerLine(evidenceLine(mock.view.ledger, "delta-run-check"));
-		expect(run.label).toBe("Delta Convergence contract check");
-		expect(run.hint).toBe("Delta Convergence ran its own deterministic check on the pushed files at this commit. Not the project's test suite.");
+		expect(run.label).toBe("Convergence contract check");
+		expect(run.hint).toBe("Convergence ran its own deterministic check on the pushed files at this commit. Not the project's test suite.");
 
 		for (const kind of ["executed-test", undefined] as const) {
 			const line = summarizeLedgerLine(evidenceLine(mock.view.ledger, kind));
@@ -79,7 +79,7 @@ describe("honest evidence labels", () => {
 		const lines = await screen.findByRole("list", { name: "Audit log lines" });
 		const claims = within(lines).getAllByText(CLAIMS_CHECK_LABEL);
 		expect(claims[0]).toHaveAttribute("title", CLAIMS_CHECK_HINT);
-		expect(within(lines).getAllByText("Delta Convergence contract check")[0]).toHaveAttribute("title", RUN_CHECK_HINT);
+		expect(within(lines).getAllByText("Convergence contract check")[0]).toHaveAttribute("title", RUN_CHECK_HINT);
 	});
 
 	it("the Why chain shows the claims check on its own row, apart from the contract checks that satisfy the gate", async () => {
@@ -87,15 +87,15 @@ describe("honest evidence labels", () => {
 		const checks = await screen.findByRole("list", { name: "Checks" });
 		const claims = await screen.findByRole("list", { name: "Claims checks" });
 		for (const badge of within(claims).getAllByText(CLAIMS_CHECK_LABEL)) expect(badge).toHaveAttribute("title", CLAIMS_CHECK_HINT);
-		for (const badge of within(checks).getAllByText("Delta Convergence contract check")) expect(badge).toHaveAttribute("title", RUN_CHECK_HINT);
+		for (const badge of within(checks).getAllByText("Convergence contract check")) expect(badge).toHaveAttribute("title", RUN_CHECK_HINT);
 		expect(within(checks).queryByText(CLAIMS_CHECK_LABEL)).toBeNull();
-		expect(within(claims).queryByText("Delta Convergence contract check")).toBeNull();
+		expect(within(claims).queryByText("Convergence contract check")).toBeNull();
 	});
 
 	it("a failing contract check reads as failed, in the contract-check wording", async () => {
 		await renderWithMock(<Selected>{() => <Inspector />}</Selected>, { beats: 5, select: "WI-2" });
 		const checks = await screen.findByRole("list", { name: "Checks" });
-		const failed = within(checks).getAllByText(/Delta Convergence contract check/).filter((el) => /: failed/.test(el.textContent ?? ""));
+		const failed = within(checks).getAllByText(/Convergence contract check/).filter((el) => /: failed/.test(el.textContent ?? ""));
 		expect(failed.length).toBeGreaterThan(0);
 		expect(within(checks).queryByText(CLAIMS_CHECK_LABEL)).toBeNull();
 		expect(screen.getByText("test-verified")).toBeInTheDocument();

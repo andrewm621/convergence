@@ -53,7 +53,7 @@ describe("the Why chain separates the Worker's claims check from the tests", () 
 		const chain = await renderChain((evidence) => evidence.map((e) => (isClaims(e) ? { ...e, pass: false, output: "claims cite notifications@1, the current version is v2" } : e)));
 
 		const tests = within(chain).getByRole("list", { name: "Checks" });
-		expect(within(tests).getAllByText("Delta Convergence contract check").length).toBeGreaterThan(0);
+		expect(within(tests).getAllByText("Convergence contract check").length).toBeGreaterThan(0);
 		expect(within(tests).queryByText(/Claims check/)).toBeNull();
 		expect(within(tests).queryByText(/failed/)).toBeNull();
 		expect(within(tests).queryByText(/delta:claims-vs-receipt/)).toBeNull();
@@ -72,7 +72,7 @@ describe("the Why chain separates the Worker's claims check from the tests", () 
 		const chain = await renderChain((evidence) => evidence.filter(isClaims));
 
 		const testRow = chain.querySelector('[data-chain-step="4"]') as HTMLElement;
-		expect(within(testRow).getByText("No Delta Convergence contract check at this commit yet.")).toBeInTheDocument();
+		expect(within(testRow).getByText("No Convergence contract check at this commit yet.")).toBeInTheDocument();
 		expect(within(testRow).queryByRole("list", { name: "Checks" })).toBeNull();
 		expect(within(testRow).queryByText("test-verified")).toBeNull();
 

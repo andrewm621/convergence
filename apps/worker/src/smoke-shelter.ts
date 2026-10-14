@@ -85,7 +85,7 @@ You draft one volunteer document from the accepted policy records. There is no c
 ${rows.join("\n")}
 
 3. Keep the document short: a title line, the line "Synthetic scenario. Not operational guidance.", then at most 15 lines of plain Markdown. Use only the facts your task relies on. Do not add facts from other facets.
-4. Delta Convergence runs a plain-text contract check on your document. It cannot tell a quotation from a statement. So say each fact the way the current record says it (if a facet reads "ID not listed as a requirement", write "ID is not listed as a requirement"), and never repeat a value from a record's \`not:\` list, even to say that it changed.
+4. Convergence runs a plain-text contract check on your document. It cannot tell a quotation from a statement. So say each fact the way the current record says it (if a facet reads "ID not listed as a requirement", write "ID is not listed as a requirement"), and never repeat a value from a record's \`not:\` list, even to say that it changed.
 5. Write \`.delta/claims.json\`: a JSON array with one entry for each facet your document states and no others, \`{"subject": "<facet key>", "value": <facet value, copied exactly>, "basedOn": "<recordId>@<version>"}\`. Cite only the records your task relies on, at the version you read.
 `;
 }

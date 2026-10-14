@@ -30,7 +30,7 @@ export const REASON_META: Partial<Record<ReasonCode, ReasonMeta>> = {
 	},
 	NO_CLAIMS: {
 		summary: "The agent said nothing about what it built.",
-		rule: "No claims means Delta Convergence can't tell, so it blocks rather than guesses.",
+		rule: "No claims means Convergence can't tell, so it blocks rather than guesses.",
 		next: "Have the agent push its claims again.",
 	},
 	MALFORMED_CLAIMS: {
@@ -109,7 +109,7 @@ export const REASON_META: Partial<Record<ReasonCode, ReasonMeta>> = {
 		next: "Move that change to a decision change.",
 	},
 	UNKNOWN_CONTEXT_VERSION: {
-		summary: "A version Delta Convergence has never seen (in a claim, or in what the work was handed).",
+		summary: "A version Convergence has never seen (in a claim, or in what the work was handed).",
 		rule: "It fails closed and blocks.",
 		next: "Have the agent cite a real version, or revalidate.",
 	},
@@ -119,7 +119,7 @@ export const REASON_META: Partial<Record<ReasonCode, ReasonMeta>> = {
 		next: "Nothing to do.",
 	},
 	OBSERVATION_ONLY: {
-		summary: "Delta Convergence noted this and changed nothing.",
+		summary: "Convergence noted this and changed nothing.",
 		rule: "Observations are recorded in the audit log without any action.",
 		next: "Nothing to do.",
 	},
@@ -127,7 +127,7 @@ export const REASON_META: Partial<Record<ReasonCode, ReasonMeta>> = {
 
 /** Said for a code with no entry above. */
 export const GENERIC_REASON: ReasonMeta = {
-	summary: "Delta Convergence recorded this reason.",
+	summary: "Convergence recorded this reason.",
 	rule: "Every decision it makes carries a reason code, and no model chooses it.",
 	next: "Open Technical details or the audit log for the full line.",
 };

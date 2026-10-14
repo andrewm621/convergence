@@ -298,7 +298,7 @@ export function createLiveClient(options: LiveOptions): ConsoleClient {
 			const detail = errorDetail(await response.json().catch(() => null));
 			return { ok: false, code: detail.code ?? String(response.status), message: detail.message ?? `The server answered ${response.status}.`, reasonCodes: detail.reasonCodes };
 		} catch {
-			return { ok: false, code: "NETWORK", message: "Could not reach the Delta Convergence API." };
+			return { ok: false, code: "NETWORK", message: "Could not reach the Convergence API." };
 		}
 	}
 

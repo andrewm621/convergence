@@ -65,7 +65,7 @@ Status values: **done**, **in progress**, **not started**, **risk**, **info** (a
 | 30 | Repository is not confidential: "Submissions, including Projects, are not confidential." Nothing private may be in it. | Rules §9; repo hygiene rules | in progress | T-8 hygiene sweep, T-12 final checks | Full-history secret scan, no account IDs, tokens, client or personal names, or private paths. |
 | 31 | Deployed demo URL. Not a contest requirement and not a form field. | Form (absence); Rules §4 | not started | T-8; mention in "How you used Cloudflare" and in run instructions | Our earlier notes treated this as required. It is not. It is still worth having for the UX score. |
 | | **Submission form content** | | | | |
-| 32 | Project name (required). | Form | done | "Delta Convergence"; T-11 name check: proceed | |
+| 32 | Project name (required). | Form | done | "Convergence" (renamed from "Delta Convergence" on Oct 14); the T-11 name check was run on the old name, so re-check "Convergence" | |
 | 33 | Project vision (required). No limit is stated on the form or in the Rules. | Form | in progress | `submission-copy.md` §3 (143 words) | The draft assumes a 150-word limit that no primary source states (A2). Staying under 150 is harmless. |
 | 34 | How you used Cloudflare (required). No limit stated. | Form | in progress | `submission-copy.md` §4 and its claims table | Every claim must match the shipped build (T-10 claims audit). |
 | | **Judging** | | | | |
@@ -90,7 +90,7 @@ Status values: **done**, **in progress**, **not started**, **risk**, **info** (a
 | 51 | AI-generated code policy: none stated. | Rules (silent) | info | | See A7. |
 | 52 | Third-party APIs and models: no restriction stated beyond complying with third-party terms of service (item 20). Agents call Claude models through OpenRouter. | Rules §4 | done | T-3; `docs/agent-runtime.md` | Confirm the model and router terms allow this use. Keys live only in Worker secrets and gitignored files. |
 | 53 | Data retention: submission details and video are kept for up to 180 days. Personal data handled under the Cloudflare privacy policy. | Form; Rules §10 | info | | |
-| 54 | Trademark: the contest is "not sponsored, endorsed, or affiliated with GitHub". | Form | done | Product name is Delta Convergence | Do not imply any affiliation with GitHub in the README or video. |
+| 54 | Trademark: the contest is "not sponsored, endorsed, or affiliated with GitHub". | Form | done | Product name is Convergence | Do not imply any affiliation with GitHub in the README or video. |
 | 55 | Winners list is available on request for one year, from git-competition@cloudflare.com. | Rules §15 | info | | The only contact address in the Rules. |
 
 ## Ambiguities to resolve

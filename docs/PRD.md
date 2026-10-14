@@ -1,4 +1,4 @@
-# Delta Convergence — PRD (Cloudflare contest build)
+# Convergence — PRD (Cloudflare contest build)
 
 **Status:** v1.2. Adds the outcome of an independent red-team evaluation: the demo reshape, the fan-out beat, git-note receipts and three ratified decisions. v1.1 had folded in all 12 source threads and the gap register. · **Date:** 2026-10-12 · **Owner:** the decision owner
 **Submission deadline:** Wed **2026-10-14, 11:59 PM PT** (Thu 02:59 ET). Target submit time: **Wed 6:00 PM PT**, which leaves a buffer.
@@ -7,7 +7,7 @@
 **Contest:** [Build the next GitHub: Cloudflare Challenge](https://www.cloudflare.com/git-competition/) · [Rules](https://www.cloudflare.com/documents/build-next-gen-git-platform-competition-terms.pdf)
 **Source material:** private research notes and conversation exports, kept outside this repo on purpose.
 
-> **One line:** Delta Convergence is a control plane that keeps concurrent humans and agents working from the same *meaning*. When an accepted decision changes mid-flight, it finds exactly which work relied on the old version, stops it from merging, and drives a human-approved reconciliation. All of this is deterministic and uses no LLM.
+> **One line:** Convergence is a control plane that keeps concurrent humans and agents working from the same *meaning*. When an accepted decision changes mid-flight, it finds exactly which work relied on the old version, stops it from merging, and drives a human-approved reconciliation. All of this is deterministic and uses no LLM.
 
 ---
 
@@ -15,9 +15,9 @@
 
 Parallel agents produce **semantic conflicts before they produce merge conflicts.** Two branches can each pass their tests, never touch the same lines, and still disagree about what the product is supposed to do. The usual reason is that one of them was built from a decision that has since changed.
 
-Git versions *files*. Nothing versions the **accepted understanding that governs the work**, and nothing tracks which work depended on which version of it. Delta Convergence adds that layer. It works like a Kubernetes-style reconciler, but instead of comparing desired and running *infrastructure* it compares **accepted context** with **in-flight work**:
+Git versions *files*. Nothing versions the **accepted understanding that governs the work**, and nothing tracks which work depended on which version of it. Convergence adds that layer. It works like a Kubernetes-style reconciler, but instead of comparing desired and running *infrastructure* it compares **accepted context** with **in-flight work**:
 
-| Kubernetes | Delta Convergence |
+| Kubernetes | Convergence |
 |---|---|
 | Desired state (spec) | Accepted context: decisions and definitions, versioned in Git |
 | Running state | Active work items: agent sessions on their own Artifacts forks |
@@ -25,9 +25,9 @@ Git versions *files*. Nothing versions the **accepted understanding that governs
 | Drift | Work whose **receipt** points at a superseded context version |
 | Reconcile action | Revalidate, block promotion, request review, record |
 
-**Design rule (decided, Oct 12):** No LLM is required to operate Delta Convergence. *The agents are LLMs; the referee isn't.* It enforces explicit, versioned context records, declared dependencies and authority rules. Models (the agents) do the work and propose changes. They never authorize anything. *"Delta Convergence reconciles commitments, not beliefs."*
+**Design rule (decided, Oct 12):** No LLM is required to operate Convergence. *The agents are LLMs; the referee isn't.* It enforces explicit, versioned context records, declared dependencies and authority rules. Models (the agents) do the work and propose changes. They never authorize anything. *"Convergence reconciles commitments, not beliefs."*
 
-**Why now / why Cloudflare.** Artifacts makes a Git repo per agent cheap and programmable. You can fork from a baseline, get push events through Queues, and read trees and blobs from a Worker. That is the versioned substrate. Delta Convergence is the coordination contract above it, which Artifacts deliberately leaves out. Artifacts has no diff, merge or "what changed in meaning" API; we build exactly that layer.
+**Why now / why Cloudflare.** Artifacts makes a Git repo per agent cheap and programmable. You can fork from a baseline, get push events through Queues, and read trees and blobs from a Worker. That is the versioned substrate. Convergence is the coordination contract above it, which Artifacts deliberately leaves out. Artifacts has no diff, merge or "what changed in meaning" API; we build exactly that layer.
 
 ## 2. Problem and user
 
@@ -80,7 +80,7 @@ Everything is TypeScript and Zod, in `packages/contracts`. All objects are porta
 | `WorkItem` | A task for one agent: `{id, title, actor, forkRepo, source: live|seeded, intent: delivery|exploratory, requires[]: ["contract-test","human-resolution"], status}`. Items with `source: seeded` are synthetic work for the fan-out beat and are **always labelled "seeded"** in the UI | DO SQLite |
 | `Dependency` | `{workItemId, recordId, facetKeys[], basis: declared|verified|inferred, status: proposed|accepted|rejected, evidenceRefs[]}`. Only `accepted` dependencies gate work | DO SQLite |
 | `Claim` | A structured assertion the agent makes about its output: `{subject, value, basedOn: recordId@version}`. It is **self-reported**, so the UI labels it "agent-asserted, unverified" | Fork `.delta/claims.json` |
-| `Evidence` | The result of a **Delta Convergence-run** contract check at a specific head: `{workItemId, headSha, check, pass, output}` | DO SQLite |
+| `Evidence` | The result of a **Convergence-run** contract check at a specific head: `{workItemId, headSha, check, pass, output}` | DO SQLite |
 | `Condition` | An evaluated state on a work item: `Fresh`, `Stale`, `Uncertain`, `ClaimConflict`, `TestFailed`, `TestsPassed`, `Blocked`, `Ready`, `Promoted`. Every condition carries `reasonCodes[]` | DO SQLite |
 | `Policy` | `{authority: {recordId → actorId}, staleness: "facet", requires[], maxRevalidations}` | DO SQLite (versioned) |
 | `Resolution` | A human disposition: `revalidate`, `accept-exception{scope}`, `reject`. It requires `rationale` and a **binding**: `{recordId@version+blobHash, baseSha, forkHeadSha}` | DO SQLite, plus `decisions/` in the baseline |
@@ -99,7 +99,7 @@ proposed_by: decision-owner
 accepted_by: decision-owner
 accepted_at: 2026-10-13T16:00:00Z
 supersedes: notifications@1
-validation: tests/contract/notifications.test.ts   # the Delta Convergence-run check (rule R8)
+validation: tests/contract/notifications.test.ts   # the Convergence-run check (rule R8)
 facets:
   notifications.default: opt-in
   notifications.cadence: weekly-digest
@@ -123,7 +123,7 @@ Rules for v1, all deterministic:
 - **R5 Promotion gate.** A WorkItem may be promoted only if it is `Fresh` **and** `TestsPassed` for every check in `requires[]`, *or* it holds a bound `accept-exception` from the record's `authority`. An exception waives staleness, claim conflicts and the excepted record's own validation check, and nothing else: other records' checks must still pass, and unknowns (missing or malformed claims, undeclared dependencies, cross-claim conflict) are never waived. Anything unknown blocks. A fork that changes `context/**` is never promotable (`FORK_EDITS_CONTEXT`): agents propose context changes on the baseline, they do not carry them in through a merge.
 - **R6 Revalidation.** `revalidate` creates a new receipt at the current versions. It dispatches the agent again on the same fork with a diff-aware prompt ("decision X changed from v1 to v2; reconcile your work"). A loop guard applies: after `maxRevalidations`, the result is `REQUEST_REVIEW`.
 - **R7 Approval binding.** Every Resolution binds `recordId@version+blobHash`, `baseSha` and `forkHeadSha`. `promote` re-runs R1, R3 and R8 **at the current heads inside the DO** and carries `expectedBaselineCommit` (compare-and-swap). An exception **lapses** if its record gets a new accepted version. A context push that lands between approve and promote can't slip through: promotion is two-phase (the gate emits `ALLOW_PROMOTION`, the adapter merges, then the merge is recorded), and recording the merge re-runs the gate at the current state.
-- **R8 Evidence (Delta Convergence-run, not agent-run).** Each scenario ships one contract check (for example, `notifications.default == opt-in` asserted against the code's actual default). Delta Convergence's runner executes it at the fork head on every push and again at promote, and stores `Evidence`. The conflict therefore doesn't depend on the agent honestly reporting its own claims. It also keeps the demo alive if the live agent skips claims.
+- **R8 Evidence (Convergence-run, not agent-run).** Each scenario ships one contract check (for example, `notifications.default == opt-in` asserted against the code's actual default). Convergence's runner executes it at the fork head on every push and again at promote, and stores `Evidence`. The conflict therefore doesn't depend on the agent honestly reporting its own claims. It also keeps the demo alive if the live agent skips claims.
 - **R9 Idempotency.** Events are deduplicated on `(repo, commitSha)`, because Queues deliver at least once and the poller can double-fire. Evidence is keyed by `(repo, commitSha, check, runId)`, so a re-run at the same head (for example at promote) is not dropped as a replay. A merge is keyed by work item and merge commit. Mutating endpoints take an `Idempotency-Key`.
 - **R3b Cross-claim conflict (P1).** Two non-promoted items that claim different values for the same subject give `Uncertain`. This covers the phone-optional-vs-required case. It applies only to subjects no accepted facet governs (R3 arbitrates the rest) and ignores rejected items.
 
@@ -142,7 +142,7 @@ This is the **"no LLM required" proof**, and the README should say so.
             ┌──────────────── Convergence Console (React SPA, Worker static assets) ───────────────┐
             │ context timeline · work graph (React Flow) · inspector (receipt / claims / diff)      │
             └───────────────▲ WebSocket (live) ──────────── REST ▼─────────────────────────────────┘
- ┌─────────────────────── Worker: Delta Convergence API (Hono) ────────────────────────────────────┐
+ ┌─────────────────────── Worker: Convergence API (Hono) ──────────────────────────────────────────┐
  │ /scenarios /work-items /resolutions /promote · token minting · tree diff · claims compare        │
  └──────▲──────────────────────────┬──────────────────────────────────▲───────────────────────────┘
         │ (optional)                │ RPC                               │ dispatch
@@ -195,14 +195,14 @@ A small TypeScript "project status" service: an API plus a settings page. The ba
 | WI-1 Status badges | Agent A | `status-model` | Add status badges and the status-change API |
 | WI-2 Notification delivery | Agent B | `notifications`, `status-model` | Implement notification preferences and delivery |
 
-**Video order (decided):** lead with the strongest moment. Both forks *merge cleanly with plain git and CI is green*, yet Delta Convergence blocks the stale one. The console cut list is derived from this script; anything not on screen doesn't get built. The inspector's default tab is **"Why is this blocked?"**
+**Video order (decided):** lead with the strongest moment. Both forks *merge cleanly with plain git and CI is green*, yet Convergence blocks the stale one. The console cut list is derived from this script; anything not on screen doesn't get built. The inspector's default tab is **"Why is this blocked?"**
 
 1. Start both agents concurrently. The console shows two live forks with receipts at v1. Each receipt is also visible as a git note on its fork.
 2. **Typo beat (10 s):** fix a typo in `notifications.md` prose. The ledger shows `NO_ACTION · PROSE_ONLY`, and nothing goes red. *This is not a notification system.*
 3. **Mid-flight**, the human edits the decision: `notifications` v2 = **opt-in, weekly digest**. It is committed to the baseline via the console, which writes from the Worker with isomorphic-git.
 4. The event arrives. R1 marks WI-2 **Stale** (`notifications.default` and `notifications.cadence` changed since `notifications@1`). WI-1 stays **Fresh** (R2, reason `NO_DEPENDENCY_ON_CHANGED_FACETS`). Both decisions are visible in the ledger.
 5. WI-2 finishes and pushes. R3 compares the agent's claims (`default: on, cadence: immediate, basedOn notifications@1`) with the accepted facets and raises **ClaimConflict**. R8 runs the contract test at WI-2's head and gets **TestFailed**. The inspector shows the claim (*agent-asserted*), the test result (*test-verified*), the accepted facet (*recorded*) and the code diff hunk side by side. Promote is disabled, and the gate preview lists the reason codes.
-6. **Control shot (the opener):** `git merge` both forks into a scratch clone of the baseline. The merge is clean, and each fork's own tests pass, so *plain Git plus CI would ship this.* Cut to the console: Delta Convergence blocks WI-2 and names the decision version it was built on. WI-1 is promoted straight away, which shows that unaffected work isn't slowed down.
+6. **Control shot (the opener):** `git merge` both forks into a scratch clone of the baseline. The merge is clean, and each fork's own tests pass, so *plain Git plus CI would ship this.* Cut to the console: Convergence blocks WI-2 and names the decision version it was built on. WI-1 is promoted straight away, which shows that unaffected work isn't slowed down.
 7. The human clicks **Revalidate**. Agent B re-runs with the v1→v2 diff and pushes new claims. The claims match, and the contract test passes. Its status goes Fresh + TestsPassed, then it is Promoted (R7 re-checks at the current heads).
 8. The final view: the baseline has both changes plus `decisions/0002-notifications-opt-in.md`. The ledger chain verifies, and `AgentRunStarted/Finished` show the two agents overlapping in time.
 9. **Fan-out beat (about 30 s):** 30–50 seeded work items (`source: seeded`, labelled on screen) hold receipts against the same records. One decision change is evaluated across all of them in under a second: a handful go Stale with reason codes, and the rest are untouched. A results strip shows `N evaluated · K stale · rest untouched · <time>`. This answers the brief's *"hundreds of thousands of agents"*: the reconciler is the part that scales.
@@ -252,11 +252,11 @@ Visual grammar comes from the author's earlier review-loop prototype: canonical 
 - The console: work graph, inspector (receipt, claims vs facets, code diff), actions, live updates.
 - Revalidate, accept-exception and promote, with real merge into the baseline and a decision record written.
 - Scenario B through the same loop (see the cut line).
-- R8 contract check (one per scenario) run by Delta Convergence's runner. Concurrency evidence: `AgentRunStarted/Finished` ledger events, plus commit author = work-item id.
+- R8 contract check (one per scenario) run by Convergence's runner. Concurrency evidence: `AgentRunStarted/Finished` ledger events, plus commit author = work-item id.
 - README with architecture, "where Workers and Artifacts are used", and run instructions. MIT `LICENSE` (Apache-2.0 and BSD are also allowed). A deployed URL.
 - **README honesty package:**
   - "Why not Spec Kit + CI / Conductor + GitHub / Radicle / plain PRs?" table.
-  - "What Delta Convergence does not do", e.g. it only gates actions that flow through it, and it doesn't understand arbitrary text.
+  - "What Convergence does not do", e.g. it only gates actions that flow through it, and it doesn't understand arbitrary text.
   - "Implemented vs. not" table.
   - Replay segments labelled as replay.
   - The control comparison: the same scenario with a plain Git + PR review.
@@ -314,7 +314,7 @@ All of this is the maintainer's own prior code. Keep the contest repo's commit h
 | Queue event subscriptions are flaky or undocumented flags | Med | The DO polls `log()` every 5 seconds behind the same `DeltaEvent` interface |
 | Concurrent pushes to the baseline → `stale ref` | Med | One writer per repo; the DO serializes promotions; retry 3 times with jitter |
 | Real agents don't produce the conflict, or skip claims | Med | Seeded prompts and a tight fixture; claims are required by `AGENTS.md`; replay mode for recording |
-| Judges read it as "a dashboard beside Git" | Med | The demo centers on the **gate**: stale work cannot promote. Merge and promotion run *through* Delta Convergence |
+| Judges read it as "a dashboard beside Git" | Med | The demo centers on the **gate**: stale work cannot promote. Merge and promotion run *through* Convergence |
 | "Just a notification system" (red-team) | Med | Show the R2 precision (unaffected work isn't disturbed), the R3 claim conflict and the R5 gate, which a broadcast can't do |
 | Scope: real build time is about 28–32 h plus overnight agent runs | High | Scenario B goes seeded-first with a live upgrade decision on Tue night. The console cut list comes from the video script. Fan-out uses seeded items, not more live agents |
 | Artifacts is open beta and billing starts Oct 14 | Low | Cost is negligible at demo volume; requires Workers Paid on the personal account |
@@ -322,20 +322,20 @@ All of this is the maintainer's own prior code. Keep the contest repo's commit h
 
 ## 12. Submission copy (draft; revise to match what was actually built)
 
-**Project name:** Delta Convergence. Use one public name only; ProofMerge, Convergence Lab and the rest stay internal.
+**Project name:** Convergence (the reconciliation engine inside it is Delta, the `delta-core` package). Use one public name only; ProofMerge, Convergence Lab and the rest stay internal.
 
-**One-line pitch:** Git tells you when two agents changed the same lines. Delta Convergence tells you when two agents are building from different decisions, and won't let the stale one merge.
+**One-line pitch:** Git tells you when two agents changed the same lines. Convergence tells you when two agents are building from different decisions, and won't let the stale one merge.
 
-**Video opener (human problem first, Kubernetes second):** Open with 15 seconds of the phone-number case. One agent makes the phone field optional and another makes the API require it. Both pass their tests, Git sees no conflict, and production breaks. *Optional narrative hook:* during disaster relief, two coordinators acting on stale inventory counts send supplies to the wrong place. The cost of stale shared meaning is real. Only after that comes "Kubernetes reconciles infrastructure; Delta Convergence reconciles collaborative work."
+**Video opener (human problem first, Kubernetes second):** Open with 15 seconds of the phone-number case. One agent makes the phone field optional and another makes the API require it. Both pass their tests, Git sees no conflict, and production breaks. *Optional narrative hook:* during disaster relief, two coordinators acting on stale inventory counts send supplies to the wrong place. The cost of stale shared meaning is real. Only after that comes "Kubernetes reconciles infrastructure; Convergence reconciles collaborative work."
 
-**Positioning line:** Git and Radicle give signed authorship of repository data, issues and code review. Delta Convergence tracks *which work depended on which accepted meaning*, and gates that work when the meaning changes.
+**Positioning line:** Git and Radicle give signed authorship of repository data, issues and code review. Convergence tracks *which work depended on which accepted meaning*, and gates that work when the meaning changes.
 
-**Vision:** Agents don't usually collide on lines of code; they collide on meaning. When a decision changes mid-flight, today's tools can't tell you which work was built on the old version. Delta Convergence gives every agent a versioned, receipted context, and keeps reconciling that accepted context against in-flight work like a Kubernetes controller. Stale work is caught before it merges, and nothing ships without a human deciding. The reconciler is deterministic. LLMs do the work; they don't get to decide what's true.
+**Vision:** Agents don't usually collide on lines of code; they collide on meaning. When a decision changes mid-flight, today's tools can't tell you which work was built on the old version. Convergence gives every agent a versioned, receipted context, and keeps reconciling that accepted context against in-flight work like a Kubernetes controller. Stale work is caught before it merges, and nothing ships without a human deciding. The reconciler is deterministic. LLMs do the work; they don't get to decide what's true.
 
 **How we used Cloudflare:**
 - Every agent works in its own **Artifacts** fork of a shared baseline repo, and decisions and definitions live as versioned Markdown in that baseline.
 - **Artifacts push events** are polled by a **Durable Object** per workspace from an alarm (a Queue was the optional upgrade and was not built). The DO holds the reconciliation state, the hash-chained ledger and the live WebSocket feed.
-- A **Worker** exposes the Delta Convergence API, seeds and forks repos, and computes tree diffs from the Artifacts binding.
+- A **Worker** exposes the Convergence API, seeds and forks repos, and computes tree diffs from the Artifacts binding.
 - Agents run Claude Code in **Sandbox** containers and push over Git.
 
 ## 13. Open decisions (need the decision owner)
@@ -344,8 +344,8 @@ All of this is the maintainer's own prior code. Keep the contest repo's commit h
 2. ~~**Model key for agents.**~~ **Decided (Oct 12):** OpenRouter. Agents reach Claude models through OpenRouter (`OPENROUTER_API_KEY`, set by the decision owner as a Worker secret and in `.dev.vars`; model pinned by config). AI Gateway is optional on top and claimed only if used.
 3. **Team fields.** Solo entry, or a second attendee?
 4. **Video.** Who narrates, and should it be a screen recording or have a face cam?
-5. ~~**Ratify "Delta never needs an LLM"**~~ **Decided (Oct 12):** "No LLM is required to operate Delta Convergence; models propose, rules and humans decide."
-6. ~~**Name.**~~ **Decided (Oct 12): Delta Convergence.** Still to do: a quick collision check (GitHub, npm, domain) before the repo goes public.
+5. ~~**Ratify "Delta never needs an LLM"**~~ **Decided (Oct 12):** "No LLM is required to operate Convergence; models propose, rules and humans decide."
+6. ~~**Name.**~~ **Decided (Oct 12): Delta Convergence; renamed Oct 14 to Convergence, with Delta as the reconciliation engine inside it (`delta-core`).** Still to do: a quick collision check (GitHub, npm, domain) before the repo goes public.
 7. **Try Together / What-if.** Recommendation: not built. Show it as a 20-second "where this goes" beat in the video.
 8. **Token-revocation demo beat / tokens as the gate's teeth.** Not adopted for now. Possible P1 only if time remains after M4.
 10. **Scenario B: live or seeded?** The decision owner decides Tue night (see §6).
@@ -360,8 +360,8 @@ Status labels are strict. **Owner-decided** means he stated or approved it. **Ow
 | Decision | Status |
 |---|---|
 | The product is a deterministic reconciliation control plane; ProofMerge/semantic drift is the *scenario* and *review view*, not the product. Framing: "both, loop-first" | Owner-decided (Oct 12) |
-| The name is "Delta Convergence" | Owner-decided (Oct 12) |
-| No LLM is required to operate Delta Convergence; models propose and never authorize | Owner-decided (Oct 12) |
+| The product is named "Convergence"; Delta is the reconciliation engine inside it | Owner-decided (Oct 14; replaces the Oct 12 name "Delta Convergence") |
+| No LLM is required to operate Convergence; models propose and never authorize | Owner-decided (Oct 12) |
 | Defining moment = governing context changes mid-flight → affected work is revalidated (not just a two-branch conflict) | Recommended (latest thread), adopted in this PRD |
 | Agents are real Claude agents; the scenario is seeded; replay is a fallback | Owner-decided (Oct 12) |
 | Second, non-coding scenario: seeded/replay first, with live vs. seeded decided Tue night | Reopened (Oct 12); the decision owner decides Tue night |

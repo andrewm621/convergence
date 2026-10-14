@@ -177,7 +177,7 @@ describe("the first screen", () => {
 		const card = await screen.findByTestId("start-agents");
 		expect(card).toHaveTextContent("Agents work in parallel. Then a decision changes.");
 		expect(card).toHaveTextContent("Git won't notice: the files don't conflict.");
-		expect(card).toHaveTextContent("Start to see what Delta Convergence catches.");
+		expect(card).toHaveTextContent("Start to see what Convergence catches.");
 		expect(within(card).getByRole("button", { name: /Start the scenario/ })).toBeInTheDocument();
 		expect(card).not.toHaveTextContent("No work yet");
 	});

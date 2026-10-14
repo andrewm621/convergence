@@ -99,7 +99,7 @@ export class MockSession {
 	async fixture(name: string): Promise<void> {
 		const event = this.scenario.events[name];
 		if (!event) throw new Error(`mock: no fixture event "${name}" in ${this.scenario.name}`);
-		// The fixtures record the scenario's contract-check results with no kind. In the replay Delta Convergence ran them, as the Worker does.
+		// The fixtures record the scenario's contract-check results with no kind. In the replay Convergence ran them, as the Worker does.
 		if (event.type === "EvidenceRecorded" && !event.evidence.kind) {
 			await this.cell.send({ ...event, evidence: { ...event.evidence, kind: "delta-run-check" } });
 			return;
@@ -213,7 +213,7 @@ export class MockSession {
 
 	// ---------- revalidation: the agent comes back ----------
 
-	/** Delta Convergence issues a fresh receipt and re-dispatches the agent. The re-run lands later (`completeRerun`). */
+	/** Convergence issues a fresh receipt and re-dispatches the agent. The re-run lands later (`completeRerun`). */
 	async startRerun(workItemId: string): Promise<void> {
 		const state = await this.cell.state();
 		const wi = state.workItems[workItemId];
@@ -232,7 +232,7 @@ export class MockSession {
 		return `run-${workItemId.toLowerCase()}-rv`;
 	}
 
-	/** The re-run pushes claims restated from the accepted facets, and Delta Convergence's checks pass at the new head. */
+	/** The re-run pushes claims restated from the accepted facets, and Convergence's checks pass at the new head. */
 	async completeRerun(workItemId: string): Promise<void> {
 		if (!this.pendingReruns.has(workItemId)) return;
 		this.pendingReruns.delete(workItemId);
@@ -270,7 +270,7 @@ export class MockSession {
 				repo,
 				commitSha: head,
 				runId,
-				evidence: { workItemId, headSha: head, check, pass: true, output: `Delta Convergence contract check ${check} at ${head.slice(0, 7)} passed, asserting ${[...asserted].sort().join(", ")}.`, kind: "delta-run-check" },
+				evidence: { workItemId, headSha: head, check, pass: true, output: `Convergence contract check ${check} at ${head.slice(0, 7)} passed, asserting ${[...asserted].sort().join(", ")}.`, kind: "delta-run-check" },
 			});
 		}
 		await this.cell.send({

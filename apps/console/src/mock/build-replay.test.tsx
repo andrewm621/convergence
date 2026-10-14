@@ -128,7 +128,7 @@ describe("the build replay: labelling", () => {
 	it("shows the retrofit banner, the Mock · replay badge, and the scenario in the switcher", async () => {
 		render(<App runtime={runtime} />);
 		const note = await screen.findByTestId("scenario-note");
-		expect(note).toHaveTextContent("Retrofitted from this repo's git history. Decisions made before Delta Convergence was recording them; dependencies declared by us; humans resolve.");
+		expect(note).toHaveTextContent("Retrofitted from this repo's git history. Decisions made before Convergence was recording them; dependencies declared by us; humans resolve.");
 		expect(screen.getByText("Mock · replay")).toBeInTheDocument();
 		const switcher = screen.getByRole("radiogroup", { name: "Scenario" });
 		expect(within(switcher).getByRole("radio", { name: /Our own build \(replay\)/ })).toBeChecked();
@@ -143,7 +143,7 @@ describe("the build replay: labelling", () => {
 		expect(within(switcher).getByRole("radio", { name: /Our own build \(replay\)/ })).not.toBeChecked();
 	});
 
-	it("never shortens the product name anywhere a person reads", async () => {
+	it("never uses bare Delta as the product name anywhere a person reads", async () => {
 		const user = userEvent.setup();
 		render(<App runtime={runtime} />);
 		for (let i = 0; i < 6; i++) {
@@ -154,6 +154,7 @@ describe("the build replay: labelling", () => {
 		}
 		await waitFor(() => expect(screen.getByRole("button", { name: "Next step" })).toBeDisabled(), { timeout: 8000 });
 		await waitFor(() => expect(document.body.textContent).toMatch(/PROSE_ONLY/), { timeout: 8000 });
+		// The replayed v1 naming record still says "Delta Convergence": that is history, not the product's current name.
 		expect(document.body.textContent ?? "").not.toMatch(/\bDelta\b(?! Convergence)/);
 	});
 

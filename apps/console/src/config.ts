@@ -15,5 +15,5 @@ export const ACTING_AS = `Acting as: ${DEMO_IDENTITY.label}`;
 /** How often the live client polls the REST state read when the socket is down. */
 export const POLL_INTERVAL_MS = 3000;
 
-/** Base URL of the Delta Convergence API. Empty means "same origin", which is how the Worker serves the console. */
+/** Base URL of the Convergence API. Empty means "same origin", which is how the Worker serves the console. */
 export const API_BASE: string = import.meta.env.VITE_API_BASE ?? "";

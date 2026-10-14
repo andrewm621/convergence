@@ -3,7 +3,7 @@ import { buildPointerSeed } from "../smoke-build";
 import { HUMAN_RESOLVED_TEXT, NOT_PROMOTABLE_MESSAGE, isPointerScenario } from "./pointer-scenario";
 import { startWorkerd, type Workerd } from "./testing/workerd";
 
-// Delta Convergence governing its own build (docs/dogfooding.md). The cell's work items are pointers to real work:
+// Convergence governing its own build (docs/dogfooding.md). The cell's work items are pointers to real work:
 // a revalidation is recorded and dispatches nothing, even when the Worker has an agent runtime, and nothing promotes.
 
 let w: Workerd;

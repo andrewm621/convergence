@@ -78,7 +78,7 @@ export function notificationsScript(bundle: NotificationsScenario): MockScript {
 		{
 			id: "agents-push",
 			title: "Claim conflict and failing check",
-			caption: "WI-2 pushes. Its claims cite notifications@1, and Delta Convergence's own check fails at its head.",
+			caption: "WI-2 pushes. Its claims cite notifications@1, and Convergence's own check fails at its head.",
 			async run({ session, drip }) {
 				const state = await session.cell.state();
 				if (!state.workItems["WI-1"]?.headSha) {
@@ -111,7 +111,7 @@ export function notificationsScript(bundle: NotificationsScenario): MockScript {
 		{
 			id: "revalidate",
 			title: "Revalidate WI-2",
-			caption: "A human revalidates. Delta Convergence issues a fresh receipt at notifications@2 and re-dispatches the agent.",
+			caption: "A human revalidates. Convergence issues a fresh receipt at notifications@2 and re-dispatches the agent.",
 			async run({ session, drip }) {
 				const wi = (await session.cell.state()).workItems["WI-2"];
 				if (wi && !wi.revalidating && wi.revalidations === 0) {

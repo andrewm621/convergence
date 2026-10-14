@@ -44,11 +44,11 @@ const CONNECTION_META: Record<ConnectionState, { text: string; tone: "success" |
 		icon: Film,
 		hint: "A scripted scenario replayed through the real reconciler in this browser. Not a live run.",
 	},
-	live: { text: "Live", tone: "success", icon: Radio, hint: "Connected to the Delta Convergence Worker over WebSocket." },
+	live: { text: "Live", tone: "success", icon: Radio, hint: "Connected to the Convergence Worker over WebSocket." },
 	connecting: { text: "Connecting", tone: "neutral", icon: Radio, hint: "Opening the WebSocket." },
 	reconnecting: { text: "Reconnecting", tone: "warning", icon: TriangleAlert, hint: "The socket dropped. Reconnecting and resuming from the last ledger line." },
 	polling: { text: `Polling every ${POLL_INTERVAL_MS / 1000} s`, tone: "warning", icon: TriangleAlert, hint: "The socket is unavailable, so the console is re-reading state over REST." },
-	offline: { text: "Offline", tone: "danger", icon: WifiOff, hint: "The Delta Convergence API cannot be reached." },
+	offline: { text: "Offline", tone: "danger", icon: WifiOff, hint: "The Convergence API cannot be reached." },
 	unauthorized: { text: "Token refused", tone: "danger", icon: KeyRound, hint: "The Worker refused the access token. Enter it again." },
 };
 
@@ -70,7 +70,7 @@ export function ConnectionBadge({ state }: { state: ConnectionState }) {
 export function PollerBadge({ poller }: { poller: PollerHealth | null }) {
 	if (!poller || poller.healthy) return null;
 	const lines = poller.degraded.map((d) => `${d.kind} ${d.repo}: ${d.note ?? d.lastError ?? "failing"}`);
-	const hint = ["The poller that reads the repos is behind, so Delta Convergence cannot confirm that work is current. Nothing is shown as Fresh and Merge is closed until it recovers.", ...lines].join("\n");
+	const hint = ["The poller that reads the repos is behind, so Convergence cannot confirm that work is current. Nothing is shown as Fresh and Merge is closed until it recovers.", ...lines].join("\n");
 	return (
 		<Badge tone="warning" title={hint} data-testid="poller-degraded" role="status" className="h-7 px-2.5 text-[13px]">
 			<TriangleAlert aria-hidden className="size-3.5" />
@@ -124,7 +124,7 @@ export function Header({
 					</div>
 					<div className="leading-tight whitespace-nowrap">
 						<div className="flex items-baseline gap-2">
-							<span className="text-sm font-semibold tracking-tight">Delta Convergence</span>
+							<span className="text-sm font-semibold tracking-tight">Convergence</span>
 							<span className="text-[11px] text-muted-foreground" data-testid="no-model-line">
 								No model makes these calls.
 							</span>

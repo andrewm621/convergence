@@ -1,7 +1,7 @@
 /**
  * Context records for the build-history replay.
  *
- * Retrofitted from this repo's git history: these decisions were made before Delta Convergence was recording
+ * Retrofitted from this repo's git history: these decisions were made before Convergence was recording
  * them, and the replay reconstructs them. "Larkhaven County" and "Larkhaven Mutual Aid Network" are the invented
  * names the shelter fixture uses. The decision owner is a role only.
  *
@@ -38,7 +38,7 @@ ${NOTE}
 The check an agent's claims go through is what gates a work item.
 `;
 
-/** v2: only a check Delta Convergence runs counts; the claims check is informational. Commit 8350830 (PR #6). */
+/** v2: only a check Convergence runs counts; the claims check is informational. Commit 8350830 (PR #6). */
 export const EVIDENCE_POLICY_V2 = `---
 id: evidence-policy
 version: 2

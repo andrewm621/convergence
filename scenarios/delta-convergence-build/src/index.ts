@@ -17,9 +17,9 @@ import * as records from "./records";
 export * from "./records";
 
 /**
- * Delta Convergence governs its own build: a replay of real stale events from this repo's git history.
+ * Convergence governs its own build: a replay of real stale events from this repo's git history.
  *
- * Retrofitted from this repo's git history: these decisions were made before Delta Convergence was recording
+ * Retrofitted from this repo's git history: these decisions were made before Convergence was recording
  * them; the replay reconstructs them. Dependencies are declared by us. No automated evidence: humans resolve.
  *
  * Six records, seven work items. Events are in the order the commits were made and carry the commits' own
@@ -30,7 +30,7 @@ export * from "./records";
 export const REPO = "delta-convergence-build-baseline";
 
 export const RETROFIT_NOTE =
-	"Retrofitted from this repo's git history: these decisions were made before Delta Convergence was recording them; the replay reconstructs them. Dependencies are declared by us. No automated evidence: humans resolve.";
+	"Retrofitted from this repo's git history: these decisions were made before Convergence was recording them; the replay reconstructs them. Dependencies are declared by us. No automated evidence: humans resolve.";
 
 /** The all-zero sha reads as "none": this thing is not in git. It is never a real commit. */
 export const NOT_IN_GIT = "0000000000000000000000000000000000000000";
@@ -288,7 +288,7 @@ export async function buildDogfoodBuildScenario() {
 		push,
 		/** Cedar County becomes Larkhaven County (59d48e4). */
 		namingV2: baseline(commits.namingV2, ts.namingV2, snapshotHashes.namingV2, [namingV2]),
-		/** The claims check becomes informational; only a check Delta Convergence runs counts (8350830). */
+		/** The claims check becomes informational; only a check Convergence runs counts (8350830). */
 		evidenceV2: baseline(commits.evidenceV2, ts.evidenceV2, snapshotHashes.evidenceV2, [evidenceV2]),
 		/** The run check takes its facets from the receipt (2f3d2c8). */
 		evidenceV3: baseline(commits.evidenceV3, ts.evidenceV3, snapshotHashes.evidenceV3, [evidenceV3]),

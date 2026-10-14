@@ -113,7 +113,7 @@ export function promptForToken(storage: TokenStorage | null = sessionStore()): s
 }
 
 function defaultPrompt(): string | null {
-	return typeof window === "undefined" ? null : window.prompt("Delta Convergence access token (kept only for this browser tab):");
+	return typeof window === "undefined" ? null : window.prompt("Convergence access token (kept only for this browser tab):");
 }
 
 function defaultReplaceHash(hash: string): void {

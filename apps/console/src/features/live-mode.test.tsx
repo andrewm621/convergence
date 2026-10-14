@@ -195,7 +195,7 @@ describe("live mode disables what the Worker does not have", () => {
 		);
 		expect(await screen.findByRole("button", { name: /Start the scenario/ })).toBeEnabled();
 		expect(screen.queryByTestId("unavailable-action")).toBeNull();
-		expect(screen.getByTestId("start-agents")).toHaveTextContent("Start to see what Delta Convergence catches.");
+		expect(screen.getByTestId("start-agents")).toHaveTextContent("Start to see what Convergence catches.");
 		view.unmount();
 
 		render(

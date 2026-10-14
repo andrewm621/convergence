@@ -3,8 +3,8 @@ import type { Beat, MockScript } from "./beats";
 import type { MockSession } from "./session";
 
 /**
- * Delta Convergence governs its own build: a replay of real stale events from this repo's git history.
- * Retrofitted: the decisions were made before Delta Convergence was recording them, the dependencies are
+ * Convergence governs its own build: a replay of real stale events from this repo's git history.
+ * Retrofitted: the decisions were made before Convergence was recording them, the dependencies are
  * declared by us, and humans resolve (so there are no resolutions and no agent output here). The beats play
  * the fixture's `timeline` in commit order through the real engine. The last one is invented: a wording-only
  * edit that has no commit, kept as the negative control.

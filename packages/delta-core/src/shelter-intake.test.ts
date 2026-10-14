@@ -17,7 +17,7 @@ async function startedCell(store?: Parameters<typeof createCell>[2]): Promise<Ce
 	return cell;
 }
 
-/** Everyone hands in their first draft, after v2 has landed. Delta Convergence runs its check on each. */
+/** Everyone hands in their first draft, after v2 has landed. Convergence runs its check on each. */
 async function allPushed(cell: Cell): Promise<void> {
 	for (const event of [s.events.wi1Pushed, s.events.wi1Evidence, s.events.wi2Pushed, s.events.wi3Pushed, s.events.wi3Evidence, s.events.wi4Pushed, s.events.wi4Evidence, s.events.wi5Pushed, s.events.wi5Evidence]) {
 		await cell.send(event);
@@ -119,7 +119,7 @@ describe("R1 and R2: the policy change reaches exactly the drafts that depend on
 	});
 });
 
-describe("R3 and R8: a draft built on v1 conflicts, and Delta Convergence's own check fails it", () => {
+describe("R3 and R8: a draft built on v1 conflicts, and Convergence's own check fails it", () => {
 	it("the three drafts claim the v1 pets rule, and the claims conflict with v2", async () => {
 		const cell = await startedCell();
 		await cell.send(s.events.v2);

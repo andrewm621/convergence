@@ -3,7 +3,7 @@ import { NOTIFICATIONS_CHECK, STATUS_MODEL_CHECK } from "./records";
 
 /**
  * Scenario A's contract checks (rule R8), keyed by the `validation:` path of the records that name them.
- * Delta Convergence runs them on the file contents of a pushed head, so a conflict never depends on an
+ * Convergence runs them on the file contents of a pushed head, so a conflict never depends on an
  * agent reporting on itself. Plain text matching, deterministic, no model. Each check asserts the facets
  * the work item relied on, which the Worker passes in. Text matching only: a commented-out declaration with the right literal also matches.
  *

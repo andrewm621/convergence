@@ -107,7 +107,7 @@ export function PromoteButton({ workItemId, className, showReasons = false }: { 
 						) : promoted ? (
 							<p>Already merged into the baseline.</p>
 						) : degraded ? (
-							<p>The poller is degraded, so Delta Convergence cannot confirm this work is current. Merge reopens when the poller recovers.</p>
+							<p>The poller is degraded, so Convergence cannot confirm this work is current. Merge reopens when the poller recovers.</p>
 						) : error ? (
 							<p>The merge check could not be read: {error}</p>
 						) : !gate ? (

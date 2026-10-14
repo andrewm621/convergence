@@ -1,6 +1,6 @@
-# Delta Convergence governs its own build
+# Convergence governs its own build
 
-We use Delta Convergence on the decisions that shape this repo. It runs in two modes that share one scenario, `delta-convergence-build`.
+We use Convergence on the decisions that shape this repo. It runs in two modes that share one scenario, `delta-convergence-build`.
 
 ## What is governed
 
@@ -19,7 +19,7 @@ The seven work items are WI-1 to WI-7: the M4 revalidate loop, the console evide
 
 ## The two modes
 
-**Replay** (`?mock=1&scenario=delta-convergence-build`). Our history up to Oct 13, reconstructed from the git log and played through the real `reconcile` in the browser. The decisions were made before Delta Convergence was recording them, so the console says "Retrofitted from this repo's git history". Nothing in it was detected at the time.
+**Replay** (`?mock=1&scenario=delta-convergence-build`). Our history up to Oct 13, reconstructed from the git log and played through the real `reconcile` in the browser. The decisions were made before Convergence was recording them, so the console says "Retrofitted from this repo's git history". Nothing in it was detected at the time.
 
 **Live since Oct 13** (`?cell=delta-convergence-build-live`, against the deployed Worker). A real cell in a Durable Object with a hash-chained ledger, watching real Artifacts repos. It does not replay history. It starts where the replay ends: all six records at their latest versions, WI-1 to WI-7 registered with a receipt at those versions, and claims that cite those versions. From there, every decision recorded with `dogfood.mjs decide` is a real ledger line, and the work that relied on the old version really goes stale. The console banner reads "Live: this repo's own build decisions since Oct 13. Earlier history is the replay."
 
@@ -72,7 +72,7 @@ The pointer routes behind `register` and `update` only touch `smoke-delta-conver
 
 ## Limits
 
-- **Dependencies are declared by us.** Delta Convergence does not infer which work relied on which decision. If we forget a dependency, nothing goes stale.
+- **Dependencies are declared by us.** Convergence does not infer which work relied on which decision. If we forget a dependency, nothing goes stale.
 - **Humans resolve.** There is no agent in the loop. Revalidate only records that a person will redo the work elsewhere.
 - **No automated evidence** for these items. They require a human resolution and no contract test; the gate has nothing to run.
 - **Stale is not wrong.** It means the work was built on a version that has since been replaced. The work may well still be right.

@@ -165,7 +165,7 @@ export function SemanticTab({ wi }: { wi: WorkItemState }) {
 					<Badge tone="warning" className="mr-2 font-mono">
 						NO_CLAIMS
 					</Badge>
-					The agent pushed no claims. Delta Convergence fails closed: it cannot tell what was built.
+					The agent pushed no claims. Convergence fails closed: it cannot tell what was built.
 				</p>
 			)}
 			{diff.claimsStatus === "malformed" && (

@@ -3,7 +3,7 @@ import { BRIEFING_PATH, SCHEDULE_PATH, SCRIPT_PATH, SIGNAGE_PATH, SUPPLIES_PATH 
 import { SHELTER_INTAKE_CHECK } from "./records";
 
 /**
- * The scenario's contract check (rule R8). Delta Convergence runs it at a fork head and records
+ * The scenario's contract check (rule R8). Convergence runs it at a fork head and records
  * the result as Evidence, so a conflict never depends on an agent reporting on itself.
  *
  * It is plain text matching against the accepted policy facets. No model decides anything here.

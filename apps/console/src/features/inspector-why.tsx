@@ -83,7 +83,7 @@ export function WhyTab({ wi }: { wi: WorkItemState }) {
 			? [
 					...analysis.stale.map((f) => `Built on ${f.recordId}@${f.fromVersion}, but ${f.recordId} is now v${f.toVersion}${f.facetKeys.length ? ` (${f.facetKeys.join(", ")} changed)` : ""}.`),
 					...analysis.conflicts.slice(0, 2).map((c) => c.message),
-					...(analysis.failedChecks.length ? [`Delta Convergence's own check failed: ${analysis.failedChecks.join(", ")}.`] : []),
+					...(analysis.failedChecks.length ? [`Convergence's own check failed: ${analysis.failedChecks.join(", ")}.`] : []),
 				]
 					.slice(0, 4)
 					.join(" ") || (gate?.blockers.join(" ") ?? "The merge is blocked.")
@@ -251,7 +251,7 @@ export function WhyTab({ wi }: { wi: WorkItemState }) {
 						<p className="text-[13px] text-muted-foreground">No claims at the current head yet.</p>
 					) : diff.claimsStatus !== "ok" ? (
 						<p className="text-[13px]">
-							<ReasonChip code={diff.claimsStatus === "missing" ? "NO_CLAIMS" : "MALFORMED_CLAIMS"} /> Delta Convergence fails closed on claims it cannot read.
+							<ReasonChip code={diff.claimsStatus === "missing" ? "NO_CLAIMS" : "MALFORMED_CLAIMS"} /> Convergence fails closed on claims it cannot read.
 						</p>
 					) : (
 						<ul className="space-y-1" aria-label="Claims">
@@ -290,12 +290,12 @@ export function WhyTab({ wi }: { wi: WorkItemState }) {
 					icon={FlaskConical}
 					step="4"
 					title="Test"
-					subtitle="a check Delta Convergence ran itself"
+					subtitle="a check Convergence ran itself"
 					chip={analysis.testEvidence.length > 0 ? <EpistemicChip kind="verified" /> : undefined}
 					tone={analysis.failedChecks.length > 0 ? "danger" : "neutral"}
 				>
 					{analysis.testEvidence.length === 0 ? (
-						<p className="text-[13px] text-muted-foreground">{wi.headSha ? "No Delta Convergence contract check at this commit yet." : "Nothing pushed yet, so nothing to check."}</p>
+						<p className="text-[13px] text-muted-foreground">{wi.headSha ? "No Convergence contract check at this commit yet." : "Nothing pushed yet, so nothing to check."}</p>
 					) : (
 						<ul className="space-y-1.5" aria-label="Checks">
 							{analysis.testEvidence.map((e) => (

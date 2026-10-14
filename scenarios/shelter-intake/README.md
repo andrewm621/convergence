@@ -3,7 +3,7 @@
 > **Synthetic scenario. Not operational guidance.**
 > Larkhaven County, its river flood and the Larkhaven Mutual Aid Network are invented for this fixture. Any resemblance to a real county of that name, a real event or a real organisation is coincidental. Nothing here is an alert, eligibility guidance or an operating instruction, and it should never be used as one.
 
-This is the second proof that Delta Convergence is not a software tool. There is no repository of source files and nothing to build. A volunteer group has a written intake policy, five agents are drafting volunteer materials from it, and the policy changes while they work.
+This is the second proof that Convergence is not a software tool. There is no repository of source files and nothing to build. A volunteer group has a written intake policy, five agents are drafting volunteer materials from it, and the policy changes while they work.
 
 ## The story
 

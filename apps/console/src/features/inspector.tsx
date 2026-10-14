@@ -37,7 +37,7 @@ function NothingSelected() {
 				<MousePointerClick className="size-5" aria-hidden />
 			</div>
 			<p className="text-sm font-semibold">Pick a work item</p>
-			<p className="max-w-xs text-[13px] text-muted-foreground">Click one in the graph to see what it was given, what it claims, what Delta Convergence checked, and why Merge is open or closed.</p>
+			<p className="max-w-xs text-[13px] text-muted-foreground">Click one in the graph to see what it was given, what it claims, what Convergence checked, and why Merge is open or closed.</p>
 			{items.length > 0 && (
 				<ul className="flex flex-wrap justify-center gap-2" aria-label="Work items">
 					{items.map((wi) => (

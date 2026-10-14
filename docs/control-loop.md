@@ -191,7 +191,7 @@ What it is not: it is not the project's test suite. It is a plain-text match tha
 
 Beside those, the Worker records the claims check under `delta:claims-vs-receipt` with `kind: "delta-claims-check"`: whether the agent's claims cite the delivered versions and agree with the accepted facets. It is derived from the agent's own claims, so it is informational: the gate and the analysis never count it as a test result, whether it passes or fails, and it cannot replace or overwrite a real result for the same check and head (named invariant test "claims-check evidence never satisfies a validation check", `delta-core/src/claims-check-evidence.test.ts`).
 
-Narration: say "Delta Convergence runs its own contract check on the pushed code". Do not say "the test suite passes"; no test suite was run.
+Narration: say "Convergence runs its own contract check on the pushed code". Do not say "the test suite passes"; no test suite was run.
 
 Known gaps: a push is accepted as the revalidation's result if it is the fork's verified head, without requiring that it descends from the head the run started at or landed after `AgentRunStarted`; initial (non-revalidation) pushes get no Worker-recorded evidence, because operator dispatches go outside the cell.
 

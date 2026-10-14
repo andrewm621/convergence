@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Delta Convergence governing its own build, live (docs/dogfooding.md). Run against a deployed Worker.
+// Convergence governing its own build, live (docs/dogfooding.md). Run against a deployed Worker.
 //
 //   node scripts/dogfood.mjs seed     --cell delta-convergence-build-live
 //   node scripts/dogfood.mjs status   [--cell <name>]

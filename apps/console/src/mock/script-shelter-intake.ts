@@ -78,7 +78,7 @@ export function shelterIntakeScript(bundle: ShelterIntakeScenario): MockScript {
 		{
 			id: "drafts-in",
 			title: "Drafts come in",
-			caption: "The script, signage and briefing still say what v1 said, so their claims conflict. Delta Convergence's own check fails the script.",
+			caption: "The script, signage and briefing still say what v1 said, so their claims conflict. Convergence's own check fails the script.",
 			async run({ session, drip }) {
 				const state = await session.cell.state();
 				const handIn = async (id: string, key: string, withEvidence: boolean) => {
