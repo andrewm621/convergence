@@ -408,9 +408,7 @@
       {
         "baselineCommit": "b000000000000000000000000000000000000066",
         "forkHeadSha": "f000000000000000000000000000000000000067",
-        "reasonCodes": [
-          "EXCEPTION_APPLIED"
-        ],
+        "reasonCode": "EXCEPTION_APPLIED",
         "type": "ALLOW_PROMOTION",
         "workItemId": "WI-3"
       }

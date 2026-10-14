@@ -273,9 +273,7 @@
   "then": {
     "effects": [
       {
-        "reasonCodes": [
-          "REVALIDATION_NOT_REQUESTED"
-        ],
+        "reasonCode": "REVALIDATION_NOT_REQUESTED",
         "type": "NO_ACTION",
         "workItemId": "WI-2"
       }

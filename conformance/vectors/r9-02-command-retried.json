@@ -342,9 +342,7 @@
   "then": {
     "effects": [
       {
-        "reasonCodes": [
-          "DUPLICATE_EVENT"
-        ],
+        "reasonCode": "DUPLICATE_EVENT",
         "type": "NO_ACTION"
       }
     ],

@@ -244,9 +244,7 @@
   "then": {
     "effects": [
       {
-        "reasonCodes": [
-          "NOTHING_TO_REVALIDATE"
-        ],
+        "reasonCode": "NOTHING_TO_REVALIDATE",
         "type": "NO_ACTION",
         "workItemId": "WI-1"
       }

@@ -244,9 +244,7 @@
   "then": {
     "effects": [
       {
-        "reasonCodes": [
-          "MISSING_EVIDENCE"
-        ],
+        "reasonCode": "MISSING_EVIDENCE",
         "type": "BLOCK_PROMOTION",
         "workItemId": "WI-1"
       }

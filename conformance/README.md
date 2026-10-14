@@ -48,9 +48,9 @@ The objects are the ones in [`packages/contracts/schema`](../packages/contracts/
 Both your output and the expected result are projected to the normative fields of section 4 (`lib/project.ts`) and compared as canonical JSON:
 
 - **State:** the baseline commit and snapshot hash; per record, the accepted head, the versions seen and the proposed version; per work item, its status, its conditions (type and reason codes), its head, its receipt's `contextPacketHash`, whether a revalidation is under way, the revalidation count, the kinds of its recorded resolutions and whether it holds a promotion approval; every dependency (work item, record, facet keys, basis, status); and the keys of `processed`.
-- **Effects:** type, reason codes, `workItemId` and `recordId` where present, the condition type of `RECORD_CONDITION`, the fork head and baseline commit of `ALLOW_PROMOTION`, and the mode and facet diff of `DISPATCH_WORK` and `REQUEST_REVALIDATION`.
+- **Effects:** a set of entries, one per (effect type, work item, reason code). Each entry also carries the effect's `recordId` where present, the condition type of `RECORD_CONDITION`, the fork head and baseline commit of `ALLOW_PROMOTION`, and the mode and facet diff of `DISPATCH_WORK` and `REQUEST_REVALIDATION`. An effect with no reason codes is one entry with `reasonCode: null`.
 
-Not compared: `message` text, `observedAt`, a condition's `recordRefs` and `facetKeys`, the evidence and claims a work item caches, the order of effects (they are compared as a multiset) and the order of reason codes in a list.
+Not compared: `message` text, `observedAt`, a condition's `recordRefs` and `facetKeys`, the evidence and claims a work item caches, the order of effects, the order of reason codes in a list, and how reason codes are grouped into effects. Duplicate identical effects are not normative: the effects are compared as a set, so an implementation may emit an effect once where the reference emits it twice. For example, on a `reject` the reference emits two `BLOCK_PROMOTION` effects for the same item (one for the Blocked condition, one for the rejection); a single `BLOCK_PROMOTION` carrying both reason codes gives the same set.
 
 ## The vectors
 
@@ -73,7 +73,7 @@ Not compared: `message` text, `observedAt`, a condition's `recordRefs` and `face
 - `rules` names the rules the vector exercises: `R1` to `R9`, and `R3b` for cross-claim conflicts. Every rule has at least one `positive` vector (the rule acts: it stales, flags, blocks, refuses or dedupes) and one `negative` vector (a near miss the rule must leave alone or let through).
 - `fixture` is the scenario the starting state comes from: `notifications` (code), `sales-ops` and `shelter-intake` (synthetic knowledge work) or `delta-convergence-build` (this repository's own decisions, replayed). Every name in them is synthetic or a demo identity.
 - The worked example of section 2 is the sequence `we-01` to `we-11`, tagged `"sequence": {"name": "worked-example", "step": n}`. Each step's `given.state` is where the previous step ended.
-- `then` holds only the projection described above.
+- `then` holds only the projection described above; `then.effects` is the effect set, sorted.
 
 The vectors are generated from the reference engine by `scripts/vectors.ts`; re-running it gives byte-identical files (canonical JSON, keys sorted). After an intended change to the engine or a fixture:
 

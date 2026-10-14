@@ -228,9 +228,7 @@
   "then": {
     "effects": [
       {
-        "reasonCodes": [
-          "PROSE_ONLY"
-        ],
+        "reasonCode": "PROSE_ONLY",
         "recordId": "notifications",
         "type": "NO_ACTION"
       }

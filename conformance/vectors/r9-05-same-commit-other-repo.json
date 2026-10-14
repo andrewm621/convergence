@@ -228,9 +228,7 @@
   "then": {
     "effects": [
       {
-        "reasonCodes": [
-          "NO_CONTEXT_CHANGE"
-        ],
+        "reasonCode": "NO_CONTEXT_CHANGE",
         "type": "NO_ACTION"
       }
     ],

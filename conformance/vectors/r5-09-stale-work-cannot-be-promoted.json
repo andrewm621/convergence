@@ -376,10 +376,12 @@
   "then": {
     "effects": [
       {
-        "reasonCodes": [
-          "FACET_CHANGED",
-          "STALE_RECEIPT"
-        ],
+        "reasonCode": "FACET_CHANGED",
+        "type": "BLOCK_PROMOTION",
+        "workItemId": "WI-S"
+      },
+      {
+        "reasonCode": "STALE_RECEIPT",
         "type": "BLOCK_PROMOTION",
         "workItemId": "WI-S"
       }

@@ -324,34 +324,73 @@
     "effects": [
       {
         "condition": "Blocked",
-        "reasonCodes": [
-          "CLAIM_CONFLICT",
-          "FACET_CHANGED",
-          "MISSING_EVIDENCE",
-          "STALE_RECEIPT",
-          "SUPERSEDED_BASIS",
-          "TEST_FAILED"
-        ],
+        "reasonCode": "CLAIM_CONFLICT",
+        "type": "RECORD_CONDITION",
+        "workItemId": "WI-2"
+      },
+      {
+        "condition": "Blocked",
+        "reasonCode": "FACET_CHANGED",
+        "type": "RECORD_CONDITION",
+        "workItemId": "WI-2"
+      },
+      {
+        "condition": "Blocked",
+        "reasonCode": "MISSING_EVIDENCE",
+        "type": "RECORD_CONDITION",
+        "workItemId": "WI-2"
+      },
+      {
+        "condition": "Blocked",
+        "reasonCode": "STALE_RECEIPT",
+        "type": "RECORD_CONDITION",
+        "workItemId": "WI-2"
+      },
+      {
+        "condition": "Blocked",
+        "reasonCode": "SUPERSEDED_BASIS",
+        "type": "RECORD_CONDITION",
+        "workItemId": "WI-2"
+      },
+      {
+        "condition": "Blocked",
+        "reasonCode": "TEST_FAILED",
         "type": "RECORD_CONDITION",
         "workItemId": "WI-2"
       },
       {
         "condition": "TestFailed",
-        "reasonCodes": [
-          "TEST_FAILED"
-        ],
+        "reasonCode": "TEST_FAILED",
         "type": "RECORD_CONDITION",
         "workItemId": "WI-2"
       },
       {
-        "reasonCodes": [
-          "CLAIM_CONFLICT",
-          "FACET_CHANGED",
-          "MISSING_EVIDENCE",
-          "STALE_RECEIPT",
-          "SUPERSEDED_BASIS",
-          "TEST_FAILED"
-        ],
+        "reasonCode": "CLAIM_CONFLICT",
+        "type": "BLOCK_PROMOTION",
+        "workItemId": "WI-2"
+      },
+      {
+        "reasonCode": "FACET_CHANGED",
+        "type": "BLOCK_PROMOTION",
+        "workItemId": "WI-2"
+      },
+      {
+        "reasonCode": "MISSING_EVIDENCE",
+        "type": "BLOCK_PROMOTION",
+        "workItemId": "WI-2"
+      },
+      {
+        "reasonCode": "STALE_RECEIPT",
+        "type": "BLOCK_PROMOTION",
+        "workItemId": "WI-2"
+      },
+      {
+        "reasonCode": "SUPERSEDED_BASIS",
+        "type": "BLOCK_PROMOTION",
+        "workItemId": "WI-2"
+      },
+      {
+        "reasonCode": "TEST_FAILED",
         "type": "BLOCK_PROMOTION",
         "workItemId": "WI-2"
       }

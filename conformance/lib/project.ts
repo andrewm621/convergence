@@ -2,8 +2,13 @@
  * The normative projection (docs/PROTOCOL.md section 4): the part of a `{state, effects}` result that two
  * conforming implementations must agree on. Statuses, condition types, effect types and reason codes, plus the
  * ids, versions and hashes that are fixed by the inputs. Not projected: `message` text, `observedAt`, condition
- * `recordRefs`/`facetKeys`, the evidence and claims caches, the order of effects, and the order of reason codes
- * within a condition or an effect.
+ * `recordRefs`/`facetKeys`, the evidence and claims caches, the order of effects, the order of reason codes within a
+ * condition, and how reason codes are grouped into effects.
+ *
+ * Effects are compared as a set of entries, one per (effect type, work item, reason code), each carrying the effect's
+ * other projected fields. Two effects that differ only in how they split their reason codes project to the same set,
+ * and a duplicate of an identical entry is collapsed. So one `BLOCK_PROMOTION` carrying two codes and two
+ * `BLOCK_PROMOTION`s carrying one each are the same result; duplicates are not normative.
  *
  * This file has no dependencies, so the runner can project any implementation's output without loading the
  * reference engine. It is written defensively: output from a foreign implementation may be any JSON at all.
@@ -58,6 +63,7 @@ export type ProjectedWorkItem = {
 	promotionApproved: boolean;
 };
 
+/** One entry of the effect set: an effect's projected fields with a single `reasonCode` (null for an effect with none). */
 export type ProjectedEffect = { [key: string]: Json };
 
 // ---------- canonical JSON (sorted keys), the comparison form ----------
@@ -147,10 +153,11 @@ export function projectState(raw: unknown): ProjectedState {
 	};
 }
 
-export function projectEffect(raw: unknown): ProjectedEffect {
+/** One effect's projected fields, without its reason codes. */
+function projectEffectFields(raw: unknown): ProjectedEffect {
 	const effect = obj(raw);
 	const type = json(effect["type"]);
-	const out: ProjectedEffect = { type, reasonCodes: sortedStrings(effect["reasonCodes"]) };
+	const out: ProjectedEffect = { type };
 	if (effect["workItemId"] !== undefined) out["workItemId"] = json(effect["workItemId"]);
 	if (effect["recordId"] !== undefined) out["recordId"] = json(effect["recordId"]);
 	switch (type) {
@@ -182,10 +189,24 @@ export function projectEffect(raw: unknown): ProjectedEffect {
 	return out;
 }
 
-/** Project a `{state, effects}` result. Effects are compared as a multiset, so they are sorted here. */
+/** Project one effect to its entries in the effect set: one per reason code, or one with `reasonCode: null` if it has none. */
+export function projectEffect(raw: unknown): ProjectedEffect[] {
+	const fields = projectEffectFields(raw);
+	const codes = arr(obj(raw)["reasonCodes"]);
+	return (codes.length > 0 ? codes : [null]).map((code) => ({ ...fields, reasonCode: json(code) }));
+}
+
+/** Project a list of effects to the effect set: entries deduplicated and sorted, so order and duplicates do not count. */
+export function projectEffects(raw: unknown): ProjectedEffect[] {
+	const entries = new Map<string, ProjectedEffect>();
+	for (const effect of arr(raw)) for (const entry of projectEffect(effect)) entries.set(canonical(entry), entry);
+	return byCanonical([...entries.values()]);
+}
+
+/** Project a `{state, effects}` result. */
 export function project(result: unknown): Projection {
 	const r = obj(result);
-	return { state: projectState(r["state"]), effects: byCanonical(arr(r["effects"]).map(projectEffect)) };
+	return { state: projectState(r["state"]), effects: projectEffects(r["effects"]) };
 }
 
 // ---------- diff ----------
@@ -194,15 +215,10 @@ export function project(result: unknown): Projection {
 export function diffProjections(expected: Projection, actual: Projection, limit = 12): string[] {
 	const lines: string[] = [];
 	diffValue("state", expected.state, actual.state, lines);
-	const want = expected.effects.map(canonical);
-	const got = actual.effects.map(canonical);
-	const remaining = [...got];
-	for (const e of want) {
-		const at = remaining.indexOf(e);
-		if (at >= 0) remaining.splice(at, 1);
-		else lines.push(`effects: missing ${e}`);
-	}
-	for (const e of remaining) lines.push(`effects: unexpected ${e}`);
+	const want = new Set(expected.effects.map(canonical));
+	const got = new Set(actual.effects.map(canonical));
+	for (const e of want) if (!got.has(e)) lines.push(`effects: missing ${e}`);
+	for (const e of got) if (!want.has(e)) lines.push(`effects: unexpected ${e}`);
 	return lines.length > limit ? [...lines.slice(0, limit), `... and ${lines.length - limit} more`] : lines;
 }
 

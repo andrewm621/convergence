@@ -276,7 +276,7 @@
       {
         "baselineCommit": "b000000000000000000000000000000000000001",
         "forkHeadSha": "f000000000000000000000000000000000000001",
-        "reasonCodes": [],
+        "reasonCode": null,
         "type": "ALLOW_PROMOTION",
         "workItemId": "WI-1"
       }

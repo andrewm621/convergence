@@ -347,15 +347,43 @@
     "effects": [
       {
         "condition": "Blocked",
-        "reasonCodes": [
-          "CLAIM_CONFLICT",
-          "FACET_CHANGED",
-          "MISSING_EVIDENCE",
-          "REVALIDATION_PENDING",
-          "STALE_RECEIPT",
-          "SUPERSEDED_BASIS",
-          "TEST_FAILED"
-        ],
+        "reasonCode": "CLAIM_CONFLICT",
+        "type": "RECORD_CONDITION",
+        "workItemId": "WI-2"
+      },
+      {
+        "condition": "Blocked",
+        "reasonCode": "FACET_CHANGED",
+        "type": "RECORD_CONDITION",
+        "workItemId": "WI-2"
+      },
+      {
+        "condition": "Blocked",
+        "reasonCode": "MISSING_EVIDENCE",
+        "type": "RECORD_CONDITION",
+        "workItemId": "WI-2"
+      },
+      {
+        "condition": "Blocked",
+        "reasonCode": "REVALIDATION_PENDING",
+        "type": "RECORD_CONDITION",
+        "workItemId": "WI-2"
+      },
+      {
+        "condition": "Blocked",
+        "reasonCode": "STALE_RECEIPT",
+        "type": "RECORD_CONDITION",
+        "workItemId": "WI-2"
+      },
+      {
+        "condition": "Blocked",
+        "reasonCode": "SUPERSEDED_BASIS",
+        "type": "RECORD_CONDITION",
+        "workItemId": "WI-2"
+      },
+      {
+        "condition": "Blocked",
+        "reasonCode": "TEST_FAILED",
         "type": "RECORD_CONDITION",
         "workItemId": "WI-2"
       },
@@ -382,9 +410,7 @@
           }
         ],
         "mode": "revalidate",
-        "reasonCodes": [
-          "REVALIDATION_STARTED"
-        ],
+        "reasonCode": "REVALIDATION_STARTED",
         "type": "DISPATCH_WORK",
         "workItemId": "WI-2"
       },
@@ -410,22 +436,42 @@
             "toVersion": 2
           }
         ],
-        "reasonCodes": [
-          "REVALIDATION_STARTED"
-        ],
+        "reasonCode": "REVALIDATION_STARTED",
         "type": "REQUEST_REVALIDATION",
         "workItemId": "WI-2"
       },
       {
-        "reasonCodes": [
-          "CLAIM_CONFLICT",
-          "FACET_CHANGED",
-          "MISSING_EVIDENCE",
-          "REVALIDATION_PENDING",
-          "STALE_RECEIPT",
-          "SUPERSEDED_BASIS",
-          "TEST_FAILED"
-        ],
+        "reasonCode": "CLAIM_CONFLICT",
+        "type": "BLOCK_PROMOTION",
+        "workItemId": "WI-2"
+      },
+      {
+        "reasonCode": "FACET_CHANGED",
+        "type": "BLOCK_PROMOTION",
+        "workItemId": "WI-2"
+      },
+      {
+        "reasonCode": "MISSING_EVIDENCE",
+        "type": "BLOCK_PROMOTION",
+        "workItemId": "WI-2"
+      },
+      {
+        "reasonCode": "REVALIDATION_PENDING",
+        "type": "BLOCK_PROMOTION",
+        "workItemId": "WI-2"
+      },
+      {
+        "reasonCode": "STALE_RECEIPT",
+        "type": "BLOCK_PROMOTION",
+        "workItemId": "WI-2"
+      },
+      {
+        "reasonCode": "SUPERSEDED_BASIS",
+        "type": "BLOCK_PROMOTION",
+        "workItemId": "WI-2"
+      },
+      {
+        "reasonCode": "TEST_FAILED",
         "type": "BLOCK_PROMOTION",
         "workItemId": "WI-2"
       }

@@ -342,9 +342,7 @@
   "then": {
     "effects": [
       {
-        "reasonCodes": [
-          "REVALIDATION_IN_PROGRESS"
-        ],
+        "reasonCode": "REVALIDATION_IN_PROGRESS",
         "recordId": "notifications",
         "type": "NO_ACTION",
         "workItemId": "WI-2"

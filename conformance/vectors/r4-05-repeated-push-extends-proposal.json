@@ -289,16 +289,12 @@
     "effects": [
       {
         "condition": "Uncertain",
-        "reasonCodes": [
-          "UNDECLARED_DEP"
-        ],
+        "reasonCode": "UNDECLARED_DEP",
         "type": "RECORD_CONDITION",
         "workItemId": "WI-1"
       },
       {
-        "reasonCodes": [
-          "UNDECLARED_DEP"
-        ],
+        "reasonCode": "UNDECLARED_DEP",
         "type": "REQUEST_REVIEW",
         "workItemId": "WI-1"
       }

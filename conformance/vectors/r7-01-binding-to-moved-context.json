@@ -337,9 +337,7 @@
   "then": {
     "effects": [
       {
-        "reasonCodes": [
-          "STALE_BINDING"
-        ],
+        "reasonCode": "STALE_BINDING",
         "recordId": "notifications",
         "type": "NO_ACTION",
         "workItemId": "WI-2"

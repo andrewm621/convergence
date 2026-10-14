@@ -227,9 +227,7 @@
   "then": {
     "effects": [
       {
-        "reasonCodes": [
-          "RECORD_NOT_ACCEPTED"
-        ],
+        "reasonCode": "RECORD_NOT_ACCEPTED",
         "recordId": "notifications",
         "type": "NO_ACTION"
       }

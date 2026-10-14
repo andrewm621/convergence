@@ -391,9 +391,7 @@
   "then": {
     "effects": [
       {
-        "reasonCodes": [
-          "NO_CLAIMS"
-        ],
+        "reasonCode": "NO_CLAIMS",
         "type": "BLOCK_PROMOTION",
         "workItemId": "WI-3"
       }

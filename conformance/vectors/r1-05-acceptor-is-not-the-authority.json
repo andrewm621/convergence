@@ -227,10 +227,12 @@
   "then": {
     "effects": [
       {
-        "reasonCodes": [
-          "FORBIDDEN_ACTOR",
-          "RECORD_NOT_ACCEPTED"
-        ],
+        "reasonCode": "FORBIDDEN_ACTOR",
+        "recordId": "notifications",
+        "type": "NO_ACTION"
+      },
+      {
+        "reasonCode": "RECORD_NOT_ACCEPTED",
         "recordId": "notifications",
         "type": "NO_ACTION"
       }

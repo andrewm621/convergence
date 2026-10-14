@@ -306,9 +306,7 @@
   "then": {
     "effects": [
       {
-        "reasonCodes": [
-          "HUMAN_RESOLUTION_MISSING"
-        ],
+        "reasonCode": "HUMAN_RESOLUTION_MISSING",
         "type": "BLOCK_PROMOTION",
         "workItemId": "WI-H"
       }

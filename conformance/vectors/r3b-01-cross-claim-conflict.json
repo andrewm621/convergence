@@ -240,66 +240,68 @@
     "effects": [
       {
         "condition": "Blocked",
-        "reasonCodes": [
-          "CROSS_CLAIM_CONFLICT",
-          "MISSING_EVIDENCE"
-        ],
+        "reasonCode": "CROSS_CLAIM_CONFLICT",
         "type": "RECORD_CONDITION",
         "workItemId": "WI-1"
       },
       {
         "condition": "Blocked",
-        "reasonCodes": [
-          "CROSS_CLAIM_CONFLICT",
-          "MISSING_EVIDENCE"
-        ],
+        "reasonCode": "CROSS_CLAIM_CONFLICT",
+        "type": "RECORD_CONDITION",
+        "workItemId": "WI-2"
+      },
+      {
+        "condition": "Blocked",
+        "reasonCode": "MISSING_EVIDENCE",
+        "type": "RECORD_CONDITION",
+        "workItemId": "WI-1"
+      },
+      {
+        "condition": "Blocked",
+        "reasonCode": "MISSING_EVIDENCE",
         "type": "RECORD_CONDITION",
         "workItemId": "WI-2"
       },
       {
         "condition": "Uncertain",
-        "reasonCodes": [
-          "CROSS_CLAIM_CONFLICT"
-        ],
+        "reasonCode": "CROSS_CLAIM_CONFLICT",
         "type": "RECORD_CONDITION",
         "workItemId": "WI-1"
       },
       {
         "condition": "Uncertain",
-        "reasonCodes": [
-          "CROSS_CLAIM_CONFLICT"
-        ],
+        "reasonCode": "CROSS_CLAIM_CONFLICT",
         "type": "RECORD_CONDITION",
         "workItemId": "WI-2"
       },
       {
-        "reasonCodes": [
-          "CROSS_CLAIM_CONFLICT",
-          "MISSING_EVIDENCE"
-        ],
+        "reasonCode": "CROSS_CLAIM_CONFLICT",
         "type": "BLOCK_PROMOTION",
         "workItemId": "WI-1"
       },
       {
-        "reasonCodes": [
-          "CROSS_CLAIM_CONFLICT",
-          "MISSING_EVIDENCE"
-        ],
+        "reasonCode": "CROSS_CLAIM_CONFLICT",
         "type": "BLOCK_PROMOTION",
         "workItemId": "WI-2"
       },
       {
-        "reasonCodes": [
-          "CROSS_CLAIM_CONFLICT"
-        ],
+        "reasonCode": "CROSS_CLAIM_CONFLICT",
         "type": "REQUEST_REVIEW",
         "workItemId": "WI-1"
       },
       {
-        "reasonCodes": [
-          "CROSS_CLAIM_CONFLICT"
-        ],
+        "reasonCode": "CROSS_CLAIM_CONFLICT",
         "type": "REQUEST_REVIEW",
+        "workItemId": "WI-2"
+      },
+      {
+        "reasonCode": "MISSING_EVIDENCE",
+        "type": "BLOCK_PROMOTION",
+        "workItemId": "WI-1"
+      },
+      {
+        "reasonCode": "MISSING_EVIDENCE",
+        "type": "BLOCK_PROMOTION",
         "workItemId": "WI-2"
       }
     ],

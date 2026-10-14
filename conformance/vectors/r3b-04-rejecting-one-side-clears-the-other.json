@@ -303,25 +303,23 @@
     "effects": [
       {
         "condition": "Blocked",
-        "reasonCodes": [
-          "MISSING_EVIDENCE",
-          "RESOLUTION_REJECTED"
-        ],
+        "reasonCode": "MISSING_EVIDENCE",
         "type": "RECORD_CONDITION",
         "workItemId": "WI-2"
       },
       {
-        "reasonCodes": [
-          "MISSING_EVIDENCE",
-          "RESOLUTION_REJECTED"
-        ],
+        "condition": "Blocked",
+        "reasonCode": "RESOLUTION_REJECTED",
+        "type": "RECORD_CONDITION",
+        "workItemId": "WI-2"
+      },
+      {
+        "reasonCode": "MISSING_EVIDENCE",
         "type": "BLOCK_PROMOTION",
         "workItemId": "WI-2"
       },
       {
-        "reasonCodes": [
-          "RESOLUTION_REJECTED"
-        ],
+        "reasonCode": "RESOLUTION_REJECTED",
         "type": "BLOCK_PROMOTION",
         "workItemId": "WI-2"
       }

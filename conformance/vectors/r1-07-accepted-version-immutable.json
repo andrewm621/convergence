@@ -273,9 +273,7 @@
   "then": {
     "effects": [
       {
-        "reasonCodes": [
-          "IMMUTABLE_VERSION"
-        ],
+        "reasonCode": "IMMUTABLE_VERSION",
         "recordId": "notifications",
         "type": "NO_ACTION"
       }

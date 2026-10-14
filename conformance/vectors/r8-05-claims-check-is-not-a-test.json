@@ -244,9 +244,7 @@
   "then": {
     "effects": [
       {
-        "reasonCodes": [
-          "OBSERVATION_ONLY"
-        ],
+        "reasonCode": "OBSERVATION_ONLY",
         "type": "NO_ACTION"
       }
     ],

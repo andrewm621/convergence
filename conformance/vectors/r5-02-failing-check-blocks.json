@@ -293,9 +293,7 @@
   "then": {
     "effects": [
       {
-        "reasonCodes": [
-          "TEST_FAILED"
-        ],
+        "reasonCode": "TEST_FAILED",
         "type": "BLOCK_PROMOTION",
         "workItemId": "WI-2"
       }

@@ -228,41 +228,40 @@
     "effects": [
       {
         "condition": "Blocked",
-        "reasonCodes": [
-          "MISSING_EVIDENCE",
-          "STALE_RECEIPT"
-        ],
+        "reasonCode": "MISSING_EVIDENCE",
+        "type": "RECORD_CONDITION",
+        "workItemId": "WI-2"
+      },
+      {
+        "condition": "Blocked",
+        "reasonCode": "STALE_RECEIPT",
         "type": "RECORD_CONDITION",
         "workItemId": "WI-2"
       },
       {
         "condition": "Stale",
-        "reasonCodes": [
-          "STALE_RECEIPT"
-        ],
+        "reasonCode": "STALE_RECEIPT",
         "type": "RECORD_CONDITION",
         "workItemId": "WI-2"
       },
       {
-        "reasonCodes": [
-          "MISSING_EVIDENCE",
-          "STALE_RECEIPT"
-        ],
+        "reasonCode": "MISSING_EVIDENCE",
         "type": "BLOCK_PROMOTION",
         "workItemId": "WI-2"
       },
       {
-        "reasonCodes": [
-          "NO_DEPENDENCY_ON_CHANGED_FACETS"
-        ],
+        "reasonCode": "NO_DEPENDENCY_ON_CHANGED_FACETS",
         "recordId": "notifications",
         "type": "NO_ACTION",
         "workItemId": "WI-1"
       },
       {
-        "reasonCodes": [
-          "STALE_RECEIPT"
-        ],
+        "reasonCode": "STALE_RECEIPT",
+        "type": "BLOCK_PROMOTION",
+        "workItemId": "WI-2"
+      },
+      {
+        "reasonCode": "STALE_RECEIPT",
         "type": "REQUEST_REVIEW",
         "workItemId": "WI-2"
       }

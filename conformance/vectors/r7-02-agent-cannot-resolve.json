@@ -319,9 +319,7 @@
   "then": {
     "effects": [
       {
-        "reasonCodes": [
-          "FORBIDDEN_ACTOR"
-        ],
+        "reasonCode": "FORBIDDEN_ACTOR",
         "type": "NO_ACTION",
         "workItemId": "WI-2"
       }

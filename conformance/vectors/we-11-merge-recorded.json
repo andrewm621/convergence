@@ -359,7 +359,7 @@
     "effects": [
       {
         "condition": "Promoted",
-        "reasonCodes": [],
+        "reasonCode": null,
         "type": "RECORD_CONDITION",
         "workItemId": "WI-2"
       }

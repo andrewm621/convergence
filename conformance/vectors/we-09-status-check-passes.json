@@ -327,15 +327,13 @@
     "effects": [
       {
         "condition": "Ready",
-        "reasonCodes": [],
+        "reasonCode": null,
         "type": "RECORD_CONDITION",
         "workItemId": "WI-2"
       },
       {
         "condition": "TestsPassed",
-        "reasonCodes": [
-          "TESTS_PASSED"
-        ],
+        "reasonCode": "TESTS_PASSED",
         "type": "RECORD_CONDITION",
         "workItemId": "WI-2"
       }

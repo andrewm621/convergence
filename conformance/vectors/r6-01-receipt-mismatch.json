@@ -342,9 +342,7 @@
   "then": {
     "effects": [
       {
-        "reasonCodes": [
-          "RECEIPT_MISMATCH"
-        ],
+        "reasonCode": "RECEIPT_MISMATCH",
         "type": "NO_ACTION",
         "workItemId": "WI-2"
       }

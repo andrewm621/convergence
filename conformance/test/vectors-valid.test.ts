@@ -18,7 +18,8 @@ describe("vectors are well-formed", () => {
 		expect(canonical(DeltaEvent.parse(v.when.event))).toBe(canonical(v.when.event));
 		for (const effect of v.then.effects) {
 			expect(EFFECT_TYPES.has(effect["type"] as string)).toBe(true);
-			for (const code of effect["reasonCodes"] as string[]) expect(REASONS.has(code)).toBe(true);
+			const code = effect["reasonCode"];
+			if (code !== null) expect(REASONS.has(code as string)).toBe(true);
 		}
 	});
 
@@ -58,7 +59,7 @@ describe("the worked example (PROTOCOL.md section 2) is one continuous sequence"
 		const first = steps[0] as Vector;
 		expect(status(first, "WI-2")).toBe("stale");
 		expect(status(first, "WI-1")).toBe(projectState(first.given.state).workItems["WI-1"]?.status);
-		expect(first.then.effects).toContainEqual(expect.objectContaining({ type: "NO_ACTION", workItemId: "WI-1", reasonCodes: ["NO_DEPENDENCY_ON_CHANGED_FACETS"] }));
+		expect(first.then.effects).toContainEqual(expect.objectContaining({ type: "NO_ACTION", workItemId: "WI-1", reasonCode: "NO_DEPENDENCY_ON_CHANGED_FACETS" }));
 		const promotions = steps.filter((v) => (v.when.event as { type: string }).type === "PromotionRequested");
 		expect(promotions.map((v) => v.then.effects.find((e) => e["type"] === "BLOCK_PROMOTION" || e["type"] === "ALLOW_PROMOTION")?.["type"])).toEqual(["BLOCK_PROMOTION", "ALLOW_PROMOTION"]);
 		expect(steps.some((v) => v.then.effects.some((e) => e["type"] === "DISPATCH_WORK"))).toBe(true);

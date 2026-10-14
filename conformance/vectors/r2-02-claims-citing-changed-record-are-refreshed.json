@@ -316,81 +316,108 @@
     "effects": [
       {
         "condition": "Blocked",
-        "reasonCodes": [
-          "CLAIM_CONFLICT",
-          "SUPERSEDED_BASIS"
-        ],
+        "reasonCode": "CLAIM_CONFLICT",
         "type": "RECORD_CONDITION",
         "workItemId": "WI-X"
       },
       {
         "condition": "Blocked",
-        "reasonCodes": [
-          "FACET_CHANGED",
-          "MISSING_EVIDENCE",
-          "STALE_RECEIPT"
-        ],
+        "reasonCode": "FACET_CHANGED",
         "type": "RECORD_CONDITION",
         "workItemId": "WI-2"
       },
       {
+        "condition": "Blocked",
+        "reasonCode": "MISSING_EVIDENCE",
+        "type": "RECORD_CONDITION",
+        "workItemId": "WI-2"
+      },
+      {
+        "condition": "Blocked",
+        "reasonCode": "STALE_RECEIPT",
+        "type": "RECORD_CONDITION",
+        "workItemId": "WI-2"
+      },
+      {
+        "condition": "Blocked",
+        "reasonCode": "SUPERSEDED_BASIS",
+        "type": "RECORD_CONDITION",
+        "workItemId": "WI-X"
+      },
+      {
         "condition": "ClaimConflict",
-        "reasonCodes": [
-          "CLAIM_CONFLICT",
-          "SUPERSEDED_BASIS"
-        ],
+        "reasonCode": "CLAIM_CONFLICT",
+        "type": "RECORD_CONDITION",
+        "workItemId": "WI-X"
+      },
+      {
+        "condition": "ClaimConflict",
+        "reasonCode": "SUPERSEDED_BASIS",
         "type": "RECORD_CONDITION",
         "workItemId": "WI-X"
       },
       {
         "condition": "Stale",
-        "reasonCodes": [
-          "FACET_CHANGED",
-          "STALE_RECEIPT"
-        ],
+        "reasonCode": "FACET_CHANGED",
         "type": "RECORD_CONDITION",
         "workItemId": "WI-2"
       },
       {
-        "reasonCodes": [
-          "CLAIM_CONFLICT",
-          "SUPERSEDED_BASIS"
-        ],
+        "condition": "Stale",
+        "reasonCode": "STALE_RECEIPT",
+        "type": "RECORD_CONDITION",
+        "workItemId": "WI-2"
+      },
+      {
+        "reasonCode": "CLAIM_CONFLICT",
         "type": "BLOCK_PROMOTION",
         "workItemId": "WI-X"
       },
       {
-        "reasonCodes": [
-          "CLAIM_CONFLICT",
-          "SUPERSEDED_BASIS"
-        ],
+        "reasonCode": "CLAIM_CONFLICT",
         "type": "REQUEST_REVIEW",
         "workItemId": "WI-X"
       },
       {
-        "reasonCodes": [
-          "FACET_CHANGED",
-          "MISSING_EVIDENCE",
-          "STALE_RECEIPT"
-        ],
+        "reasonCode": "FACET_CHANGED",
         "type": "BLOCK_PROMOTION",
         "workItemId": "WI-2"
       },
       {
-        "reasonCodes": [
-          "FACET_CHANGED",
-          "STALE_RECEIPT"
-        ],
+        "reasonCode": "FACET_CHANGED",
         "type": "REQUEST_REVIEW",
         "workItemId": "WI-2"
       },
       {
-        "reasonCodes": [
-          "NO_DEPENDENCY_ON_CHANGED_FACETS"
-        ],
+        "reasonCode": "MISSING_EVIDENCE",
+        "type": "BLOCK_PROMOTION",
+        "workItemId": "WI-2"
+      },
+      {
+        "reasonCode": "NO_DEPENDENCY_ON_CHANGED_FACETS",
         "recordId": "notifications",
         "type": "NO_ACTION",
         "workItemId": "WI-1"
+      },
+      {
+        "reasonCode": "STALE_RECEIPT",
+        "type": "BLOCK_PROMOTION",
+        "workItemId": "WI-2"
+      },
+      {
+        "reasonCode": "STALE_RECEIPT",
+        "type": "REQUEST_REVIEW",
+        "workItemId": "WI-2"
+      },
+      {
+        "reasonCode": "SUPERSEDED_BASIS",
+        "type": "BLOCK_PROMOTION",
+        "workItemId": "WI-X"
+      },
+      {
+        "reasonCode": "SUPERSEDED_BASIS",
+        "type": "REQUEST_REVIEW",
+        "workItemId": "WI-X"
       }
     ],
     "state": {

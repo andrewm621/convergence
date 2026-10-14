@@ -244,9 +244,7 @@
   "then": {
     "effects": [
       {
-        "reasonCodes": [
-          "UNKNOWN_WORK_ITEM"
-        ],
+        "reasonCode": "UNKNOWN_WORK_ITEM",
         "type": "NO_ACTION",
         "workItemId": "WI-1"
       }

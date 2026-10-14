@@ -345,14 +345,32 @@
   "then": {
     "effects": [
       {
-        "reasonCodes": [
-          "CLAIM_CONFLICT",
-          "FACET_CHANGED",
-          "MISSING_EVIDENCE",
-          "STALE_RECEIPT",
-          "SUPERSEDED_BASIS",
-          "TEST_FAILED"
-        ],
+        "reasonCode": "CLAIM_CONFLICT",
+        "type": "BLOCK_PROMOTION",
+        "workItemId": "WI-2"
+      },
+      {
+        "reasonCode": "FACET_CHANGED",
+        "type": "BLOCK_PROMOTION",
+        "workItemId": "WI-2"
+      },
+      {
+        "reasonCode": "MISSING_EVIDENCE",
+        "type": "BLOCK_PROMOTION",
+        "workItemId": "WI-2"
+      },
+      {
+        "reasonCode": "STALE_RECEIPT",
+        "type": "BLOCK_PROMOTION",
+        "workItemId": "WI-2"
+      },
+      {
+        "reasonCode": "SUPERSEDED_BASIS",
+        "type": "BLOCK_PROMOTION",
+        "workItemId": "WI-2"
+      },
+      {
+        "reasonCode": "TEST_FAILED",
         "type": "BLOCK_PROMOTION",
         "workItemId": "WI-2"
       }

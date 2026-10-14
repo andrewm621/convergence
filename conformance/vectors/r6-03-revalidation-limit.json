@@ -333,16 +333,12 @@
   "then": {
     "effects": [
       {
-        "reasonCodes": [
-          "REVALIDATION_LIMIT"
-        ],
+        "reasonCode": "REVALIDATION_LIMIT",
         "type": "BLOCK_PROMOTION",
         "workItemId": "WI-2"
       },
       {
-        "reasonCodes": [
-          "REVALIDATION_LIMIT"
-        ],
+        "reasonCode": "REVALIDATION_LIMIT",
         "type": "REQUEST_REVIEW",
         "workItemId": "WI-2"
       }

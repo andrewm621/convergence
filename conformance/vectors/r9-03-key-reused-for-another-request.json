@@ -342,9 +342,7 @@
   "then": {
     "effects": [
       {
-        "reasonCodes": [
-          "IDEMPOTENCY_CONFLICT"
-        ],
+        "reasonCode": "IDEMPOTENCY_CONFLICT",
         "type": "NO_ACTION"
       }
     ],

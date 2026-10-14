@@ -288,9 +288,7 @@
   "then": {
     "effects": [
       {
-        "reasonCodes": [
-          "DEPENDENCY_DECIDED"
-        ],
+        "reasonCode": "DEPENDENCY_DECIDED",
         "recordId": "notifications",
         "type": "NO_ACTION",
         "workItemId": "WI-1"

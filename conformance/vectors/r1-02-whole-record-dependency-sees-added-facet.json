@@ -348,123 +348,196 @@
     "effects": [
       {
         "condition": "Blocked",
-        "reasonCodes": [
-          "FACET_CHANGED",
-          "HUMAN_RESOLUTION_MISSING",
-          "MISSING_EVIDENCE",
-          "STALE_RECEIPT"
-        ],
+        "reasonCode": "FACET_CHANGED",
         "type": "RECORD_CONDITION",
         "workItemId": "WI-3"
       },
       {
         "condition": "Blocked",
-        "reasonCodes": [
-          "FACET_CHANGED",
-          "HUMAN_RESOLUTION_MISSING",
-          "MISSING_EVIDENCE",
-          "STALE_RECEIPT"
-        ],
+        "reasonCode": "FACET_CHANGED",
         "type": "RECORD_CONDITION",
         "workItemId": "WI-4"
       },
       {
         "condition": "Blocked",
-        "reasonCodes": [
-          "FACET_CHANGED",
-          "MISSING_EVIDENCE",
-          "STALE_RECEIPT"
-        ],
+        "reasonCode": "FACET_CHANGED",
+        "type": "RECORD_CONDITION",
+        "workItemId": "WI-W"
+      },
+      {
+        "condition": "Blocked",
+        "reasonCode": "HUMAN_RESOLUTION_MISSING",
+        "type": "RECORD_CONDITION",
+        "workItemId": "WI-3"
+      },
+      {
+        "condition": "Blocked",
+        "reasonCode": "HUMAN_RESOLUTION_MISSING",
+        "type": "RECORD_CONDITION",
+        "workItemId": "WI-4"
+      },
+      {
+        "condition": "Blocked",
+        "reasonCode": "MISSING_EVIDENCE",
+        "type": "RECORD_CONDITION",
+        "workItemId": "WI-3"
+      },
+      {
+        "condition": "Blocked",
+        "reasonCode": "MISSING_EVIDENCE",
+        "type": "RECORD_CONDITION",
+        "workItemId": "WI-4"
+      },
+      {
+        "condition": "Blocked",
+        "reasonCode": "MISSING_EVIDENCE",
+        "type": "RECORD_CONDITION",
+        "workItemId": "WI-W"
+      },
+      {
+        "condition": "Blocked",
+        "reasonCode": "STALE_RECEIPT",
+        "type": "RECORD_CONDITION",
+        "workItemId": "WI-3"
+      },
+      {
+        "condition": "Blocked",
+        "reasonCode": "STALE_RECEIPT",
+        "type": "RECORD_CONDITION",
+        "workItemId": "WI-4"
+      },
+      {
+        "condition": "Blocked",
+        "reasonCode": "STALE_RECEIPT",
         "type": "RECORD_CONDITION",
         "workItemId": "WI-W"
       },
       {
         "condition": "Stale",
-        "reasonCodes": [
-          "FACET_CHANGED",
-          "STALE_RECEIPT"
-        ],
+        "reasonCode": "FACET_CHANGED",
         "type": "RECORD_CONDITION",
         "workItemId": "WI-3"
       },
       {
         "condition": "Stale",
-        "reasonCodes": [
-          "FACET_CHANGED",
-          "STALE_RECEIPT"
-        ],
+        "reasonCode": "FACET_CHANGED",
         "type": "RECORD_CONDITION",
         "workItemId": "WI-4"
       },
       {
         "condition": "Stale",
-        "reasonCodes": [
-          "FACET_CHANGED",
-          "STALE_RECEIPT"
-        ],
+        "reasonCode": "FACET_CHANGED",
         "type": "RECORD_CONDITION",
         "workItemId": "WI-W"
       },
       {
-        "reasonCodes": [
-          "FACET_CHANGED",
-          "HUMAN_RESOLUTION_MISSING",
-          "MISSING_EVIDENCE",
-          "STALE_RECEIPT"
-        ],
+        "condition": "Stale",
+        "reasonCode": "STALE_RECEIPT",
+        "type": "RECORD_CONDITION",
+        "workItemId": "WI-3"
+      },
+      {
+        "condition": "Stale",
+        "reasonCode": "STALE_RECEIPT",
+        "type": "RECORD_CONDITION",
+        "workItemId": "WI-4"
+      },
+      {
+        "condition": "Stale",
+        "reasonCode": "STALE_RECEIPT",
+        "type": "RECORD_CONDITION",
+        "workItemId": "WI-W"
+      },
+      {
+        "reasonCode": "FACET_CHANGED",
         "type": "BLOCK_PROMOTION",
         "workItemId": "WI-3"
       },
       {
-        "reasonCodes": [
-          "FACET_CHANGED",
-          "HUMAN_RESOLUTION_MISSING",
-          "MISSING_EVIDENCE",
-          "STALE_RECEIPT"
-        ],
+        "reasonCode": "FACET_CHANGED",
         "type": "BLOCK_PROMOTION",
         "workItemId": "WI-4"
       },
       {
-        "reasonCodes": [
-          "FACET_CHANGED",
-          "MISSING_EVIDENCE",
-          "STALE_RECEIPT"
-        ],
+        "reasonCode": "FACET_CHANGED",
         "type": "BLOCK_PROMOTION",
         "workItemId": "WI-W"
       },
       {
-        "reasonCodes": [
-          "FACET_CHANGED",
-          "STALE_RECEIPT"
-        ],
+        "reasonCode": "FACET_CHANGED",
         "type": "REQUEST_REVIEW",
         "workItemId": "WI-3"
       },
       {
-        "reasonCodes": [
-          "FACET_CHANGED",
-          "STALE_RECEIPT"
-        ],
+        "reasonCode": "FACET_CHANGED",
         "type": "REQUEST_REVIEW",
         "workItemId": "WI-4"
       },
       {
-        "reasonCodes": [
-          "FACET_CHANGED",
-          "STALE_RECEIPT"
-        ],
+        "reasonCode": "FACET_CHANGED",
         "type": "REQUEST_REVIEW",
         "workItemId": "WI-W"
       },
       {
-        "reasonCodes": [
-          "NO_DEPENDENCY_ON_CHANGED_FACETS"
-        ],
+        "reasonCode": "HUMAN_RESOLUTION_MISSING",
+        "type": "BLOCK_PROMOTION",
+        "workItemId": "WI-3"
+      },
+      {
+        "reasonCode": "HUMAN_RESOLUTION_MISSING",
+        "type": "BLOCK_PROMOTION",
+        "workItemId": "WI-4"
+      },
+      {
+        "reasonCode": "MISSING_EVIDENCE",
+        "type": "BLOCK_PROMOTION",
+        "workItemId": "WI-3"
+      },
+      {
+        "reasonCode": "MISSING_EVIDENCE",
+        "type": "BLOCK_PROMOTION",
+        "workItemId": "WI-4"
+      },
+      {
+        "reasonCode": "MISSING_EVIDENCE",
+        "type": "BLOCK_PROMOTION",
+        "workItemId": "WI-W"
+      },
+      {
+        "reasonCode": "NO_DEPENDENCY_ON_CHANGED_FACETS",
         "recordId": "qualified-lead",
         "type": "NO_ACTION",
         "workItemId": "WI-5"
+      },
+      {
+        "reasonCode": "STALE_RECEIPT",
+        "type": "BLOCK_PROMOTION",
+        "workItemId": "WI-3"
+      },
+      {
+        "reasonCode": "STALE_RECEIPT",
+        "type": "BLOCK_PROMOTION",
+        "workItemId": "WI-4"
+      },
+      {
+        "reasonCode": "STALE_RECEIPT",
+        "type": "BLOCK_PROMOTION",
+        "workItemId": "WI-W"
+      },
+      {
+        "reasonCode": "STALE_RECEIPT",
+        "type": "REQUEST_REVIEW",
+        "workItemId": "WI-3"
+      },
+      {
+        "reasonCode": "STALE_RECEIPT",
+        "type": "REQUEST_REVIEW",
+        "workItemId": "WI-4"
+      },
+      {
+        "reasonCode": "STALE_RECEIPT",
+        "type": "REQUEST_REVIEW",
+        "workItemId": "WI-W"
       }
     ],
     "state": {

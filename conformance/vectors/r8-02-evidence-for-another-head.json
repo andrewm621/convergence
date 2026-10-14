@@ -244,9 +244,7 @@
   "then": {
     "effects": [
       {
-        "reasonCodes": [
-          "STALE_EVIDENCE"
-        ],
+        "reasonCode": "STALE_EVIDENCE",
         "type": "NO_ACTION",
         "workItemId": "WI-1"
       }

@@ -273,9 +273,7 @@
   "then": {
     "effects": [
       {
-        "reasonCodes": [
-          "PROMOTION_NOT_APPROVED"
-        ],
+        "reasonCode": "PROMOTION_NOT_APPROVED",
         "type": "NO_ACTION",
         "workItemId": "WI-1"
       }

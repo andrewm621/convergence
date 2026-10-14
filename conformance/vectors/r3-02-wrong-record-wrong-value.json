@@ -228,37 +228,56 @@
     "effects": [
       {
         "condition": "Blocked",
-        "reasonCodes": [
-          "CLAIM_CONFLICT",
-          "MISSING_EVIDENCE",
-          "WRONG_RECORD"
-        ],
+        "reasonCode": "CLAIM_CONFLICT",
+        "type": "RECORD_CONDITION",
+        "workItemId": "WI-2"
+      },
+      {
+        "condition": "Blocked",
+        "reasonCode": "MISSING_EVIDENCE",
+        "type": "RECORD_CONDITION",
+        "workItemId": "WI-2"
+      },
+      {
+        "condition": "Blocked",
+        "reasonCode": "WRONG_RECORD",
         "type": "RECORD_CONDITION",
         "workItemId": "WI-2"
       },
       {
         "condition": "ClaimConflict",
-        "reasonCodes": [
-          "CLAIM_CONFLICT",
-          "WRONG_RECORD"
-        ],
+        "reasonCode": "CLAIM_CONFLICT",
         "type": "RECORD_CONDITION",
         "workItemId": "WI-2"
       },
       {
-        "reasonCodes": [
-          "CLAIM_CONFLICT",
-          "MISSING_EVIDENCE",
-          "WRONG_RECORD"
-        ],
+        "condition": "ClaimConflict",
+        "reasonCode": "WRONG_RECORD",
+        "type": "RECORD_CONDITION",
+        "workItemId": "WI-2"
+      },
+      {
+        "reasonCode": "CLAIM_CONFLICT",
         "type": "BLOCK_PROMOTION",
         "workItemId": "WI-2"
       },
       {
-        "reasonCodes": [
-          "CLAIM_CONFLICT",
-          "WRONG_RECORD"
-        ],
+        "reasonCode": "CLAIM_CONFLICT",
+        "type": "REQUEST_REVIEW",
+        "workItemId": "WI-2"
+      },
+      {
+        "reasonCode": "MISSING_EVIDENCE",
+        "type": "BLOCK_PROMOTION",
+        "workItemId": "WI-2"
+      },
+      {
+        "reasonCode": "WRONG_RECORD",
+        "type": "BLOCK_PROMOTION",
+        "workItemId": "WI-2"
+      },
+      {
+        "reasonCode": "WRONG_RECORD",
         "type": "REQUEST_REVIEW",
         "workItemId": "WI-2"
       }

@@ -273,16 +273,12 @@
   "then": {
     "effects": [
       {
-        "reasonCodes": [
-          "FORBIDDEN_ACTOR"
-        ],
+        "reasonCode": "FORBIDDEN_ACTOR",
         "type": "BLOCK_PROMOTION",
         "workItemId": "WI-1"
       },
       {
-        "reasonCodes": [
-          "FORBIDDEN_ACTOR"
-        ],
+        "reasonCode": "FORBIDDEN_ACTOR",
         "type": "NO_ACTION",
         "workItemId": "WI-1"
       }

@@ -273,16 +273,12 @@
   "then": {
     "effects": [
       {
-        "reasonCodes": [
-          "BASELINE_MOVED"
-        ],
+        "reasonCode": "BASELINE_MOVED",
         "type": "BLOCK_PROMOTION",
         "workItemId": "WI-1"
       },
       {
-        "reasonCodes": [
-          "BASELINE_MOVED"
-        ],
+        "reasonCode": "BASELINE_MOVED",
         "type": "NO_ACTION",
         "workItemId": "WI-1"
       }

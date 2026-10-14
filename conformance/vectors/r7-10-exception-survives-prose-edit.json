@@ -405,9 +405,7 @@
   "then": {
     "effects": [
       {
-        "reasonCodes": [
-          "PROSE_ONLY"
-        ],
+        "reasonCode": "PROSE_ONLY",
         "recordId": "qualified-lead",
         "type": "NO_ACTION"
       }

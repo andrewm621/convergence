@@ -273,9 +273,7 @@
   "then": {
     "effects": [
       {
-        "reasonCodes": [
-          "VERSION_NOT_NEWER"
-        ],
+        "reasonCode": "VERSION_NOT_NEWER",
         "recordId": "notifications",
         "type": "NO_ACTION"
       }

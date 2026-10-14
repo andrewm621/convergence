@@ -388,9 +388,7 @@
   "then": {
     "effects": [
       {
-        "reasonCodes": [
-          "FORBIDDEN_ACTOR"
-        ],
+        "reasonCode": "FORBIDDEN_ACTOR",
         "recordId": "qualified-lead",
         "type": "NO_ACTION",
         "workItemId": "WI-3"

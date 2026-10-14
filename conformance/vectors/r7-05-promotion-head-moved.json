@@ -273,16 +273,12 @@
   "then": {
     "effects": [
       {
-        "reasonCodes": [
-          "HEAD_MOVED"
-        ],
+        "reasonCode": "HEAD_MOVED",
         "type": "BLOCK_PROMOTION",
         "workItemId": "WI-1"
       },
       {
-        "reasonCodes": [
-          "HEAD_MOVED"
-        ],
+        "reasonCode": "HEAD_MOVED",
         "type": "NO_ACTION",
         "workItemId": "WI-1"
       }
