@@ -1,4 +1,4 @@
-import type { FacetValue } from "contracts";
+import type { FacetValue, WorkItemState } from "contracts";
 import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from "react";
 import type { ConnectionState, ConsoleClient, ConsoleMessage } from "@/client/types";
 import { DegradedContext } from "@/components/status";
@@ -40,6 +40,18 @@ type ConsoleContextValue = {
 export type ObservedEvaluation = { seq: number; ms: number };
 
 const ConsoleContext = createContext<ConsoleContextValue | null>(null);
+
+/** Live cells have a couple of agents; a seeded fan-out has none worth asking the Worker about. */
+const MAX_RUN_READS = 12;
+
+/** Changes when a live work item's fork head moves or its re-run ends, and on the first snapshot. */
+export function agentRunsKey(workItems: Record<string, WorkItemState>): string {
+	const parts = Object.values(workItems)
+		.filter((wi) => wi.item.source === "live")
+		.map((wi) => `${wi.item.id}@${wi.item.forkRepo}@${wi.headSha ?? ""}@${wi.revalidating ? "run" : ""}`)
+		.sort();
+	return parts.length > 0 ? parts.join("|") : "";
+}
 
 export function useConsole(): ConsoleContextValue {
 	const value = useContext(ConsoleContext);
@@ -96,6 +108,28 @@ export function ConsoleProvider({ client, children, flushMs = 24 }: { client: Co
 	useEffect(() => {
 		if (view.needsResync) void client.refresh().catch(() => undefined);
 	}, [view.needsResync, client]);
+
+	// Agents that ran before this console opened left their stream and model with the Worker, not on the socket. Read
+	// them once the state is in, and again only when a fork's head moves (a push) or a re-run ends: not on every event.
+	const runsKey = client.kind === "live" && view.ready ? agentRunsKey(view.workItems) : "";
+	useEffect(() => {
+		if (!runsKey) return;
+		const items = Object.values(view.workItems)
+			.filter((wi) => wi.item.source === "live")
+			.slice(0, MAX_RUN_READS)
+			.map((wi) => ({ id: wi.item.id, forkRepo: wi.item.forkRepo }));
+		let cancelled = false;
+		client.api
+			.agentRuns(items)
+			.then((runs) => {
+				if (!cancelled) dispatch({ type: "agent-runs", runs });
+			})
+			.catch(() => undefined);
+		return () => {
+			cancelled = true;
+		};
+		// `view.workItems` is read through `runsKey`, which changes exactly when the answer could.
+	}, [runsKey, client]);
 
 	const notify = useCallback((tone: Toast["tone"], text: string) => {
 		const id = nextId.current++;

@@ -1,9 +1,9 @@
-import { CellSnapshot, Dependency, ReasonCode, RecordHistory, WsMessage } from "contracts";
+import { CellSnapshot, Dependency, IsoTimestamp, ReasonCode, RecordHistory, WsMessage, type AgentActivity } from "contracts";
 import { z } from "zod";
 import { API_BASE, POLL_INTERVAL_MS } from "@/config";
 import { readToken, socketProtocols } from "./auth";
 import { endpoints, NOT_IMPLEMENTED } from "./endpoints";
-import type { ClientHandlers, CommandResult, ConnectionState, ConsoleApi, ConsoleClient, ConsoleMessage, GateResult, MessageMeta, PollerHealth, ScenarioName } from "./types";
+import type { AgentRunSummary, ClientHandlers, CommandResult, ConnectionState, ConsoleApi, ConsoleClient, ConsoleMessage, GateResult, MessageMeta, PollerHealth, ScenarioName } from "./types";
 
 /**
  * The live client for the Worker's control loop (docs/control-loop.md).
@@ -327,6 +327,23 @@ export function createLiveClient(options: LiveOptions): ConsoleClient {
 		async changes() {
 			return [];
 		},
+		// Runs are keyed by agent id (the lowercase work item id) across every cell. A 404, a network error or a run of
+		// another cell is not a problem: that work item simply has nothing earlier to show.
+		async agentRuns(workItems) {
+			const runs = await Promise.all(
+				workItems.map(async (item): Promise<AgentRunSummary | null> => {
+					try {
+						const response = await send("GET", endpoints.agentRun(item.id.toLowerCase()));
+						if (response.status === 401) halt();
+						if (!response.ok) return null;
+						return summarizeRun(item, await response.json().catch(() => null));
+					} catch {
+						return null;
+					}
+				}),
+			);
+			return runs.flatMap((run) => (run ? [run] : []));
+		},
 		async readRecordText(recordId) {
 			const response = await send("GET", endpoints.context(cell, recordId));
 			return response.ok ? await response.text() : "";
@@ -363,6 +380,39 @@ export function createLiveClient(options: LiveOptions): ConsoleClient {
 		},
 		refresh: () => readState(),
 	};
+}
+
+/** The part of `GET /api/agents/runs/:agentId` the console reads. Every other field is ignored. */
+const RunResponse = z.object({
+	forkRepo: z.string(),
+	mode: z.string().nullish(),
+	model: z.string().nullish(),
+	runId: z.string().nullish(),
+	activity: z.array(z.unknown()).nullish(),
+});
+
+const RunLine = z.object({ ts: IsoTimestamp, kind: z.string(), text: z.string() });
+
+/** The Worker's activity kinds are open-ended ("clone", "push", ...); the console draws four. Anything else reads as a status line. */
+function lineKind(kind: string): AgentActivity["kind"] {
+	return kind === "tool" || kind === "text" || kind === "error" ? kind : "status";
+}
+
+/**
+ * One agent run in the console's terms, or null when it is not this work item's: runs are keyed by agent id across every
+ * cell, so the run must have worked on the fork this cell registered for the item. Lines that do not parse are dropped.
+ */
+export function summarizeRun(item: { id: string; forkRepo: string }, raw: unknown): AgentRunSummary | null {
+	const parsed = RunResponse.safeParse(raw);
+	if (!parsed.success || parsed.data.forkRepo !== item.forkRepo) return null;
+	const run = parsed.data;
+	const runId = run.runId || item.id.toLowerCase();
+	const activity: AgentActivity[] = [];
+	for (const line of run.activity ?? []) {
+		const one = RunLine.safeParse(line);
+		if (one.success) activity.push({ type: "agent-activity", workItemId: item.id, runId, kind: lineKind(one.data.kind), text: one.data.text, ts: one.data.ts });
+	}
+	return { workItemId: item.id, model: run.mode === "stub" ? "stub agent" : run.model || null, activity };
 }
 
 /** A short line for a toast: what a successful command did, from whatever the Worker returned. */

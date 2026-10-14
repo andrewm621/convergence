@@ -8,7 +8,7 @@ import { formatTime, shortHash } from "@/lib/format";
 import { primaryReason } from "@/lib/reasons";
 import { cn } from "@/lib/utils";
 import { useConsole } from "@/state/console-context";
-import { agentModelOf, summarizeLedgerLine } from "@/state/derive";
+import { agentModelFor, summarizeLedgerLine } from "@/state/derive";
 
 const KIND_META: Record<AgentActivity["kind"], { icon: typeof Terminal; label: string; className: string }> = {
 	tool: { icon: Terminal, label: "tool", className: "text-muted-foreground" },
@@ -75,7 +75,7 @@ function ActivityStream() {
 								<button type="button" onClick={() => select(line.workItemId)} className="shrink-0 rounded px-1 font-semibold outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/50">
 									{line.workItemId}
 								</button>
-								{wi && <span className="max-w-[16rem] shrink-0 truncate text-muted-foreground">{agentModelOf(view.ledger, wi.item.id) ?? wi.item.title}</span>}
+								{wi && <span className="max-w-[16rem] shrink-0 truncate text-muted-foreground">{agentModelFor(view, wi.item.id) ?? wi.item.title}</span>}
 								<Icon className={cn("size-3 shrink-0 translate-y-0.5", meta.className)} aria-hidden />
 								<span className="sr-only">{meta.label}: </span>
 								<span className={cn("min-w-0 break-words", meta.className)}>{line.text}</span>

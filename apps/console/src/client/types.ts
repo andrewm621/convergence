@@ -1,4 +1,4 @@
-import type { Dependency, FacetValue, ReasonCode, RecordHistory, ResolutionBinding, WsMessage } from "contracts";
+import type { AgentActivity, Dependency, FacetValue, ReasonCode, RecordHistory, ResolutionBinding, WsMessage } from "contracts";
 
 /**
  * The seam between the console and its data. The mock (`src/mock`) and the live client
@@ -139,6 +139,17 @@ export type PromoteInput = {
 	forkHeadSha: string;
 };
 
+/**
+ * What the Worker remembers of the latest run of one work item's agent (`GET /api/agents/runs/:agentId`), already checked
+ * against the cell: `workItemId` is the cell's id ("WI-1"), and `activity` is in the console's own line shape.
+ */
+export type AgentRunSummary = {
+	workItemId: string;
+	/** What ran it ("anthropic/claude-sonnet-5.5", or "stub agent"). Null when the run names none. */
+	model: string | null;
+	activity: AgentActivity[];
+};
+
 export type CommandResult = { ok: true; message?: string } | { ok: false; code: string; message: string; reasonCodes?: ReasonCode[] };
 
 /** Every mutating call carries an Idempotency-Key. */
@@ -152,6 +163,11 @@ export type ConsoleApi = {
 	promote(input: PromoteInput, idempotencyKey: string): Promise<CommandResult>;
 	/** Accept or reject a dependency the engine inferred (`POST /work-items/:id/dependencies`). Reject clears the hold on the work item. */
 	decideDependency(input: DecideDependencyInput, idempotencyKey: string): Promise<CommandResult>;
+	/**
+	 * The latest run of each work item's agent, for work that ran before the console opened. Runs are keyed by agent id
+	 * across every cell, so a run counts only if it ran on that work item's own fork. Never rejects: no run is an empty list.
+	 */
+	agentRuns(workItems: ReadonlyArray<{ id: string; forkRepo: string }>): Promise<AgentRunSummary[]>;
 	/** Empty state: declare the scenario's first decisions. */
 	seedScenario(idempotencyKey: string): Promise<CommandResult>;
 	/** Create the scenario's work items and start their agents. */

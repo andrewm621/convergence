@@ -10,7 +10,7 @@ import type {
 	WorkItemState,
 } from "contracts";
 import { summarizeEffects } from "delta-core";
-import type { ConsoleMessage, PollerHealth } from "@/client/types";
+import type { AgentRunSummary, ConsoleMessage, PollerHealth } from "@/client/types";
 
 /**
  * Everything the console renders, built only from the WS contract: a `snapshot`, then `event`
@@ -51,6 +51,8 @@ export type ViewState = {
 	ledger: ReconciliationEvent[];
 	ledgerHead: { seq: number; hash: string };
 	activity: AgentActivity[];
+	/** What runs each work item, from the runs read after the fact (live only). The ledger's `AgentRunStarted` wins when it names one. */
+	agentModels: Record<string, string>;
 	evaluation: Evaluation | null;
 	/** Evaluation time by ledger seq, from the optional `meta` on messages. */
 	evalMs: Record<number, number>;
@@ -62,7 +64,7 @@ export type ViewState = {
 	revision: number;
 };
 
-export type ViewAction = { type: "message"; message: ConsoleMessage } | { type: "reset" };
+export type ViewAction = { type: "message"; message: ConsoleMessage } | { type: "agent-runs"; runs: AgentRunSummary[] } | { type: "reset" };
 
 const LEDGER_CAP = 400;
 const ACTIVITY_CAP = 300;
@@ -80,6 +82,7 @@ export const initialViewState: ViewState = {
 	ledger: [],
 	ledgerHead: { seq: 0, hash: GENESIS },
 	activity: [],
+	agentModels: {},
 	evaluation: null,
 	evalMs: {},
 	needsResync: false,
@@ -94,6 +97,7 @@ export function isDegraded(view: Pick<ViewState, "poller">): boolean {
 
 export function viewReducer(state: ViewState, action: ViewAction): ViewState {
 	if (action.type === "reset") return initialViewState;
+	if (action.type === "agent-runs") return withAgentRuns(state, action.runs);
 	const { message } = action;
 	switch (message.type) {
 		case "snapshot":
@@ -107,6 +111,30 @@ export function viewReducer(state: ViewState, action: ViewAction): ViewState {
 			return fromEvent(state, message.event, message.workItems, message.meta);
 	}
 }
+
+/**
+ * Runs read after the fact: their lines join the stream (deduped on work item, time and text, so a line the socket already
+ * delivered is not doubled; oldest first, so two agents interleave by the clock), and their model is remembered per item.
+ */
+function withAgentRuns(state: ViewState, runs: AgentRunSummary[]): ViewState {
+	if (runs.length === 0) return state;
+	const seen = new Set(state.activity.map(activityKey));
+	const added: AgentActivity[] = [];
+	const agentModels = { ...state.agentModels };
+	for (const run of runs) {
+		if (run.model) agentModels[run.workItemId] = run.model;
+		for (const line of run.activity) {
+			const key = activityKey(line);
+			if (seen.has(key)) continue;
+			seen.add(key);
+			added.push(line);
+		}
+	}
+	const activity = added.length === 0 ? state.activity : [...state.activity, ...added].sort((a, b) => Date.parse(a.ts) - Date.parse(b.ts)).slice(-ACTIVITY_CAP);
+	return { ...state, activity, agentModels };
+}
+
+const activityKey = (line: AgentActivity) => `${line.workItemId}\u0000${line.ts}\u0000${line.text}`;
 
 function fromSnapshot(state: ViewState, snapshot: CellSnapshot, meta: ConsoleMessage["meta"] | undefined): ViewState {
 	const workItems: Record<string, WorkItemState> = {};

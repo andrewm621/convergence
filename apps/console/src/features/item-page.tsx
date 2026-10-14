@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useConsole, type InspectorTab } from "@/state/console-context";
-import { agentModelOf, analysisOf, hasProblem, mergeRecord, quietOf, readyByException, runningAgents, validExceptions } from "@/state/derive";
+import { agentModelFor, analysisOf, hasProblem, mergeRecord, quietOf, readyByException, runningAgents, validExceptions } from "@/state/derive";
 import type { ViewState } from "@/state/store";
 import { useGate } from "@/state/use-gate";
 import type { Analysis } from "delta-core";
@@ -108,7 +108,7 @@ export function ItemPage({ wi, backLabel, onBack }: { wi: WorkItemState; backLab
 						<h2 className="text-xl leading-snug font-semibold tracking-tight">{wi.item.title}</h2>
 						<div className="flex flex-wrap items-center gap-2">
 							<StatusChip status={status} leftAlone={quiet !== null} excepted={excepted} />
-							<ActorChip actor={wi.item.actor} label={scenarioMeta(client.scenario, client.kind === "live").agentLabel ?? agentModelOf(view.ledger, wi.item.id) ?? undefined} />
+							<ActorChip actor={wi.item.actor} label={scenarioMeta(client.scenario, client.kind === "live").agentLabel ?? agentModelFor(view, wi.item.id) ?? undefined} />
 						</div>
 						<p className={cn("text-[15px] font-medium", VERDICT_TONE[verdict.tone])} data-testid="item-verdict">
 							{verdict.text}

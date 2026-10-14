@@ -267,6 +267,8 @@ export function createMockClient(options: MockOptions): MockClient {
 		api: {
 			gate: (id) => withSession((s) => s.gate(id), { pass: false, reasonCodes: ["UNKNOWN_WORK_ITEM"], blockers: [], waivedBy: [] }),
 			changes: (id) => withSession((s) => s.changes(id), []),
+			// The mock streams its own activity and names the model on its ledger: there are no earlier runs to read.
+			agentRuns: async () => [],
 			readRecordText: (id) => withSession(() => (cell ? cell.bodyOf(id) : Promise.resolve("")), ""),
 			proposeContextChange: (input) => withSession((s) => s.proposeChange(input), fail("Not connected")),
 			async resolve(input, key) {
