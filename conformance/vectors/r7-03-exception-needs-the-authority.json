@@ -1,0 +1,576 @@
+{
+  "description": "Sales ops (synthetic): an exception from a human who is not qualified-lead's authority is refused (FORBIDDEN_ACTOR).",
+  "fixture": "sales-ops",
+  "given": {
+    "policy": {
+      "authority": {
+        "qualified-lead": "decision-owner",
+        "sales-activity": "decision-owner"
+      },
+      "maxRevalidations": 2,
+      "requires": [],
+      "staleness": "facet",
+      "version": 1
+    },
+    "state": {
+      "baselineCommit": "b000000000000000000000000000000000000066",
+      "dependencies": [
+        {
+          "basis": "declared",
+          "evidenceRefs": [],
+          "facetKeys": [
+            "lead.qualified.criteria",
+            "lead.qualified.min-employees"
+          ],
+          "recordId": "qualified-lead",
+          "status": "accepted",
+          "workItemId": "WI-3"
+        },
+        {
+          "basis": "declared",
+          "evidenceRefs": [],
+          "facetKeys": [
+            "lead.qualified.criteria"
+          ],
+          "recordId": "qualified-lead",
+          "status": "accepted",
+          "workItemId": "WI-4"
+        },
+        {
+          "basis": "declared",
+          "evidenceRefs": [],
+          "facetKeys": [
+            "activity.touch.types"
+          ],
+          "recordId": "sales-activity",
+          "status": "accepted",
+          "workItemId": "WI-4"
+        },
+        {
+          "basis": "declared",
+          "evidenceRefs": [],
+          "facetKeys": [
+            "activity.counts-as-touch",
+            "activity.touch.types"
+          ],
+          "recordId": "sales-activity",
+          "status": "accepted",
+          "workItemId": "WI-5"
+        }
+      ],
+      "processed": {
+        "register:WI-3": "",
+        "register:WI-4": "",
+        "register:WI-5": "",
+        "sales-ops-baseline@b000000000000000000000000000000000000066": "",
+        "sales-ops-wi-3@f000000000000000000000000000000000000067": ""
+      },
+      "records": {
+        "qualified-lead": {
+          "current": 2,
+          "proposed": null,
+          "versions": {
+            "1": {
+              "acceptedAt": "2026-09-29T16:00:00Z",
+              "acceptedBy": "decision-owner",
+              "authority": "decision-owner",
+              "blobHash": "ef0fdcc399e9e7e665655d4f114201d065d7eaa91504b3a62147120a61587bdf",
+              "facetHash": "dea7f6f5b6678d2ebd297c841e9f517371e93407ecd8b936139a1f9d03e90759",
+              "facets": {
+                "lead.qualified.criteria": "form-fill-and-50-plus-employees",
+                "lead.qualified.min-employees": 50,
+                "lead.qualified.requires-form-fill": true
+              },
+              "not": {},
+              "recordId": "qualified-lead",
+              "status": "accepted",
+              "validation": "checks/qualified-lead-criteria.check",
+              "version": 1
+            },
+            "2": {
+              "acceptedAt": "2026-10-13T16:00:00Z",
+              "acceptedBy": "decision-owner",
+              "authority": "decision-owner",
+              "blobHash": "9c9d55010ec2eb6f942410013639b00079632a69690a01ee33300c5b5136b65e",
+              "facetHash": "dd104c0697083d9163ab6044be12f4f301def73ff0078ad2c03d53a3acd56a8a",
+              "facets": {
+                "lead.qualified.criteria": "form-fill-50-plus-employees-and-verified-budget",
+                "lead.qualified.min-employees": 50,
+                "lead.qualified.requires-form-fill": true,
+                "lead.qualified.verified-budget-signal": "required"
+              },
+              "not": {
+                "lead.qualified.criteria": [
+                  "form-fill-and-50-plus-employees"
+                ]
+              },
+              "recordId": "qualified-lead",
+              "status": "accepted",
+              "validation": "checks/qualified-lead-criteria.check",
+              "version": 2
+            }
+          }
+        },
+        "sales-activity": {
+          "current": 1,
+          "proposed": null,
+          "versions": {
+            "1": {
+              "acceptedAt": "2026-09-29T16:00:00Z",
+              "acceptedBy": "decision-owner",
+              "authority": "decision-owner",
+              "blobHash": "9cf1e776c2e58ef06f84dcd37db50e3cfff1179cdf27a5d3435924e278265dff",
+              "facetHash": "9d05aa425afad174fda0b7769dbfbf894452c2629b58be49d69b2812f020a2b0",
+              "facets": {
+                "activity.counts-as-touch": "outbound-human-contact",
+                "activity.touch.types": [
+                  "call",
+                  "email",
+                  "meeting"
+                ]
+              },
+              "not": {},
+              "recordId": "sales-activity",
+              "status": "accepted",
+              "validation": "checks/sales-activity-glossary.check",
+              "version": 1
+            }
+          }
+        }
+      },
+      "schemaVersion": 1,
+      "snapshotHash": "f65797ed0f3ebf3f1196dbd0734580cf09d5573edd11d7a688da78df15b73af6",
+      "workItems": {
+        "WI-3": {
+          "claims": {
+            "claims": [
+              {
+                "basedOn": "qualified-lead@1",
+                "subject": "lead.qualified.criteria",
+                "value": "form-fill-and-50-plus-employees"
+              },
+              {
+                "basedOn": "qualified-lead@1",
+                "subject": "lead.qualified.min-employees",
+                "value": 50
+              }
+            ],
+            "error": null,
+            "headSha": "f000000000000000000000000000000000000067",
+            "status": "ok"
+          },
+          "conditions": [
+            {
+              "facetKeys": [
+                "lead.qualified.criteria"
+              ],
+              "message": "Built on qualified-lead@1; accepted is v2. Changed: lead.qualified.criteria.",
+              "observedAt": "2026-10-13T16:00:00Z",
+              "reasonCodes": [
+                "STALE_RECEIPT",
+                "FACET_CHANGED"
+              ],
+              "recordRefs": [
+                "qualified-lead@1"
+              ],
+              "type": "Stale",
+              "workItemId": "WI-3"
+            },
+            {
+              "facetKeys": [
+                "lead.qualified.criteria"
+              ],
+              "message": "Claims lead.qualified.criteria = \"form-fill-and-50-plus-employees\"; accepted qualified-lead@2 says \"form-fill-50-plus-employees-and-verified-budget\".",
+              "observedAt": "2026-10-13T15:30:00Z",
+              "reasonCodes": [
+                "CLAIM_CONFLICT",
+                "SUPERSEDED_BASIS"
+              ],
+              "recordRefs": [
+                "qualified-lead@1"
+              ],
+              "type": "ClaimConflict",
+              "workItemId": "WI-3"
+            },
+            {
+              "facetKeys": [],
+              "message": "Built on qualified-lead@1; current is v2 (lead.qualified.criteria changed). Claims lead.qualified.criteria = \"form-fill-and-50-plus-employees\"; accepted qualified-lead@2 says \"form-fill-50-plus-employees-and-verified-budget\". A human resolution is required.",
+              "observedAt": "2026-10-13T15:30:00Z",
+              "reasonCodes": [
+                "STALE_RECEIPT",
+                "FACET_CHANGED",
+                "CLAIM_CONFLICT",
+                "SUPERSEDED_BASIS",
+                "HUMAN_RESOLUTION_MISSING"
+              ],
+              "recordRefs": [],
+              "type": "Blocked",
+              "workItemId": "WI-3"
+            }
+          ],
+          "contextPaths": [],
+          "evidence": [],
+          "headSha": "f000000000000000000000000000000000000067",
+          "item": {
+            "actor": {
+              "displayName": "Agent C",
+              "id": "agent-c",
+              "kind": "agent"
+            },
+            "forkRepo": "sales-ops-wi-3",
+            "id": "WI-3",
+            "intent": "delivery",
+            "requires": [
+              "human-resolution"
+            ],
+            "source": "live",
+            "status": "conflict",
+            "title": "Q4 pipeline forecast"
+          },
+          "promotionApproval": null,
+          "receipt": {
+            "accepted": [
+              {
+                "blobHash": "ef0fdcc399e9e7e665655d4f114201d065d7eaa91504b3a62147120a61587bdf",
+                "facetHash": "dea7f6f5b6678d2ebd297c841e9f517371e93407ecd8b936139a1f9d03e90759",
+                "recordId": "qualified-lead",
+                "version": 1
+              }
+            ],
+            "baselineCommit": "b000000000000000000000000000000000000065",
+            "contextPacketHash": "0808f8bca1724157b5d6c6c7c44d52b5a351a2072147d8219b91cfad2e09a666",
+            "noteRef": "refs/notes/delta:b000000000000000000000000000000000000065",
+            "proposedVisible": []
+          },
+          "resolutions": [],
+          "revalidating": false,
+          "revalidations": 0
+        },
+        "WI-4": {
+          "claims": null,
+          "conditions": [
+            {
+              "facetKeys": [
+                "lead.qualified.criteria"
+              ],
+              "message": "Built on qualified-lead@1; accepted is v2. Changed: lead.qualified.criteria.",
+              "observedAt": "2026-10-13T16:00:00Z",
+              "reasonCodes": [
+                "STALE_RECEIPT",
+                "FACET_CHANGED"
+              ],
+              "recordRefs": [
+                "qualified-lead@1"
+              ],
+              "type": "Stale",
+              "workItemId": "WI-4"
+            },
+            {
+              "facetKeys": [],
+              "message": "Nothing has been pushed yet. Built on qualified-lead@1; current is v2 (lead.qualified.criteria changed). No passing evidence at the current head for: checks/qualified-lead-criteria.check, checks/sales-activity-glossary.check. A human resolution is required.",
+              "observedAt": "2026-10-13T16:00:00Z",
+              "reasonCodes": [
+                "MISSING_EVIDENCE",
+                "STALE_RECEIPT",
+                "FACET_CHANGED",
+                "HUMAN_RESOLUTION_MISSING"
+              ],
+              "recordRefs": [],
+              "type": "Blocked",
+              "workItemId": "WI-4"
+            }
+          ],
+          "contextPaths": [],
+          "evidence": [],
+          "headSha": null,
+          "item": {
+            "actor": {
+              "displayName": "Agent D",
+              "id": "agent-d",
+              "kind": "agent"
+            },
+            "forkRepo": "sales-ops-wi-4",
+            "id": "WI-4",
+            "intent": "delivery",
+            "requires": [
+              "contract-test",
+              "human-resolution"
+            ],
+            "source": "live",
+            "status": "stale",
+            "title": "SDR weekly priorities"
+          },
+          "promotionApproval": null,
+          "receipt": {
+            "accepted": [
+              {
+                "blobHash": "ef0fdcc399e9e7e665655d4f114201d065d7eaa91504b3a62147120a61587bdf",
+                "facetHash": "dea7f6f5b6678d2ebd297c841e9f517371e93407ecd8b936139a1f9d03e90759",
+                "recordId": "qualified-lead",
+                "version": 1
+              },
+              {
+                "blobHash": "9cf1e776c2e58ef06f84dcd37db50e3cfff1179cdf27a5d3435924e278265dff",
+                "facetHash": "9d05aa425afad174fda0b7769dbfbf894452c2629b58be49d69b2812f020a2b0",
+                "recordId": "sales-activity",
+                "version": 1
+              }
+            ],
+            "baselineCommit": "b000000000000000000000000000000000000065",
+            "contextPacketHash": "57caa33a93dd3a8fa7c2329e310f62965e3dbefb1f4c72402b55f78e609f4d40",
+            "noteRef": "refs/notes/delta:b000000000000000000000000000000000000065",
+            "proposedVisible": []
+          },
+          "resolutions": [],
+          "revalidating": false,
+          "revalidations": 0
+        },
+        "WI-5": {
+          "claims": null,
+          "conditions": [
+            {
+              "facetKeys": [],
+              "message": "The receipt matches the accepted facets this work depends on.",
+              "observedAt": "2026-10-13T15:00:00Z",
+              "reasonCodes": [],
+              "recordRefs": [],
+              "type": "Fresh",
+              "workItemId": "WI-5"
+            }
+          ],
+          "contextPaths": [],
+          "evidence": [],
+          "headSha": null,
+          "item": {
+            "actor": {
+              "displayName": "Agent E",
+              "id": "agent-e",
+              "kind": "agent"
+            },
+            "forkRepo": "sales-ops-wi-5",
+            "id": "WI-5",
+            "intent": "delivery",
+            "requires": [
+              "contract-test"
+            ],
+            "source": "live",
+            "status": "running",
+            "title": "Activity glossary"
+          },
+          "promotionApproval": null,
+          "receipt": {
+            "accepted": [
+              {
+                "blobHash": "9cf1e776c2e58ef06f84dcd37db50e3cfff1179cdf27a5d3435924e278265dff",
+                "facetHash": "9d05aa425afad174fda0b7769dbfbf894452c2629b58be49d69b2812f020a2b0",
+                "recordId": "sales-activity",
+                "version": 1
+              }
+            ],
+            "baselineCommit": "b000000000000000000000000000000000000065",
+            "contextPacketHash": "7d9998a0731e547639e37aa1bb8078bb9aec843bd880d9486d1a2f3548937b2a",
+            "noteRef": "refs/notes/delta:b000000000000000000000000000000000000065",
+            "proposedVisible": []
+          },
+          "resolutions": [],
+          "revalidating": false,
+          "revalidations": 0
+        }
+      }
+    }
+  },
+  "id": "r7-03-exception-needs-the-authority",
+  "polarity": "positive",
+  "protocol": "convergence/0.1",
+  "rules": [
+    "R7"
+  ],
+  "then": {
+    "effects": [
+      {
+        "reasonCodes": [
+          "FORBIDDEN_ACTOR"
+        ],
+        "recordId": "qualified-lead",
+        "type": "NO_ACTION",
+        "workItemId": "WI-3"
+      }
+    ],
+    "state": {
+      "baselineCommit": "b000000000000000000000000000000000000066",
+      "dependencies": [
+        {
+          "basis": "declared",
+          "facetKeys": [
+            "activity.counts-as-touch",
+            "activity.touch.types"
+          ],
+          "recordId": "sales-activity",
+          "status": "accepted",
+          "workItemId": "WI-5"
+        },
+        {
+          "basis": "declared",
+          "facetKeys": [
+            "activity.touch.types"
+          ],
+          "recordId": "sales-activity",
+          "status": "accepted",
+          "workItemId": "WI-4"
+        },
+        {
+          "basis": "declared",
+          "facetKeys": [
+            "lead.qualified.criteria",
+            "lead.qualified.min-employees"
+          ],
+          "recordId": "qualified-lead",
+          "status": "accepted",
+          "workItemId": "WI-3"
+        },
+        {
+          "basis": "declared",
+          "facetKeys": [
+            "lead.qualified.criteria"
+          ],
+          "recordId": "qualified-lead",
+          "status": "accepted",
+          "workItemId": "WI-4"
+        }
+      ],
+      "processed": [
+        "cmd:exc-casey",
+        "register:WI-3",
+        "register:WI-4",
+        "register:WI-5",
+        "sales-ops-baseline@b000000000000000000000000000000000000066",
+        "sales-ops-wi-3@f000000000000000000000000000000000000067"
+      ],
+      "records": {
+        "qualified-lead": {
+          "current": 2,
+          "proposed": null,
+          "versions": [
+            1,
+            2
+          ]
+        },
+        "sales-activity": {
+          "current": 1,
+          "proposed": null,
+          "versions": [
+            1
+          ]
+        }
+      },
+      "snapshotHash": "f65797ed0f3ebf3f1196dbd0734580cf09d5573edd11d7a688da78df15b73af6",
+      "workItems": {
+        "WI-3": {
+          "conditions": [
+            {
+              "reasonCodes": [
+                "CLAIM_CONFLICT",
+                "FACET_CHANGED",
+                "HUMAN_RESOLUTION_MISSING",
+                "STALE_RECEIPT",
+                "SUPERSEDED_BASIS"
+              ],
+              "type": "Blocked"
+            },
+            {
+              "reasonCodes": [
+                "CLAIM_CONFLICT",
+                "SUPERSEDED_BASIS"
+              ],
+              "type": "ClaimConflict"
+            },
+            {
+              "reasonCodes": [
+                "FACET_CHANGED",
+                "STALE_RECEIPT"
+              ],
+              "type": "Stale"
+            }
+          ],
+          "headSha": "f000000000000000000000000000000000000067",
+          "promotionApproved": false,
+          "receipt": "0808f8bca1724157b5d6c6c7c44d52b5a351a2072147d8219b91cfad2e09a666",
+          "resolutions": [],
+          "revalidating": false,
+          "revalidations": 0,
+          "status": "conflict"
+        },
+        "WI-4": {
+          "conditions": [
+            {
+              "reasonCodes": [
+                "FACET_CHANGED",
+                "HUMAN_RESOLUTION_MISSING",
+                "MISSING_EVIDENCE",
+                "STALE_RECEIPT"
+              ],
+              "type": "Blocked"
+            },
+            {
+              "reasonCodes": [
+                "FACET_CHANGED",
+                "STALE_RECEIPT"
+              ],
+              "type": "Stale"
+            }
+          ],
+          "headSha": null,
+          "promotionApproved": false,
+          "receipt": "57caa33a93dd3a8fa7c2329e310f62965e3dbefb1f4c72402b55f78e609f4d40",
+          "resolutions": [],
+          "revalidating": false,
+          "revalidations": 0,
+          "status": "stale"
+        },
+        "WI-5": {
+          "conditions": [
+            {
+              "reasonCodes": [],
+              "type": "Fresh"
+            }
+          ],
+          "headSha": null,
+          "promotionApproved": false,
+          "receipt": "7d9998a0731e547639e37aa1bb8078bb9aec843bd880d9486d1a2f3548937b2a",
+          "resolutions": [],
+          "revalidating": false,
+          "revalidations": 0,
+          "status": "running"
+        }
+      }
+    }
+  },
+  "when": {
+    "event": {
+      "requestId": "exc-casey",
+      "resolution": {
+        "actor": {
+          "displayName": "Casey (not the authority)",
+          "id": "casey",
+          "kind": "human"
+        },
+        "binding": {
+          "baseSha": "b000000000000000000000000000000000000066",
+          "blobHash": "9c9d55010ec2eb6f942410013639b00079632a69690a01ee33300c5b5136b65e",
+          "contextSnapshotHash": "f65797ed0f3ebf3f1196dbd0734580cf09d5573edd11d7a688da78df15b73af6",
+          "forkHeadSha": "f000000000000000000000000000000000000067",
+          "recordId": "qualified-lead",
+          "version": 2
+        },
+        "kind": "accept-exception",
+        "rationale": "Conformance vector rationale.",
+        "requestId": "exc-casey",
+        "scope": "reports/q4-forecast.md",
+        "ts": "2026-10-13T17:00:00Z",
+        "workItemId": "WI-3"
+      },
+      "ts": "2026-10-13T17:00:00Z",
+      "type": "ResolutionRecorded"
+    }
+  }
+}

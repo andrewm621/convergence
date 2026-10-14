@@ -1,0 +1,378 @@
+{
+  "description": "Passing evidence for WI-1's current head counts: TestsPassed, and WI-1 is Ready.",
+  "fixture": "notifications",
+  "given": {
+    "policy": {
+      "authority": {
+        "notifications": "decision-owner",
+        "status-model": "decision-owner"
+      },
+      "maxRevalidations": 2,
+      "requires": [],
+      "staleness": "facet",
+      "version": 1
+    },
+    "state": {
+      "baselineCommit": "b000000000000000000000000000000000000001",
+      "dependencies": [
+        {
+          "basis": "declared",
+          "evidenceRefs": [],
+          "facetKeys": [
+            "status.transitions",
+            "status.values"
+          ],
+          "recordId": "status-model",
+          "status": "accepted",
+          "workItemId": "WI-1"
+        },
+        {
+          "basis": "declared",
+          "evidenceRefs": [],
+          "facetKeys": [
+            "notifications.cadence",
+            "notifications.default"
+          ],
+          "recordId": "notifications",
+          "status": "accepted",
+          "workItemId": "WI-2"
+        },
+        {
+          "basis": "declared",
+          "evidenceRefs": [],
+          "facetKeys": [
+            "status.values"
+          ],
+          "recordId": "status-model",
+          "status": "accepted",
+          "workItemId": "WI-2"
+        }
+      ],
+      "processed": {
+        "notifications-wi-1@f000000000000000000000000000000000000001": "",
+        "register:WI-1": "",
+        "register:WI-2": ""
+      },
+      "records": {
+        "notifications": {
+          "current": 1,
+          "proposed": null,
+          "versions": {
+            "1": {
+              "acceptedAt": "2026-10-12T16:00:00Z",
+              "acceptedBy": "decision-owner",
+              "authority": "decision-owner",
+              "blobHash": "4762d97ec14c45d664d503b144b881ff6a812c4b9f6e3767ae497b378d502fea",
+              "facetHash": "9187b6623b9d3a5fe3ca5b4148071fe3380a16dfc3406c4e6e88efa500610f34",
+              "facets": {
+                "notifications.cadence": "immediate",
+                "notifications.channel": "in-app",
+                "notifications.default": "on"
+              },
+              "not": {},
+              "recordId": "notifications",
+              "status": "accepted",
+              "validation": "tests/contract/notifications.test.ts",
+              "version": 1
+            }
+          }
+        },
+        "status-model": {
+          "current": 1,
+          "proposed": null,
+          "versions": {
+            "1": {
+              "acceptedAt": "2026-10-12T16:00:00Z",
+              "acceptedBy": "decision-owner",
+              "authority": "decision-owner",
+              "blobHash": "79395a6846a6e014420f2d5fbebe5ba1b1bd4b03c2356ad0209eb9075ccb949f",
+              "facetHash": "efe5c0411be2c9da401f4ccb0b8e3de80ef9213f3bce189e7f4ec96ca98445e5",
+              "facets": {
+                "status.transitions": "forward-only",
+                "status.values": [
+                  "draft",
+                  "active",
+                  "blocked",
+                  "done"
+                ]
+              },
+              "not": {},
+              "recordId": "status-model",
+              "status": "accepted",
+              "validation": "tests/contract/status-model.test.ts",
+              "version": 1
+            }
+          }
+        }
+      },
+      "schemaVersion": 1,
+      "snapshotHash": "d095e974a4ddefe42195bc9e184a5be4da85ce56e1c6be602fe55b82d06d2e77",
+      "workItems": {
+        "WI-1": {
+          "claims": {
+            "claims": [
+              {
+                "basedOn": "status-model@1",
+                "subject": "status.values",
+                "value": [
+                  "draft",
+                  "active",
+                  "blocked",
+                  "done"
+                ]
+              }
+            ],
+            "error": null,
+            "headSha": "f000000000000000000000000000000000000001",
+            "status": "ok"
+          },
+          "conditions": [
+            {
+              "facetKeys": [],
+              "message": "The receipt matches the accepted facets this work depends on.",
+              "observedAt": "2026-10-13T15:00:00Z",
+              "reasonCodes": [],
+              "recordRefs": [],
+              "type": "Fresh",
+              "workItemId": "WI-1"
+            }
+          ],
+          "contextPaths": [],
+          "evidence": [],
+          "headSha": "f000000000000000000000000000000000000001",
+          "item": {
+            "actor": {
+              "displayName": "Agent A",
+              "id": "agent-a",
+              "kind": "agent"
+            },
+            "forkRepo": "notifications-wi-1",
+            "id": "WI-1",
+            "intent": "delivery",
+            "requires": [
+              "contract-test"
+            ],
+            "source": "live",
+            "status": "fresh",
+            "title": "Status badges and the status-change API"
+          },
+          "promotionApproval": null,
+          "receipt": {
+            "accepted": [
+              {
+                "blobHash": "79395a6846a6e014420f2d5fbebe5ba1b1bd4b03c2356ad0209eb9075ccb949f",
+                "facetHash": "efe5c0411be2c9da401f4ccb0b8e3de80ef9213f3bce189e7f4ec96ca98445e5",
+                "recordId": "status-model",
+                "version": 1
+              }
+            ],
+            "baselineCommit": "b000000000000000000000000000000000000001",
+            "contextPacketHash": "a18f23464af2b26c5ce67819eb6720d9e4eabedc120cd5e2a623e2c332eab928",
+            "noteRef": "refs/notes/delta:b000000000000000000000000000000000000001",
+            "proposedVisible": []
+          },
+          "resolutions": [],
+          "revalidating": false,
+          "revalidations": 0
+        },
+        "WI-2": {
+          "claims": null,
+          "conditions": [
+            {
+              "facetKeys": [],
+              "message": "The receipt matches the accepted facets this work depends on.",
+              "observedAt": "2026-10-13T15:00:00Z",
+              "reasonCodes": [],
+              "recordRefs": [],
+              "type": "Fresh",
+              "workItemId": "WI-2"
+            }
+          ],
+          "contextPaths": [],
+          "evidence": [],
+          "headSha": null,
+          "item": {
+            "actor": {
+              "displayName": "Agent B",
+              "id": "agent-b",
+              "kind": "agent"
+            },
+            "forkRepo": "notifications-wi-2",
+            "id": "WI-2",
+            "intent": "delivery",
+            "requires": [
+              "contract-test"
+            ],
+            "source": "live",
+            "status": "running",
+            "title": "Notification preferences and delivery"
+          },
+          "promotionApproval": null,
+          "receipt": {
+            "accepted": [
+              {
+                "blobHash": "4762d97ec14c45d664d503b144b881ff6a812c4b9f6e3767ae497b378d502fea",
+                "facetHash": "9187b6623b9d3a5fe3ca5b4148071fe3380a16dfc3406c4e6e88efa500610f34",
+                "recordId": "notifications",
+                "version": 1
+              },
+              {
+                "blobHash": "79395a6846a6e014420f2d5fbebe5ba1b1bd4b03c2356ad0209eb9075ccb949f",
+                "facetHash": "efe5c0411be2c9da401f4ccb0b8e3de80ef9213f3bce189e7f4ec96ca98445e5",
+                "recordId": "status-model",
+                "version": 1
+              }
+            ],
+            "baselineCommit": "b000000000000000000000000000000000000001",
+            "contextPacketHash": "80179f330b0cea481c66bffb32d1f747ec1fd84d7a74c663bdf7b1dd5af49358",
+            "noteRef": "refs/notes/delta:b000000000000000000000000000000000000001",
+            "proposedVisible": []
+          },
+          "resolutions": [],
+          "revalidating": false,
+          "revalidations": 0
+        }
+      }
+    }
+  },
+  "id": "r8-01-evidence-at-head-counts",
+  "polarity": "negative",
+  "protocol": "convergence/0.1",
+  "rules": [
+    "R8",
+    "R5"
+  ],
+  "then": {
+    "effects": [
+      {
+        "condition": "Ready",
+        "reasonCodes": [],
+        "type": "RECORD_CONDITION",
+        "workItemId": "WI-1"
+      },
+      {
+        "condition": "TestsPassed",
+        "reasonCodes": [
+          "TESTS_PASSED"
+        ],
+        "type": "RECORD_CONDITION",
+        "workItemId": "WI-1"
+      }
+    ],
+    "state": {
+      "baselineCommit": "b000000000000000000000000000000000000001",
+      "dependencies": [
+        {
+          "basis": "declared",
+          "facetKeys": [
+            "notifications.cadence",
+            "notifications.default"
+          ],
+          "recordId": "notifications",
+          "status": "accepted",
+          "workItemId": "WI-2"
+        },
+        {
+          "basis": "declared",
+          "facetKeys": [
+            "status.transitions",
+            "status.values"
+          ],
+          "recordId": "status-model",
+          "status": "accepted",
+          "workItemId": "WI-1"
+        },
+        {
+          "basis": "declared",
+          "facetKeys": [
+            "status.values"
+          ],
+          "recordId": "status-model",
+          "status": "accepted",
+          "workItemId": "WI-2"
+        }
+      ],
+      "processed": [
+        "notifications-wi-1@f000000000000000000000000000000000000001",
+        "notifications-wi-1@f000000000000000000000000000000000000001#evidence:tests/contract/status-model.test.ts:run-tests/contract/status-model.test.ts-f000000",
+        "register:WI-1",
+        "register:WI-2"
+      ],
+      "records": {
+        "notifications": {
+          "current": 1,
+          "proposed": null,
+          "versions": [
+            1
+          ]
+        },
+        "status-model": {
+          "current": 1,
+          "proposed": null,
+          "versions": [
+            1
+          ]
+        }
+      },
+      "snapshotHash": "d095e974a4ddefe42195bc9e184a5be4da85ce56e1c6be602fe55b82d06d2e77",
+      "workItems": {
+        "WI-1": {
+          "conditions": [
+            {
+              "reasonCodes": [
+                "TESTS_PASSED"
+              ],
+              "type": "TestsPassed"
+            },
+            {
+              "reasonCodes": [],
+              "type": "Fresh"
+            },
+            {
+              "reasonCodes": [],
+              "type": "Ready"
+            }
+          ],
+          "headSha": "f000000000000000000000000000000000000001",
+          "promotionApproved": false,
+          "receipt": "a18f23464af2b26c5ce67819eb6720d9e4eabedc120cd5e2a623e2c332eab928",
+          "resolutions": [],
+          "revalidating": false,
+          "revalidations": 0,
+          "status": "ready"
+        },
+        "WI-2": {
+          "conditions": [
+            {
+              "reasonCodes": [],
+              "type": "Fresh"
+            }
+          ],
+          "headSha": null,
+          "promotionApproved": false,
+          "receipt": "80179f330b0cea481c66bffb32d1f747ec1fd84d7a74c663bdf7b1dd5af49358",
+          "resolutions": [],
+          "revalidating": false,
+          "revalidations": 0,
+          "status": "running"
+        }
+      }
+    }
+  },
+  "when": {
+    "event": {
+      "commitSha": "f000000000000000000000000000000000000001",
+      "evidence": {
+        "check": "tests/contract/status-model.test.ts",
+        "headSha": "f000000000000000000000000000000000000001",
+        "output": "status-model: ok",
+        "pass": true,
+        "workItemId": "WI-1"
+      },
+      "repo": "notifications-wi-1",
+      "runId": "run-tests/contract/status-model.test.ts-f000000",
+      "ts": "2026-10-13T16:10:00Z",
+      "type": "EvidenceRecorded"
+    }
+  }
+}

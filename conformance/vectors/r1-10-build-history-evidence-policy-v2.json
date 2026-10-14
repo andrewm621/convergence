@@ -1,0 +1,1563 @@
+{
+  "description": "This repository's own build history, replayed: evidence-policy v2 stales the items that relied on its changed facets and leaves the rest alone.",
+  "fixture": "delta-convergence-build",
+  "given": {
+    "policy": {
+      "authority": {
+        "demo-identity": "decision-owner",
+        "evidence-policy": "decision-owner",
+        "positioning": "decision-owner",
+        "product-naming": "decision-owner",
+        "scenario-naming": "decision-owner",
+        "scenario-plan": "decision-owner"
+      },
+      "maxRevalidations": 2,
+      "requires": [],
+      "staleness": "facet",
+      "version": 1
+    },
+    "state": {
+      "baselineCommit": "59d48e4659fde029f10cc0cf5d70d8640c6b74bc",
+      "dependencies": [
+        {
+          "basis": "declared",
+          "evidenceRefs": [],
+          "facetKeys": [
+            "evidence.claims-check-role",
+            "evidence.counts-as-test",
+            "evidence.required-facets"
+          ],
+          "recordId": "evidence-policy",
+          "status": "accepted",
+          "workItemId": "WI-1"
+        },
+        {
+          "basis": "declared",
+          "evidenceRefs": [],
+          "facetKeys": [
+            "evidence.claims-check-role",
+            "evidence.counts-as-test"
+          ],
+          "recordId": "evidence-policy",
+          "status": "accepted",
+          "workItemId": "WI-2"
+        },
+        {
+          "basis": "declared",
+          "evidenceRefs": [],
+          "facetKeys": [
+            "naming.public-name"
+          ],
+          "recordId": "product-naming",
+          "status": "accepted",
+          "workItemId": "WI-2"
+        },
+        {
+          "basis": "declared",
+          "evidenceRefs": [],
+          "facetKeys": [
+            "evidence.counts-as-test"
+          ],
+          "recordId": "evidence-policy",
+          "status": "accepted",
+          "workItemId": "WI-3"
+        },
+        {
+          "basis": "declared",
+          "evidenceRefs": [],
+          "facetKeys": [
+            "scenario.county"
+          ],
+          "recordId": "scenario-naming",
+          "status": "accepted",
+          "workItemId": "WI-3"
+        },
+        {
+          "basis": "declared",
+          "evidenceRefs": [],
+          "facetKeys": [
+            "scenario.second-act-mode"
+          ],
+          "recordId": "scenario-plan",
+          "status": "accepted",
+          "workItemId": "WI-3"
+        },
+        {
+          "basis": "declared",
+          "evidenceRefs": [],
+          "facetKeys": [
+            "scenario.county"
+          ],
+          "recordId": "scenario-naming",
+          "status": "accepted",
+          "workItemId": "WI-4"
+        },
+        {
+          "basis": "declared",
+          "evidenceRefs": [],
+          "facetKeys": [
+            "scenario.county"
+          ],
+          "recordId": "scenario-naming",
+          "status": "accepted",
+          "workItemId": "WI-5"
+        },
+        {
+          "basis": "declared",
+          "evidenceRefs": [],
+          "facetKeys": [
+            "scenario.second-act-mode"
+          ],
+          "recordId": "scenario-plan",
+          "status": "accepted",
+          "workItemId": "WI-5"
+        },
+        {
+          "basis": "declared",
+          "evidenceRefs": [],
+          "facetKeys": [
+            "positioning.llm-claim",
+            "positioning.tagline"
+          ],
+          "recordId": "positioning",
+          "status": "accepted",
+          "workItemId": "WI-6"
+        },
+        {
+          "basis": "declared",
+          "evidenceRefs": [],
+          "facetKeys": [
+            "scenario.second-act-mode"
+          ],
+          "recordId": "scenario-plan",
+          "status": "accepted",
+          "workItemId": "WI-6"
+        },
+        {
+          "basis": "declared",
+          "evidenceRefs": [],
+          "facetKeys": [
+            "identity.label"
+          ],
+          "recordId": "demo-identity",
+          "status": "accepted",
+          "workItemId": "WI-7"
+        }
+      ],
+      "processed": {
+        "delta-convergence-build-baseline@59d48e4659fde029f10cc0cf5d70d8640c6b74bc": "",
+        "delta-convergence-build-wi-1@ce882f2ecdd1b6f66f3d0804fa2eb169cc093dd4": "",
+        "delta-convergence-build-wi-2@668970268c10adb56035a6a9721a3dd8e2eb4b81": "",
+        "delta-convergence-build-wi-3@f29ac84485004d933a5c3d1db1b74b55e99352cf": "",
+        "delta-convergence-build-wi-4@61867a991e187da94a3c3b152ebc2e484f81da65": "",
+        "delta-convergence-build-wi-5@0000000000000000000000000000000000000000": "",
+        "delta-convergence-build-wi-6@e0710e60d29e193f5724116e91d2388097544ba4": "",
+        "delta-convergence-build-wi-7@30368947b30fc5f4ee8f6d34a9e7721e9c2d9529": "",
+        "register:WI-1": "",
+        "register:WI-2": "",
+        "register:WI-3": "",
+        "register:WI-4": "",
+        "register:WI-5": "",
+        "register:WI-6": "",
+        "register:WI-7": ""
+      },
+      "records": {
+        "demo-identity": {
+          "current": 1,
+          "proposed": null,
+          "versions": {
+            "1": {
+              "acceptedAt": "2026-10-13T02:58:20Z",
+              "acceptedBy": "decision-owner",
+              "authority": "decision-owner",
+              "blobHash": "ebffd8e8b08fc1936525ff6075fe2ce3563d5f9e3ea293ef52c9cfb6290604ae",
+              "facetHash": "43ad2ef86a282b2018faadb76578b3b80a68d75ff48fe4b2e666259d0db590e4",
+              "facets": {
+                "identity.label": "Decision owner (demo identity)"
+              },
+              "not": {},
+              "recordId": "demo-identity",
+              "status": "accepted",
+              "validation": null,
+              "version": 1
+            }
+          }
+        },
+        "evidence-policy": {
+          "current": 1,
+          "proposed": null,
+          "versions": {
+            "1": {
+              "acceptedAt": "2026-10-13T03:47:01Z",
+              "acceptedBy": "decision-owner",
+              "authority": "decision-owner",
+              "blobHash": "b2a8be8e043f92feecd084642204f255358eb7c14aa78c377212ea6086665cb0",
+              "facetHash": "e9b6cf39049d952cf87b5588992aa44ba7c52e80089c92617040bd750d5afc50",
+              "facets": {
+                "evidence.claims-check-role": "test",
+                "evidence.counts-as-test": "claims-check",
+                "evidence.required-facets": "none"
+              },
+              "not": {},
+              "recordId": "evidence-policy",
+              "status": "accepted",
+              "validation": null,
+              "version": 1
+            }
+          }
+        },
+        "positioning": {
+          "current": 1,
+          "proposed": null,
+          "versions": {
+            "1": {
+              "acceptedAt": "2026-10-13T02:58:20Z",
+              "acceptedBy": "decision-owner",
+              "authority": "decision-owner",
+              "blobHash": "ca69c731cde0513354ea89c248d7ca1204fa116f277a3f4673d0c2fd92bd856c",
+              "facetHash": "79d869eb0ceda0cf7d212e94540e328ef7f52017b8b5642dbfebce46005573f5",
+              "facets": {
+                "positioning.llm-claim": "control loop makes no model calls",
+                "positioning.tagline": "a control plane that keeps concurrent humans and agents working from the same meaning"
+              },
+              "not": {},
+              "recordId": "positioning",
+              "status": "accepted",
+              "validation": null,
+              "version": 1
+            }
+          }
+        },
+        "product-naming": {
+          "current": 1,
+          "proposed": null,
+          "versions": {
+            "1": {
+              "acceptedAt": "2026-10-13T02:58:20Z",
+              "acceptedBy": "decision-owner",
+              "authority": "decision-owner",
+              "blobHash": "45fea1fbd23fd76e612fb52a3f4f84423c279bff82e09c4c49f82811b146b5e1",
+              "facetHash": "8225978726eab88e4b23bf149eb43555a4989a961735af2542489da69ab50863",
+              "facets": {
+                "naming.bare-delta": "banned",
+                "naming.public-name": "Delta Convergence"
+              },
+              "not": {},
+              "recordId": "product-naming",
+              "status": "accepted",
+              "validation": null,
+              "version": 1
+            }
+          }
+        },
+        "scenario-naming": {
+          "current": 2,
+          "proposed": null,
+          "versions": {
+            "1": {
+              "acceptedAt": "2026-10-13T02:57:39Z",
+              "acceptedBy": "decision-owner",
+              "authority": "decision-owner",
+              "blobHash": "2b93a2a22d0c3363f594499294d4731c07f4ef41ce0e05b0e54b83548622e721",
+              "facetHash": "f302352d93d4b51d6d578ec463410c59efa0133f56cfba1c3cbb6dc1fe3d9771",
+              "facets": {
+                "scenario.county": "Cedar County",
+                "scenario.network": "Larkhaven Mutual Aid Network"
+              },
+              "not": {},
+              "recordId": "scenario-naming",
+              "status": "accepted",
+              "validation": null,
+              "version": 1
+            },
+            "2": {
+              "acceptedAt": "2026-10-13T03:11:59Z",
+              "acceptedBy": "decision-owner",
+              "authority": "decision-owner",
+              "blobHash": "f31ca47d444fbe154bd36ab83b4b8a435f73d052c4109f1f173f2c93313952bb",
+              "facetHash": "22487e2efc63f9509bc3d09868b513c44377df1ea41e8153da0a0f9377808ceb",
+              "facets": {
+                "scenario.county": "Larkhaven County",
+                "scenario.network": "Larkhaven Mutual Aid Network"
+              },
+              "not": {
+                "scenario.county": [
+                  "Cedar County"
+                ]
+              },
+              "recordId": "scenario-naming",
+              "status": "accepted",
+              "validation": null,
+              "version": 2
+            }
+          }
+        },
+        "scenario-plan": {
+          "current": 1,
+          "proposed": null,
+          "versions": {
+            "1": {
+              "acceptedAt": "2026-10-13T03:00:00Z",
+              "acceptedBy": "decision-owner",
+              "authority": "decision-owner",
+              "blobHash": "6d37ff866ad357d29d01e4bec0b44a461db0145b0780eacacc1a992996e8f46f",
+              "facetHash": "832aa194e443ce1db6dc3831a4a31275c9206fef738d1dd7dc91a88bb0d2b791",
+              "facets": {
+                "scenario.second-act": "shelter-intake",
+                "scenario.second-act-mode": "replay"
+              },
+              "not": {},
+              "recordId": "scenario-plan",
+              "status": "accepted",
+              "validation": null,
+              "version": 1
+            }
+          }
+        }
+      },
+      "schemaVersion": 1,
+      "snapshotHash": "9874802be8ab91db4396e39f833f86de476171927cbdacf392fa39211f103297",
+      "workItems": {
+        "WI-1": {
+          "claims": {
+            "claims": [
+              {
+                "basedOn": "evidence-policy@1",
+                "subject": "evidence.counts-as-test",
+                "value": "claims-check"
+              },
+              {
+                "basedOn": "evidence-policy@1",
+                "subject": "evidence.claims-check-role",
+                "value": "test"
+              },
+              {
+                "basedOn": "evidence-policy@1",
+                "subject": "evidence.required-facets",
+                "value": "none"
+              }
+            ],
+            "error": null,
+            "headSha": "ce882f2ecdd1b6f66f3d0804fa2eb169cc093dd4",
+            "status": "ok"
+          },
+          "conditions": [
+            {
+              "facetKeys": [],
+              "message": "The receipt matches the accepted facets this work depends on.",
+              "observedAt": "2026-10-13T02:00:00Z",
+              "reasonCodes": [],
+              "recordRefs": [],
+              "type": "Fresh",
+              "workItemId": "WI-1"
+            }
+          ],
+          "contextPaths": [],
+          "evidence": [],
+          "headSha": "ce882f2ecdd1b6f66f3d0804fa2eb169cc093dd4",
+          "item": {
+            "actor": {
+              "displayName": "Build agent",
+              "id": "agent-build",
+              "kind": "agent"
+            },
+            "forkRepo": "delta-convergence-build-wi-1",
+            "id": "WI-1",
+            "intent": "delivery",
+            "requires": [
+              "human-resolution"
+            ],
+            "source": "live",
+            "status": "fresh",
+            "title": "M4 revalidate loop (PR #6)"
+          },
+          "promotionApproval": null,
+          "receipt": {
+            "accepted": [
+              {
+                "blobHash": "b2a8be8e043f92feecd084642204f255358eb7c14aa78c377212ea6086665cb0",
+                "facetHash": "e9b6cf39049d952cf87b5588992aa44ba7c52e80089c92617040bd750d5afc50",
+                "recordId": "evidence-policy",
+                "version": 1
+              }
+            ],
+            "baselineCommit": "61867a991e187da94a3c3b152ebc2e484f81da65",
+            "contextPacketHash": "50afdc5482be5a4ce75adcae8ed6c45a0422252e9b86b09273196d44e3935392",
+            "noteRef": "refs/notes/delta:ce882f2ecdd1b6f66f3d0804fa2eb169cc093dd4",
+            "proposedVisible": []
+          },
+          "resolutions": [],
+          "revalidating": false,
+          "revalidations": 0
+        },
+        "WI-2": {
+          "claims": {
+            "claims": [
+              {
+                "basedOn": "evidence-policy@1",
+                "subject": "evidence.counts-as-test",
+                "value": "claims-check"
+              },
+              {
+                "basedOn": "evidence-policy@1",
+                "subject": "evidence.claims-check-role",
+                "value": "test"
+              },
+              {
+                "basedOn": "product-naming@1",
+                "subject": "naming.public-name",
+                "value": "Delta Convergence"
+              }
+            ],
+            "error": null,
+            "headSha": "668970268c10adb56035a6a9721a3dd8e2eb4b81",
+            "status": "ok"
+          },
+          "conditions": [
+            {
+              "facetKeys": [],
+              "message": "The receipt matches the accepted facets this work depends on.",
+              "observedAt": "2026-10-13T02:00:00Z",
+              "reasonCodes": [],
+              "recordRefs": [],
+              "type": "Fresh",
+              "workItemId": "WI-2"
+            }
+          ],
+          "contextPaths": [],
+          "evidence": [],
+          "headSha": "668970268c10adb56035a6a9721a3dd8e2eb4b81",
+          "item": {
+            "actor": {
+              "displayName": "Console agent",
+              "id": "agent-console",
+              "kind": "agent"
+            },
+            "forkRepo": "delta-convergence-build-wi-2",
+            "id": "WI-2",
+            "intent": "delivery",
+            "requires": [
+              "human-resolution"
+            ],
+            "source": "live",
+            "status": "fresh",
+            "title": "Console evidence labels (PR #7)"
+          },
+          "promotionApproval": null,
+          "receipt": {
+            "accepted": [
+              {
+                "blobHash": "b2a8be8e043f92feecd084642204f255358eb7c14aa78c377212ea6086665cb0",
+                "facetHash": "e9b6cf39049d952cf87b5588992aa44ba7c52e80089c92617040bd750d5afc50",
+                "recordId": "evidence-policy",
+                "version": 1
+              },
+              {
+                "blobHash": "45fea1fbd23fd76e612fb52a3f4f84423c279bff82e09c4c49f82811b146b5e1",
+                "facetHash": "8225978726eab88e4b23bf149eb43555a4989a961735af2542489da69ab50863",
+                "recordId": "product-naming",
+                "version": 1
+              }
+            ],
+            "baselineCommit": "61867a991e187da94a3c3b152ebc2e484f81da65",
+            "contextPacketHash": "cb80b0080b36925c14f36fd22391e513aadffc3396118d793395124de06c9de9",
+            "noteRef": "refs/notes/delta:668970268c10adb56035a6a9721a3dd8e2eb4b81",
+            "proposedVisible": []
+          },
+          "resolutions": [],
+          "revalidating": false,
+          "revalidations": 0
+        },
+        "WI-3": {
+          "claims": {
+            "claims": [
+              {
+                "basedOn": "scenario-naming@1",
+                "subject": "scenario.county",
+                "value": "Cedar County"
+              },
+              {
+                "basedOn": "scenario-plan@1",
+                "subject": "scenario.second-act-mode",
+                "value": "replay"
+              }
+            ],
+            "error": null,
+            "headSha": "f29ac84485004d933a5c3d1db1b74b55e99352cf",
+            "status": "ok"
+          },
+          "conditions": [
+            {
+              "facetKeys": [
+                "scenario.county"
+              ],
+              "message": "Built on scenario-naming@1; accepted is v2. Changed: scenario.county.",
+              "observedAt": "2026-10-13T03:11:59Z",
+              "reasonCodes": [
+                "STALE_RECEIPT",
+                "FACET_CHANGED"
+              ],
+              "recordRefs": [
+                "scenario-naming@1"
+              ],
+              "type": "Stale",
+              "workItemId": "WI-3"
+            },
+            {
+              "facetKeys": [
+                "scenario.county"
+              ],
+              "message": "Claims scenario.county = \"Cedar County\"; accepted scenario-naming@2 says \"Larkhaven County\".",
+              "observedAt": "2026-10-13T03:11:59Z",
+              "reasonCodes": [
+                "CLAIM_CONFLICT",
+                "SUPERSEDED_BASIS"
+              ],
+              "recordRefs": [
+                "scenario-naming@1"
+              ],
+              "type": "ClaimConflict",
+              "workItemId": "WI-3"
+            },
+            {
+              "facetKeys": [],
+              "message": "Built on scenario-naming@1; current is v2 (scenario.county changed). Claims scenario.county = \"Cedar County\"; accepted scenario-naming@2 says \"Larkhaven County\". A human resolution is required.",
+              "observedAt": "2026-10-13T03:11:59Z",
+              "reasonCodes": [
+                "STALE_RECEIPT",
+                "FACET_CHANGED",
+                "CLAIM_CONFLICT",
+                "SUPERSEDED_BASIS",
+                "HUMAN_RESOLUTION_MISSING"
+              ],
+              "recordRefs": [],
+              "type": "Blocked",
+              "workItemId": "WI-3"
+            }
+          ],
+          "contextPaths": [],
+          "evidence": [],
+          "headSha": "f29ac84485004d933a5c3d1db1b74b55e99352cf",
+          "item": {
+            "actor": {
+              "displayName": "Docs agent",
+              "id": "agent-docs",
+              "kind": "agent"
+            },
+            "forkRepo": "delta-convergence-build-wi-3",
+            "id": "WI-3",
+            "intent": "delivery",
+            "requires": [
+              "human-resolution"
+            ],
+            "source": "live",
+            "status": "conflict",
+            "title": "Video script"
+          },
+          "promotionApproval": null,
+          "receipt": {
+            "accepted": [
+              {
+                "blobHash": "b2a8be8e043f92feecd084642204f255358eb7c14aa78c377212ea6086665cb0",
+                "facetHash": "e9b6cf39049d952cf87b5588992aa44ba7c52e80089c92617040bd750d5afc50",
+                "recordId": "evidence-policy",
+                "version": 1
+              },
+              {
+                "blobHash": "2b93a2a22d0c3363f594499294d4731c07f4ef41ce0e05b0e54b83548622e721",
+                "facetHash": "f302352d93d4b51d6d578ec463410c59efa0133f56cfba1c3cbb6dc1fe3d9771",
+                "recordId": "scenario-naming",
+                "version": 1
+              },
+              {
+                "blobHash": "6d37ff866ad357d29d01e4bec0b44a461db0145b0780eacacc1a992996e8f46f",
+                "facetHash": "832aa194e443ce1db6dc3831a4a31275c9206fef738d1dd7dc91a88bb0d2b791",
+                "recordId": "scenario-plan",
+                "version": 1
+              }
+            ],
+            "baselineCommit": "61867a991e187da94a3c3b152ebc2e484f81da65",
+            "contextPacketHash": "c6da88b273dfd7ded1f3cd6d23d907358bd8c6512e9c37f881d193800e0d03af",
+            "noteRef": "refs/notes/delta:f29ac84485004d933a5c3d1db1b74b55e99352cf",
+            "proposedVisible": []
+          },
+          "resolutions": [],
+          "revalidating": false,
+          "revalidations": 0
+        },
+        "WI-4": {
+          "claims": {
+            "claims": [
+              {
+                "basedOn": "scenario-naming@1",
+                "subject": "scenario.county",
+                "value": "Cedar County"
+              }
+            ],
+            "error": null,
+            "headSha": "61867a991e187da94a3c3b152ebc2e484f81da65",
+            "status": "ok"
+          },
+          "conditions": [
+            {
+              "facetKeys": [
+                "scenario.county"
+              ],
+              "message": "Built on scenario-naming@1; accepted is v2. Changed: scenario.county.",
+              "observedAt": "2026-10-13T03:11:59Z",
+              "reasonCodes": [
+                "STALE_RECEIPT",
+                "FACET_CHANGED"
+              ],
+              "recordRefs": [
+                "scenario-naming@1"
+              ],
+              "type": "Stale",
+              "workItemId": "WI-4"
+            },
+            {
+              "facetKeys": [
+                "scenario.county"
+              ],
+              "message": "Claims scenario.county = \"Cedar County\"; accepted scenario-naming@2 says \"Larkhaven County\".",
+              "observedAt": "2026-10-13T03:11:59Z",
+              "reasonCodes": [
+                "CLAIM_CONFLICT",
+                "SUPERSEDED_BASIS"
+              ],
+              "recordRefs": [
+                "scenario-naming@1"
+              ],
+              "type": "ClaimConflict",
+              "workItemId": "WI-4"
+            },
+            {
+              "facetKeys": [],
+              "message": "Built on scenario-naming@1; current is v2 (scenario.county changed). Claims scenario.county = \"Cedar County\"; accepted scenario-naming@2 says \"Larkhaven County\". A human resolution is required.",
+              "observedAt": "2026-10-13T03:11:59Z",
+              "reasonCodes": [
+                "STALE_RECEIPT",
+                "FACET_CHANGED",
+                "CLAIM_CONFLICT",
+                "SUPERSEDED_BASIS",
+                "HUMAN_RESOLUTION_MISSING"
+              ],
+              "recordRefs": [],
+              "type": "Blocked",
+              "workItemId": "WI-4"
+            }
+          ],
+          "contextPaths": [],
+          "evidence": [],
+          "headSha": "61867a991e187da94a3c3b152ebc2e484f81da65",
+          "item": {
+            "actor": {
+              "displayName": "Build agent",
+              "id": "agent-build",
+              "kind": "agent"
+            },
+            "forkRepo": "delta-convergence-build-wi-4",
+            "id": "WI-4",
+            "intent": "delivery",
+            "requires": [
+              "human-resolution"
+            ],
+            "source": "live",
+            "status": "conflict",
+            "title": "Shelter fixtures (PRs #3 and #4)"
+          },
+          "promotionApproval": null,
+          "receipt": {
+            "accepted": [
+              {
+                "blobHash": "2b93a2a22d0c3363f594499294d4731c07f4ef41ce0e05b0e54b83548622e721",
+                "facetHash": "f302352d93d4b51d6d578ec463410c59efa0133f56cfba1c3cbb6dc1fe3d9771",
+                "recordId": "scenario-naming",
+                "version": 1
+              }
+            ],
+            "baselineCommit": "61867a991e187da94a3c3b152ebc2e484f81da65",
+            "contextPacketHash": "aa38b282f3d3c213d243cea855a87e454dc4ebe86838cdd0d244050dfbeae86c",
+            "noteRef": "refs/notes/delta:61867a991e187da94a3c3b152ebc2e484f81da65",
+            "proposedVisible": []
+          },
+          "resolutions": [],
+          "revalidating": false,
+          "revalidations": 0
+        },
+        "WI-5": {
+          "claims": {
+            "claims": [
+              {
+                "basedOn": "scenario-naming@1",
+                "subject": "scenario.county",
+                "value": "Cedar County"
+              },
+              {
+                "basedOn": "scenario-plan@1",
+                "subject": "scenario.second-act-mode",
+                "value": "replay"
+              }
+            ],
+            "error": null,
+            "headSha": "0000000000000000000000000000000000000000",
+            "status": "ok"
+          },
+          "conditions": [
+            {
+              "facetKeys": [
+                "scenario.county"
+              ],
+              "message": "Built on scenario-naming@1; accepted is v2. Changed: scenario.county.",
+              "observedAt": "2026-10-13T03:11:59Z",
+              "reasonCodes": [
+                "STALE_RECEIPT",
+                "FACET_CHANGED"
+              ],
+              "recordRefs": [
+                "scenario-naming@1"
+              ],
+              "type": "Stale",
+              "workItemId": "WI-5"
+            },
+            {
+              "facetKeys": [
+                "scenario.county"
+              ],
+              "message": "Claims scenario.county = \"Cedar County\"; accepted scenario-naming@2 says \"Larkhaven County\".",
+              "observedAt": "2026-10-13T03:11:59Z",
+              "reasonCodes": [
+                "CLAIM_CONFLICT",
+                "SUPERSEDED_BASIS"
+              ],
+              "recordRefs": [
+                "scenario-naming@1"
+              ],
+              "type": "ClaimConflict",
+              "workItemId": "WI-5"
+            },
+            {
+              "facetKeys": [],
+              "message": "Built on scenario-naming@1; current is v2 (scenario.county changed). Claims scenario.county = \"Cedar County\"; accepted scenario-naming@2 says \"Larkhaven County\". A human resolution is required.",
+              "observedAt": "2026-10-13T03:11:59Z",
+              "reasonCodes": [
+                "STALE_RECEIPT",
+                "FACET_CHANGED",
+                "CLAIM_CONFLICT",
+                "SUPERSEDED_BASIS",
+                "HUMAN_RESOLUTION_MISSING"
+              ],
+              "recordRefs": [],
+              "type": "Blocked",
+              "workItemId": "WI-5"
+            }
+          ],
+          "contextPaths": [],
+          "evidence": [],
+          "headSha": "0000000000000000000000000000000000000000",
+          "item": {
+            "actor": {
+              "displayName": "Docs agent",
+              "id": "agent-docs",
+              "kind": "agent"
+            },
+            "forkRepo": "delta-convergence-build-wi-5",
+            "id": "WI-5",
+            "intent": "delivery",
+            "requires": [
+              "human-resolution"
+            ],
+            "source": "live",
+            "status": "conflict",
+            "title": "Shared brief (Notion; not in git)"
+          },
+          "promotionApproval": null,
+          "receipt": {
+            "accepted": [
+              {
+                "blobHash": "2b93a2a22d0c3363f594499294d4731c07f4ef41ce0e05b0e54b83548622e721",
+                "facetHash": "f302352d93d4b51d6d578ec463410c59efa0133f56cfba1c3cbb6dc1fe3d9771",
+                "recordId": "scenario-naming",
+                "version": 1
+              },
+              {
+                "blobHash": "6d37ff866ad357d29d01e4bec0b44a461db0145b0780eacacc1a992996e8f46f",
+                "facetHash": "832aa194e443ce1db6dc3831a4a31275c9206fef738d1dd7dc91a88bb0d2b791",
+                "recordId": "scenario-plan",
+                "version": 1
+              }
+            ],
+            "baselineCommit": "61867a991e187da94a3c3b152ebc2e484f81da65",
+            "contextPacketHash": "a6c635852248fcf29fe7bf848e942e281fb9d027f3350e7b902ec28455d7bbb2",
+            "proposedVisible": []
+          },
+          "resolutions": [],
+          "revalidating": false,
+          "revalidations": 0
+        },
+        "WI-6": {
+          "claims": {
+            "claims": [
+              {
+                "basedOn": "positioning@1",
+                "subject": "positioning.llm-claim",
+                "value": "control loop makes no model calls"
+              },
+              {
+                "basedOn": "positioning@1",
+                "subject": "positioning.tagline",
+                "value": "a control plane that keeps concurrent humans and agents working from the same meaning"
+              },
+              {
+                "basedOn": "scenario-plan@1",
+                "subject": "scenario.second-act-mode",
+                "value": "replay"
+              }
+            ],
+            "error": null,
+            "headSha": "e0710e60d29e193f5724116e91d2388097544ba4",
+            "status": "ok"
+          },
+          "conditions": [
+            {
+              "facetKeys": [],
+              "message": "The receipt matches the accepted facets this work depends on.",
+              "observedAt": "2026-10-13T02:00:00Z",
+              "reasonCodes": [],
+              "recordRefs": [],
+              "type": "Fresh",
+              "workItemId": "WI-6"
+            }
+          ],
+          "contextPaths": [],
+          "evidence": [],
+          "headSha": "e0710e60d29e193f5724116e91d2388097544ba4",
+          "item": {
+            "actor": {
+              "displayName": "Docs agent",
+              "id": "agent-docs",
+              "kind": "agent"
+            },
+            "forkRepo": "delta-convergence-build-wi-6",
+            "id": "WI-6",
+            "intent": "delivery",
+            "requires": [
+              "human-resolution"
+            ],
+            "source": "live",
+            "status": "fresh",
+            "title": "README"
+          },
+          "promotionApproval": null,
+          "receipt": {
+            "accepted": [
+              {
+                "blobHash": "6d37ff866ad357d29d01e4bec0b44a461db0145b0780eacacc1a992996e8f46f",
+                "facetHash": "832aa194e443ce1db6dc3831a4a31275c9206fef738d1dd7dc91a88bb0d2b791",
+                "recordId": "scenario-plan",
+                "version": 1
+              },
+              {
+                "blobHash": "ca69c731cde0513354ea89c248d7ca1204fa116f277a3f4673d0c2fd92bd856c",
+                "facetHash": "79d869eb0ceda0cf7d212e94540e328ef7f52017b8b5642dbfebce46005573f5",
+                "recordId": "positioning",
+                "version": 1
+              }
+            ],
+            "baselineCommit": "61867a991e187da94a3c3b152ebc2e484f81da65",
+            "contextPacketHash": "da0728aa5d1a4c289de3aa52315ea4c73f588c8df16c9873dbf679daafac23a6",
+            "noteRef": "refs/notes/delta:e0710e60d29e193f5724116e91d2388097544ba4",
+            "proposedVisible": []
+          },
+          "resolutions": [],
+          "revalidating": false,
+          "revalidations": 0
+        },
+        "WI-7": {
+          "claims": {
+            "claims": [
+              {
+                "basedOn": "demo-identity@1",
+                "subject": "identity.label",
+                "value": "Decision owner (demo identity)"
+              }
+            ],
+            "error": null,
+            "headSha": "30368947b30fc5f4ee8f6d34a9e7721e9c2d9529",
+            "status": "ok"
+          },
+          "conditions": [
+            {
+              "facetKeys": [],
+              "message": "The receipt matches the accepted facets this work depends on.",
+              "observedAt": "2026-10-13T02:00:00Z",
+              "reasonCodes": [],
+              "recordRefs": [],
+              "type": "Fresh",
+              "workItemId": "WI-7"
+            }
+          ],
+          "contextPaths": [],
+          "evidence": [],
+          "headSha": "30368947b30fc5f4ee8f6d34a9e7721e9c2d9529",
+          "item": {
+            "actor": {
+              "displayName": "Console agent",
+              "id": "agent-console",
+              "kind": "agent"
+            },
+            "forkRepo": "delta-convergence-build-wi-7",
+            "id": "WI-7",
+            "intent": "delivery",
+            "requires": [
+              "human-resolution"
+            ],
+            "source": "live",
+            "status": "fresh",
+            "title": "Console identity header"
+          },
+          "promotionApproval": null,
+          "receipt": {
+            "accepted": [
+              {
+                "blobHash": "ebffd8e8b08fc1936525ff6075fe2ce3563d5f9e3ea293ef52c9cfb6290604ae",
+                "facetHash": "43ad2ef86a282b2018faadb76578b3b80a68d75ff48fe4b2e666259d0db590e4",
+                "recordId": "demo-identity",
+                "version": 1
+              }
+            ],
+            "baselineCommit": "61867a991e187da94a3c3b152ebc2e484f81da65",
+            "contextPacketHash": "6054a44177d04f88d51ebd4bc5ffdd97ced5ae99b5a2eaab0478f4541b3eb945",
+            "noteRef": "refs/notes/delta:30368947b30fc5f4ee8f6d34a9e7721e9c2d9529",
+            "proposedVisible": []
+          },
+          "resolutions": [],
+          "revalidating": false,
+          "revalidations": 0
+        }
+      }
+    }
+  },
+  "id": "r1-10-build-history-evidence-policy-v2",
+  "polarity": "positive",
+  "protocol": "convergence/0.1",
+  "rules": [
+    "R1",
+    "R2"
+  ],
+  "then": {
+    "effects": [
+      {
+        "condition": "Blocked",
+        "reasonCodes": [
+          "CLAIM_CONFLICT",
+          "FACET_CHANGED",
+          "HUMAN_RESOLUTION_MISSING",
+          "STALE_RECEIPT",
+          "SUPERSEDED_BASIS"
+        ],
+        "type": "RECORD_CONDITION",
+        "workItemId": "WI-1"
+      },
+      {
+        "condition": "Blocked",
+        "reasonCodes": [
+          "CLAIM_CONFLICT",
+          "FACET_CHANGED",
+          "HUMAN_RESOLUTION_MISSING",
+          "STALE_RECEIPT",
+          "SUPERSEDED_BASIS"
+        ],
+        "type": "RECORD_CONDITION",
+        "workItemId": "WI-2"
+      },
+      {
+        "condition": "Blocked",
+        "reasonCodes": [
+          "CLAIM_CONFLICT",
+          "FACET_CHANGED",
+          "HUMAN_RESOLUTION_MISSING",
+          "STALE_RECEIPT",
+          "SUPERSEDED_BASIS"
+        ],
+        "type": "RECORD_CONDITION",
+        "workItemId": "WI-3"
+      },
+      {
+        "condition": "ClaimConflict",
+        "reasonCodes": [
+          "CLAIM_CONFLICT",
+          "SUPERSEDED_BASIS"
+        ],
+        "type": "RECORD_CONDITION",
+        "workItemId": "WI-1"
+      },
+      {
+        "condition": "ClaimConflict",
+        "reasonCodes": [
+          "CLAIM_CONFLICT",
+          "SUPERSEDED_BASIS"
+        ],
+        "type": "RECORD_CONDITION",
+        "workItemId": "WI-2"
+      },
+      {
+        "condition": "Stale",
+        "reasonCodes": [
+          "FACET_CHANGED",
+          "STALE_RECEIPT"
+        ],
+        "type": "RECORD_CONDITION",
+        "workItemId": "WI-1"
+      },
+      {
+        "condition": "Stale",
+        "reasonCodes": [
+          "FACET_CHANGED",
+          "STALE_RECEIPT"
+        ],
+        "type": "RECORD_CONDITION",
+        "workItemId": "WI-2"
+      },
+      {
+        "condition": "Stale",
+        "reasonCodes": [
+          "FACET_CHANGED",
+          "STALE_RECEIPT"
+        ],
+        "type": "RECORD_CONDITION",
+        "workItemId": "WI-3"
+      },
+      {
+        "reasonCodes": [
+          "CLAIM_CONFLICT",
+          "FACET_CHANGED",
+          "HUMAN_RESOLUTION_MISSING",
+          "STALE_RECEIPT",
+          "SUPERSEDED_BASIS"
+        ],
+        "type": "BLOCK_PROMOTION",
+        "workItemId": "WI-1"
+      },
+      {
+        "reasonCodes": [
+          "CLAIM_CONFLICT",
+          "FACET_CHANGED",
+          "HUMAN_RESOLUTION_MISSING",
+          "STALE_RECEIPT",
+          "SUPERSEDED_BASIS"
+        ],
+        "type": "BLOCK_PROMOTION",
+        "workItemId": "WI-2"
+      },
+      {
+        "reasonCodes": [
+          "CLAIM_CONFLICT",
+          "FACET_CHANGED",
+          "HUMAN_RESOLUTION_MISSING",
+          "STALE_RECEIPT",
+          "SUPERSEDED_BASIS"
+        ],
+        "type": "BLOCK_PROMOTION",
+        "workItemId": "WI-3"
+      },
+      {
+        "reasonCodes": [
+          "CLAIM_CONFLICT",
+          "SUPERSEDED_BASIS"
+        ],
+        "type": "REQUEST_REVIEW",
+        "workItemId": "WI-1"
+      },
+      {
+        "reasonCodes": [
+          "CLAIM_CONFLICT",
+          "SUPERSEDED_BASIS"
+        ],
+        "type": "REQUEST_REVIEW",
+        "workItemId": "WI-2"
+      },
+      {
+        "reasonCodes": [
+          "FACET_CHANGED",
+          "STALE_RECEIPT"
+        ],
+        "type": "REQUEST_REVIEW",
+        "workItemId": "WI-1"
+      },
+      {
+        "reasonCodes": [
+          "FACET_CHANGED",
+          "STALE_RECEIPT"
+        ],
+        "type": "REQUEST_REVIEW",
+        "workItemId": "WI-2"
+      },
+      {
+        "reasonCodes": [
+          "FACET_CHANGED",
+          "STALE_RECEIPT"
+        ],
+        "type": "REQUEST_REVIEW",
+        "workItemId": "WI-3"
+      },
+      {
+        "reasonCodes": [
+          "NO_DEPENDENCY_ON_CHANGED_FACETS"
+        ],
+        "recordId": "evidence-policy",
+        "type": "NO_ACTION",
+        "workItemId": "WI-4"
+      },
+      {
+        "reasonCodes": [
+          "NO_DEPENDENCY_ON_CHANGED_FACETS"
+        ],
+        "recordId": "evidence-policy",
+        "type": "NO_ACTION",
+        "workItemId": "WI-5"
+      },
+      {
+        "reasonCodes": [
+          "NO_DEPENDENCY_ON_CHANGED_FACETS"
+        ],
+        "recordId": "evidence-policy",
+        "type": "NO_ACTION",
+        "workItemId": "WI-6"
+      },
+      {
+        "reasonCodes": [
+          "NO_DEPENDENCY_ON_CHANGED_FACETS"
+        ],
+        "recordId": "evidence-policy",
+        "type": "NO_ACTION",
+        "workItemId": "WI-7"
+      }
+    ],
+    "state": {
+      "baselineCommit": "835083048a2807f22e5ba40959b13f82a3b9345a",
+      "dependencies": [
+        {
+          "basis": "declared",
+          "facetKeys": [
+            "evidence.claims-check-role",
+            "evidence.counts-as-test",
+            "evidence.required-facets"
+          ],
+          "recordId": "evidence-policy",
+          "status": "accepted",
+          "workItemId": "WI-1"
+        },
+        {
+          "basis": "declared",
+          "facetKeys": [
+            "evidence.claims-check-role",
+            "evidence.counts-as-test"
+          ],
+          "recordId": "evidence-policy",
+          "status": "accepted",
+          "workItemId": "WI-2"
+        },
+        {
+          "basis": "declared",
+          "facetKeys": [
+            "evidence.counts-as-test"
+          ],
+          "recordId": "evidence-policy",
+          "status": "accepted",
+          "workItemId": "WI-3"
+        },
+        {
+          "basis": "declared",
+          "facetKeys": [
+            "identity.label"
+          ],
+          "recordId": "demo-identity",
+          "status": "accepted",
+          "workItemId": "WI-7"
+        },
+        {
+          "basis": "declared",
+          "facetKeys": [
+            "naming.public-name"
+          ],
+          "recordId": "product-naming",
+          "status": "accepted",
+          "workItemId": "WI-2"
+        },
+        {
+          "basis": "declared",
+          "facetKeys": [
+            "positioning.llm-claim",
+            "positioning.tagline"
+          ],
+          "recordId": "positioning",
+          "status": "accepted",
+          "workItemId": "WI-6"
+        },
+        {
+          "basis": "declared",
+          "facetKeys": [
+            "scenario.county"
+          ],
+          "recordId": "scenario-naming",
+          "status": "accepted",
+          "workItemId": "WI-3"
+        },
+        {
+          "basis": "declared",
+          "facetKeys": [
+            "scenario.county"
+          ],
+          "recordId": "scenario-naming",
+          "status": "accepted",
+          "workItemId": "WI-4"
+        },
+        {
+          "basis": "declared",
+          "facetKeys": [
+            "scenario.county"
+          ],
+          "recordId": "scenario-naming",
+          "status": "accepted",
+          "workItemId": "WI-5"
+        },
+        {
+          "basis": "declared",
+          "facetKeys": [
+            "scenario.second-act-mode"
+          ],
+          "recordId": "scenario-plan",
+          "status": "accepted",
+          "workItemId": "WI-3"
+        },
+        {
+          "basis": "declared",
+          "facetKeys": [
+            "scenario.second-act-mode"
+          ],
+          "recordId": "scenario-plan",
+          "status": "accepted",
+          "workItemId": "WI-5"
+        },
+        {
+          "basis": "declared",
+          "facetKeys": [
+            "scenario.second-act-mode"
+          ],
+          "recordId": "scenario-plan",
+          "status": "accepted",
+          "workItemId": "WI-6"
+        }
+      ],
+      "processed": [
+        "delta-convergence-build-baseline@59d48e4659fde029f10cc0cf5d70d8640c6b74bc",
+        "delta-convergence-build-baseline@835083048a2807f22e5ba40959b13f82a3b9345a",
+        "delta-convergence-build-wi-1@ce882f2ecdd1b6f66f3d0804fa2eb169cc093dd4",
+        "delta-convergence-build-wi-2@668970268c10adb56035a6a9721a3dd8e2eb4b81",
+        "delta-convergence-build-wi-3@f29ac84485004d933a5c3d1db1b74b55e99352cf",
+        "delta-convergence-build-wi-4@61867a991e187da94a3c3b152ebc2e484f81da65",
+        "delta-convergence-build-wi-5@0000000000000000000000000000000000000000",
+        "delta-convergence-build-wi-6@e0710e60d29e193f5724116e91d2388097544ba4",
+        "delta-convergence-build-wi-7@30368947b30fc5f4ee8f6d34a9e7721e9c2d9529",
+        "register:WI-1",
+        "register:WI-2",
+        "register:WI-3",
+        "register:WI-4",
+        "register:WI-5",
+        "register:WI-6",
+        "register:WI-7"
+      ],
+      "records": {
+        "demo-identity": {
+          "current": 1,
+          "proposed": null,
+          "versions": [
+            1
+          ]
+        },
+        "evidence-policy": {
+          "current": 2,
+          "proposed": null,
+          "versions": [
+            1,
+            2
+          ]
+        },
+        "positioning": {
+          "current": 1,
+          "proposed": null,
+          "versions": [
+            1
+          ]
+        },
+        "product-naming": {
+          "current": 1,
+          "proposed": null,
+          "versions": [
+            1
+          ]
+        },
+        "scenario-naming": {
+          "current": 2,
+          "proposed": null,
+          "versions": [
+            1,
+            2
+          ]
+        },
+        "scenario-plan": {
+          "current": 1,
+          "proposed": null,
+          "versions": [
+            1
+          ]
+        }
+      },
+      "snapshotHash": "01b0b9c848e7e364677247790ea0b266a367dceb69366a1b6e6a5a9bbcb1b8d6",
+      "workItems": {
+        "WI-1": {
+          "conditions": [
+            {
+              "reasonCodes": [
+                "CLAIM_CONFLICT",
+                "FACET_CHANGED",
+                "HUMAN_RESOLUTION_MISSING",
+                "STALE_RECEIPT",
+                "SUPERSEDED_BASIS"
+              ],
+              "type": "Blocked"
+            },
+            {
+              "reasonCodes": [
+                "CLAIM_CONFLICT",
+                "SUPERSEDED_BASIS"
+              ],
+              "type": "ClaimConflict"
+            },
+            {
+              "reasonCodes": [
+                "FACET_CHANGED",
+                "STALE_RECEIPT"
+              ],
+              "type": "Stale"
+            }
+          ],
+          "headSha": "ce882f2ecdd1b6f66f3d0804fa2eb169cc093dd4",
+          "promotionApproved": false,
+          "receipt": "50afdc5482be5a4ce75adcae8ed6c45a0422252e9b86b09273196d44e3935392",
+          "resolutions": [],
+          "revalidating": false,
+          "revalidations": 0,
+          "status": "conflict"
+        },
+        "WI-2": {
+          "conditions": [
+            {
+              "reasonCodes": [
+                "CLAIM_CONFLICT",
+                "FACET_CHANGED",
+                "HUMAN_RESOLUTION_MISSING",
+                "STALE_RECEIPT",
+                "SUPERSEDED_BASIS"
+              ],
+              "type": "Blocked"
+            },
+            {
+              "reasonCodes": [
+                "CLAIM_CONFLICT",
+                "SUPERSEDED_BASIS"
+              ],
+              "type": "ClaimConflict"
+            },
+            {
+              "reasonCodes": [
+                "FACET_CHANGED",
+                "STALE_RECEIPT"
+              ],
+              "type": "Stale"
+            }
+          ],
+          "headSha": "668970268c10adb56035a6a9721a3dd8e2eb4b81",
+          "promotionApproved": false,
+          "receipt": "cb80b0080b36925c14f36fd22391e513aadffc3396118d793395124de06c9de9",
+          "resolutions": [],
+          "revalidating": false,
+          "revalidations": 0,
+          "status": "conflict"
+        },
+        "WI-3": {
+          "conditions": [
+            {
+              "reasonCodes": [
+                "CLAIM_CONFLICT",
+                "FACET_CHANGED",
+                "HUMAN_RESOLUTION_MISSING",
+                "STALE_RECEIPT",
+                "SUPERSEDED_BASIS"
+              ],
+              "type": "Blocked"
+            },
+            {
+              "reasonCodes": [
+                "CLAIM_CONFLICT",
+                "SUPERSEDED_BASIS"
+              ],
+              "type": "ClaimConflict"
+            },
+            {
+              "reasonCodes": [
+                "FACET_CHANGED",
+                "STALE_RECEIPT"
+              ],
+              "type": "Stale"
+            }
+          ],
+          "headSha": "f29ac84485004d933a5c3d1db1b74b55e99352cf",
+          "promotionApproved": false,
+          "receipt": "c6da88b273dfd7ded1f3cd6d23d907358bd8c6512e9c37f881d193800e0d03af",
+          "resolutions": [],
+          "revalidating": false,
+          "revalidations": 0,
+          "status": "conflict"
+        },
+        "WI-4": {
+          "conditions": [
+            {
+              "reasonCodes": [
+                "CLAIM_CONFLICT",
+                "FACET_CHANGED",
+                "HUMAN_RESOLUTION_MISSING",
+                "STALE_RECEIPT",
+                "SUPERSEDED_BASIS"
+              ],
+              "type": "Blocked"
+            },
+            {
+              "reasonCodes": [
+                "CLAIM_CONFLICT",
+                "SUPERSEDED_BASIS"
+              ],
+              "type": "ClaimConflict"
+            },
+            {
+              "reasonCodes": [
+                "FACET_CHANGED",
+                "STALE_RECEIPT"
+              ],
+              "type": "Stale"
+            }
+          ],
+          "headSha": "61867a991e187da94a3c3b152ebc2e484f81da65",
+          "promotionApproved": false,
+          "receipt": "aa38b282f3d3c213d243cea855a87e454dc4ebe86838cdd0d244050dfbeae86c",
+          "resolutions": [],
+          "revalidating": false,
+          "revalidations": 0,
+          "status": "conflict"
+        },
+        "WI-5": {
+          "conditions": [
+            {
+              "reasonCodes": [
+                "CLAIM_CONFLICT",
+                "FACET_CHANGED",
+                "HUMAN_RESOLUTION_MISSING",
+                "STALE_RECEIPT",
+                "SUPERSEDED_BASIS"
+              ],
+              "type": "Blocked"
+            },
+            {
+              "reasonCodes": [
+                "CLAIM_CONFLICT",
+                "SUPERSEDED_BASIS"
+              ],
+              "type": "ClaimConflict"
+            },
+            {
+              "reasonCodes": [
+                "FACET_CHANGED",
+                "STALE_RECEIPT"
+              ],
+              "type": "Stale"
+            }
+          ],
+          "headSha": "0000000000000000000000000000000000000000",
+          "promotionApproved": false,
+          "receipt": "a6c635852248fcf29fe7bf848e942e281fb9d027f3350e7b902ec28455d7bbb2",
+          "resolutions": [],
+          "revalidating": false,
+          "revalidations": 0,
+          "status": "conflict"
+        },
+        "WI-6": {
+          "conditions": [
+            {
+              "reasonCodes": [],
+              "type": "Fresh"
+            }
+          ],
+          "headSha": "e0710e60d29e193f5724116e91d2388097544ba4",
+          "promotionApproved": false,
+          "receipt": "da0728aa5d1a4c289de3aa52315ea4c73f588c8df16c9873dbf679daafac23a6",
+          "resolutions": [],
+          "revalidating": false,
+          "revalidations": 0,
+          "status": "fresh"
+        },
+        "WI-7": {
+          "conditions": [
+            {
+              "reasonCodes": [],
+              "type": "Fresh"
+            }
+          ],
+          "headSha": "30368947b30fc5f4ee8f6d34a9e7721e9c2d9529",
+          "promotionApproved": false,
+          "receipt": "6054a44177d04f88d51ebd4bc5ffdd97ced5ae99b5a2eaab0478f4541b3eb945",
+          "resolutions": [],
+          "revalidating": false,
+          "revalidations": 0,
+          "status": "fresh"
+        }
+      }
+    }
+  },
+  "when": {
+    "event": {
+      "commitSha": "835083048a2807f22e5ba40959b13f82a3b9345a",
+      "invalid": [],
+      "records": [
+        {
+          "acceptedAt": "2026-10-13T04:04:23Z",
+          "acceptedBy": "decision-owner",
+          "authority": "decision-owner",
+          "blobHash": "d5e9a68218a6a88ad74a01c0f602650aa94b0f64db2e08c2c397d9c3a475dab5",
+          "facetHash": "5da520a15511743aa647612dab97e1d42b9e3a1e875ab0757f7f4b9fd4fc48c9",
+          "facets": {
+            "evidence.claims-check-role": "informational",
+            "evidence.counts-as-test": "delta-run-check",
+            "evidence.required-facets": "none"
+          },
+          "not": {
+            "evidence.claims-check-role": [
+              "test"
+            ],
+            "evidence.counts-as-test": [
+              "claims-check"
+            ]
+          },
+          "recordId": "evidence-policy",
+          "status": "accepted",
+          "validation": null,
+          "version": 2
+        }
+      ],
+      "repo": "delta-convergence-build-baseline",
+      "snapshotHash": "01b0b9c848e7e364677247790ea0b266a367dceb69366a1b6e6a5a9bbcb1b8d6",
+      "ts": "2026-10-13T04:04:23Z",
+      "type": "BaselinePushed"
+    }
+  }
+}

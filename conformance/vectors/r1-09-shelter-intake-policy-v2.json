@@ -1,0 +1,787 @@
+{
+  "description": "Shelter intake (synthetic): policy v2 changes pets and id_required. WI-1, WI-2 and WI-3 relied on them and are Stale; WI-4 and WI-5 are left alone with the reason.",
+  "fixture": "shelter-intake",
+  "given": {
+    "policy": {
+      "authority": {
+        "shelter-intake-policy": "shelter-coordinator",
+        "volunteer-roles": "shelter-coordinator"
+      },
+      "maxRevalidations": 2,
+      "requires": [],
+      "staleness": "facet",
+      "version": 1
+    },
+    "state": {
+      "baselineCommit": "b0000000000000000000000000000000000000c9",
+      "dependencies": [
+        {
+          "basis": "declared",
+          "evidenceRefs": [],
+          "facetKeys": [
+            "pets",
+            "id_required"
+          ],
+          "recordId": "shelter-intake-policy",
+          "status": "accepted",
+          "workItemId": "WI-1"
+        },
+        {
+          "basis": "declared",
+          "evidenceRefs": [],
+          "facetKeys": [
+            "pets"
+          ],
+          "recordId": "shelter-intake-policy",
+          "status": "accepted",
+          "workItemId": "WI-2"
+        },
+        {
+          "basis": "declared",
+          "evidenceRefs": [],
+          "facetKeys": [
+            "pets",
+            "id_required",
+            "hours"
+          ],
+          "recordId": "shelter-intake-policy",
+          "status": "accepted",
+          "workItemId": "WI-3"
+        },
+        {
+          "basis": "declared",
+          "evidenceRefs": [],
+          "facetKeys": [
+            "capacity_note"
+          ],
+          "recordId": "shelter-intake-policy",
+          "status": "accepted",
+          "workItemId": "WI-4"
+        },
+        {
+          "basis": "declared",
+          "evidenceRefs": [],
+          "facetKeys": [
+            "greeter",
+            "intake_desk"
+          ],
+          "recordId": "volunteer-roles",
+          "status": "accepted",
+          "workItemId": "WI-5"
+        },
+        {
+          "basis": "declared",
+          "evidenceRefs": [],
+          "facetKeys": [
+            "hours"
+          ],
+          "recordId": "shelter-intake-policy",
+          "status": "accepted",
+          "workItemId": "WI-5"
+        }
+      ],
+      "processed": {
+        "register:WI-1": "",
+        "register:WI-2": "",
+        "register:WI-3": "",
+        "register:WI-4": "",
+        "register:WI-5": ""
+      },
+      "records": {
+        "shelter-intake-policy": {
+          "current": 1,
+          "proposed": null,
+          "versions": {
+            "1": {
+              "acceptedAt": "2026-09-29T16:00:00Z",
+              "acceptedBy": "shelter-coordinator",
+              "authority": "shelter-coordinator",
+              "blobHash": "e76da36fb59f55644d1d744b6cc143ecb59d97fe940b766183a0eb580d9601a4",
+              "facetHash": "720cc2fb0e8312011338808629015f64611a38aaaf55b321c13f6f0af0bd2943",
+              "facets": {
+                "capacity_note": "Hall A holds 120 cots; the shift lead decides on overflow",
+                "hours": "doors open 7:00 to 21:00 daily",
+                "id_required": "ID required",
+                "pets": "service animals only"
+              },
+              "not": {},
+              "recordId": "shelter-intake-policy",
+              "status": "accepted",
+              "validation": "checks/shelter-intake.check",
+              "version": 1
+            }
+          }
+        },
+        "volunteer-roles": {
+          "current": 1,
+          "proposed": null,
+          "versions": {
+            "1": {
+              "acceptedAt": "2026-09-29T16:00:00Z",
+              "acceptedBy": "shelter-coordinator",
+              "authority": "shelter-coordinator",
+              "blobHash": "3ab5b9e0f894745f8cf0cb8886b4091f9288071b359e6504441b9054739c4ac4",
+              "facetHash": "3f6725346fb7343a7fd3f49f55fd3a2591db1a8c4c045b5ecfef9cacba5ee800",
+              "facets": {
+                "greeter": "welcomes each household at the main door and points them to the intake desk",
+                "intake_desk": "records first names and household size, and answers questions about the hall"
+              },
+              "not": {},
+              "recordId": "volunteer-roles",
+              "status": "accepted",
+              "validation": null,
+              "version": 1
+            }
+          }
+        }
+      },
+      "schemaVersion": 1,
+      "snapshotHash": "c6410204b6dab2f97859e35a495dab1900005370f78852efa442d626a5fd307e",
+      "workItems": {
+        "WI-1": {
+          "claims": null,
+          "conditions": [
+            {
+              "facetKeys": [],
+              "message": "The receipt matches the accepted facets this work depends on.",
+              "observedAt": "2026-10-13T15:00:00Z",
+              "reasonCodes": [],
+              "recordRefs": [],
+              "type": "Fresh",
+              "workItemId": "WI-1"
+            }
+          ],
+          "contextPaths": [],
+          "evidence": [],
+          "headSha": null,
+          "item": {
+            "actor": {
+              "displayName": "Script agent",
+              "id": "agent-script",
+              "kind": "agent"
+            },
+            "forkRepo": "shelter-intake-wi-1",
+            "id": "WI-1",
+            "intent": "delivery",
+            "requires": [
+              "contract-test",
+              "human-resolution"
+            ],
+            "source": "live",
+            "status": "running",
+            "title": "Front-desk intake script"
+          },
+          "promotionApproval": null,
+          "receipt": {
+            "accepted": [
+              {
+                "blobHash": "e76da36fb59f55644d1d744b6cc143ecb59d97fe940b766183a0eb580d9601a4",
+                "facetHash": "720cc2fb0e8312011338808629015f64611a38aaaf55b321c13f6f0af0bd2943",
+                "recordId": "shelter-intake-policy",
+                "version": 1
+              }
+            ],
+            "baselineCommit": "b0000000000000000000000000000000000000c9",
+            "contextPacketHash": "f40b016db0ff2c70ccd790c2652e199e74d70de6c28f6f9b2fb3ee5e4db7da1a",
+            "noteRef": "refs/notes/delta:b0000000000000000000000000000000000000c9",
+            "proposedVisible": []
+          },
+          "resolutions": [],
+          "revalidating": false,
+          "revalidations": 0
+        },
+        "WI-2": {
+          "claims": null,
+          "conditions": [
+            {
+              "facetKeys": [],
+              "message": "The receipt matches the accepted facets this work depends on.",
+              "observedAt": "2026-10-13T15:00:00Z",
+              "reasonCodes": [],
+              "recordRefs": [],
+              "type": "Fresh",
+              "workItemId": "WI-2"
+            }
+          ],
+          "contextPaths": [],
+          "evidence": [],
+          "headSha": null,
+          "item": {
+            "actor": {
+              "displayName": "Signage agent",
+              "id": "agent-signage",
+              "kind": "agent"
+            },
+            "forkRepo": "shelter-intake-wi-2",
+            "id": "WI-2",
+            "intent": "delivery",
+            "requires": [
+              "human-resolution"
+            ],
+            "source": "live",
+            "status": "running",
+            "title": "Door signage text"
+          },
+          "promotionApproval": null,
+          "receipt": {
+            "accepted": [
+              {
+                "blobHash": "e76da36fb59f55644d1d744b6cc143ecb59d97fe940b766183a0eb580d9601a4",
+                "facetHash": "720cc2fb0e8312011338808629015f64611a38aaaf55b321c13f6f0af0bd2943",
+                "recordId": "shelter-intake-policy",
+                "version": 1
+              }
+            ],
+            "baselineCommit": "b0000000000000000000000000000000000000c9",
+            "contextPacketHash": "f40b016db0ff2c70ccd790c2652e199e74d70de6c28f6f9b2fb3ee5e4db7da1a",
+            "noteRef": "refs/notes/delta:b0000000000000000000000000000000000000c9",
+            "proposedVisible": []
+          },
+          "resolutions": [],
+          "revalidating": false,
+          "revalidations": 0
+        },
+        "WI-3": {
+          "claims": null,
+          "conditions": [
+            {
+              "facetKeys": [],
+              "message": "The receipt matches the accepted facets this work depends on.",
+              "observedAt": "2026-10-13T15:00:00Z",
+              "reasonCodes": [],
+              "recordRefs": [],
+              "type": "Fresh",
+              "workItemId": "WI-3"
+            }
+          ],
+          "contextPaths": [],
+          "evidence": [],
+          "headSha": null,
+          "item": {
+            "actor": {
+              "displayName": "Briefing agent",
+              "id": "agent-briefing",
+              "kind": "agent"
+            },
+            "forkRepo": "shelter-intake-wi-3",
+            "id": "WI-3",
+            "intent": "delivery",
+            "requires": [
+              "contract-test",
+              "human-resolution"
+            ],
+            "source": "live",
+            "status": "running",
+            "title": "Volunteer briefing one-pager"
+          },
+          "promotionApproval": null,
+          "receipt": {
+            "accepted": [
+              {
+                "blobHash": "e76da36fb59f55644d1d744b6cc143ecb59d97fe940b766183a0eb580d9601a4",
+                "facetHash": "720cc2fb0e8312011338808629015f64611a38aaaf55b321c13f6f0af0bd2943",
+                "recordId": "shelter-intake-policy",
+                "version": 1
+              }
+            ],
+            "baselineCommit": "b0000000000000000000000000000000000000c9",
+            "contextPacketHash": "f40b016db0ff2c70ccd790c2652e199e74d70de6c28f6f9b2fb3ee5e4db7da1a",
+            "noteRef": "refs/notes/delta:b0000000000000000000000000000000000000c9",
+            "proposedVisible": []
+          },
+          "resolutions": [],
+          "revalidating": false,
+          "revalidations": 0
+        },
+        "WI-4": {
+          "claims": null,
+          "conditions": [
+            {
+              "facetKeys": [],
+              "message": "The receipt matches the accepted facets this work depends on.",
+              "observedAt": "2026-10-13T15:00:00Z",
+              "reasonCodes": [],
+              "recordRefs": [],
+              "type": "Fresh",
+              "workItemId": "WI-4"
+            }
+          ],
+          "contextPaths": [],
+          "evidence": [],
+          "headSha": null,
+          "item": {
+            "actor": {
+              "displayName": "Supplies agent",
+              "id": "agent-supplies",
+              "kind": "agent"
+            },
+            "forkRepo": "shelter-intake-wi-4",
+            "id": "WI-4",
+            "intent": "delivery",
+            "requires": [
+              "contract-test"
+            ],
+            "source": "live",
+            "status": "running",
+            "title": "Cots and blankets supply list"
+          },
+          "promotionApproval": null,
+          "receipt": {
+            "accepted": [
+              {
+                "blobHash": "e76da36fb59f55644d1d744b6cc143ecb59d97fe940b766183a0eb580d9601a4",
+                "facetHash": "720cc2fb0e8312011338808629015f64611a38aaaf55b321c13f6f0af0bd2943",
+                "recordId": "shelter-intake-policy",
+                "version": 1
+              }
+            ],
+            "baselineCommit": "b0000000000000000000000000000000000000c9",
+            "contextPacketHash": "f40b016db0ff2c70ccd790c2652e199e74d70de6c28f6f9b2fb3ee5e4db7da1a",
+            "noteRef": "refs/notes/delta:b0000000000000000000000000000000000000c9",
+            "proposedVisible": []
+          },
+          "resolutions": [],
+          "revalidating": false,
+          "revalidations": 0
+        },
+        "WI-5": {
+          "claims": null,
+          "conditions": [
+            {
+              "facetKeys": [],
+              "message": "The receipt matches the accepted facets this work depends on.",
+              "observedAt": "2026-10-13T15:00:00Z",
+              "reasonCodes": [],
+              "recordRefs": [],
+              "type": "Fresh",
+              "workItemId": "WI-5"
+            }
+          ],
+          "contextPaths": [],
+          "evidence": [],
+          "headSha": null,
+          "item": {
+            "actor": {
+              "displayName": "Schedule agent",
+              "id": "agent-schedule",
+              "kind": "agent"
+            },
+            "forkRepo": "shelter-intake-wi-5",
+            "id": "WI-5",
+            "intent": "delivery",
+            "requires": [
+              "contract-test"
+            ],
+            "source": "live",
+            "status": "running",
+            "title": "Shift schedule"
+          },
+          "promotionApproval": null,
+          "receipt": {
+            "accepted": [
+              {
+                "blobHash": "e76da36fb59f55644d1d744b6cc143ecb59d97fe940b766183a0eb580d9601a4",
+                "facetHash": "720cc2fb0e8312011338808629015f64611a38aaaf55b321c13f6f0af0bd2943",
+                "recordId": "shelter-intake-policy",
+                "version": 1
+              },
+              {
+                "blobHash": "3ab5b9e0f894745f8cf0cb8886b4091f9288071b359e6504441b9054739c4ac4",
+                "facetHash": "3f6725346fb7343a7fd3f49f55fd3a2591db1a8c4c045b5ecfef9cacba5ee800",
+                "recordId": "volunteer-roles",
+                "version": 1
+              }
+            ],
+            "baselineCommit": "b0000000000000000000000000000000000000c9",
+            "contextPacketHash": "dc64e64d1064a4cd52d7c118102c478f179195c818a01c83db1c1de498b8acf5",
+            "noteRef": "refs/notes/delta:b0000000000000000000000000000000000000c9",
+            "proposedVisible": []
+          },
+          "resolutions": [],
+          "revalidating": false,
+          "revalidations": 0
+        }
+      }
+    }
+  },
+  "id": "r1-09-shelter-intake-policy-v2",
+  "polarity": "positive",
+  "protocol": "convergence/0.1",
+  "rules": [
+    "R1",
+    "R2"
+  ],
+  "then": {
+    "effects": [
+      {
+        "condition": "Blocked",
+        "reasonCodes": [
+          "FACET_CHANGED",
+          "HUMAN_RESOLUTION_MISSING",
+          "MISSING_EVIDENCE",
+          "STALE_RECEIPT"
+        ],
+        "type": "RECORD_CONDITION",
+        "workItemId": "WI-1"
+      },
+      {
+        "condition": "Blocked",
+        "reasonCodes": [
+          "FACET_CHANGED",
+          "HUMAN_RESOLUTION_MISSING",
+          "MISSING_EVIDENCE",
+          "STALE_RECEIPT"
+        ],
+        "type": "RECORD_CONDITION",
+        "workItemId": "WI-2"
+      },
+      {
+        "condition": "Blocked",
+        "reasonCodes": [
+          "FACET_CHANGED",
+          "HUMAN_RESOLUTION_MISSING",
+          "MISSING_EVIDENCE",
+          "STALE_RECEIPT"
+        ],
+        "type": "RECORD_CONDITION",
+        "workItemId": "WI-3"
+      },
+      {
+        "condition": "Stale",
+        "reasonCodes": [
+          "FACET_CHANGED",
+          "STALE_RECEIPT"
+        ],
+        "type": "RECORD_CONDITION",
+        "workItemId": "WI-1"
+      },
+      {
+        "condition": "Stale",
+        "reasonCodes": [
+          "FACET_CHANGED",
+          "STALE_RECEIPT"
+        ],
+        "type": "RECORD_CONDITION",
+        "workItemId": "WI-2"
+      },
+      {
+        "condition": "Stale",
+        "reasonCodes": [
+          "FACET_CHANGED",
+          "STALE_RECEIPT"
+        ],
+        "type": "RECORD_CONDITION",
+        "workItemId": "WI-3"
+      },
+      {
+        "reasonCodes": [
+          "FACET_CHANGED",
+          "HUMAN_RESOLUTION_MISSING",
+          "MISSING_EVIDENCE",
+          "STALE_RECEIPT"
+        ],
+        "type": "BLOCK_PROMOTION",
+        "workItemId": "WI-1"
+      },
+      {
+        "reasonCodes": [
+          "FACET_CHANGED",
+          "HUMAN_RESOLUTION_MISSING",
+          "MISSING_EVIDENCE",
+          "STALE_RECEIPT"
+        ],
+        "type": "BLOCK_PROMOTION",
+        "workItemId": "WI-2"
+      },
+      {
+        "reasonCodes": [
+          "FACET_CHANGED",
+          "HUMAN_RESOLUTION_MISSING",
+          "MISSING_EVIDENCE",
+          "STALE_RECEIPT"
+        ],
+        "type": "BLOCK_PROMOTION",
+        "workItemId": "WI-3"
+      },
+      {
+        "reasonCodes": [
+          "FACET_CHANGED",
+          "STALE_RECEIPT"
+        ],
+        "type": "REQUEST_REVIEW",
+        "workItemId": "WI-1"
+      },
+      {
+        "reasonCodes": [
+          "FACET_CHANGED",
+          "STALE_RECEIPT"
+        ],
+        "type": "REQUEST_REVIEW",
+        "workItemId": "WI-2"
+      },
+      {
+        "reasonCodes": [
+          "FACET_CHANGED",
+          "STALE_RECEIPT"
+        ],
+        "type": "REQUEST_REVIEW",
+        "workItemId": "WI-3"
+      },
+      {
+        "reasonCodes": [
+          "NO_DEPENDENCY_ON_CHANGED_FACETS"
+        ],
+        "recordId": "shelter-intake-policy",
+        "type": "NO_ACTION",
+        "workItemId": "WI-4"
+      },
+      {
+        "reasonCodes": [
+          "NO_DEPENDENCY_ON_CHANGED_FACETS"
+        ],
+        "recordId": "shelter-intake-policy",
+        "type": "NO_ACTION",
+        "workItemId": "WI-5"
+      }
+    ],
+    "state": {
+      "baselineCommit": "b0000000000000000000000000000000000000cb",
+      "dependencies": [
+        {
+          "basis": "declared",
+          "facetKeys": [
+            "capacity_note"
+          ],
+          "recordId": "shelter-intake-policy",
+          "status": "accepted",
+          "workItemId": "WI-4"
+        },
+        {
+          "basis": "declared",
+          "facetKeys": [
+            "greeter",
+            "intake_desk"
+          ],
+          "recordId": "volunteer-roles",
+          "status": "accepted",
+          "workItemId": "WI-5"
+        },
+        {
+          "basis": "declared",
+          "facetKeys": [
+            "hours",
+            "id_required",
+            "pets"
+          ],
+          "recordId": "shelter-intake-policy",
+          "status": "accepted",
+          "workItemId": "WI-3"
+        },
+        {
+          "basis": "declared",
+          "facetKeys": [
+            "hours"
+          ],
+          "recordId": "shelter-intake-policy",
+          "status": "accepted",
+          "workItemId": "WI-5"
+        },
+        {
+          "basis": "declared",
+          "facetKeys": [
+            "id_required",
+            "pets"
+          ],
+          "recordId": "shelter-intake-policy",
+          "status": "accepted",
+          "workItemId": "WI-1"
+        },
+        {
+          "basis": "declared",
+          "facetKeys": [
+            "pets"
+          ],
+          "recordId": "shelter-intake-policy",
+          "status": "accepted",
+          "workItemId": "WI-2"
+        }
+      ],
+      "processed": [
+        "register:WI-1",
+        "register:WI-2",
+        "register:WI-3",
+        "register:WI-4",
+        "register:WI-5",
+        "shelter-intake-baseline@b0000000000000000000000000000000000000cb"
+      ],
+      "records": {
+        "shelter-intake-policy": {
+          "current": 2,
+          "proposed": null,
+          "versions": [
+            1,
+            2
+          ]
+        },
+        "volunteer-roles": {
+          "current": 1,
+          "proposed": null,
+          "versions": [
+            1
+          ]
+        }
+      },
+      "snapshotHash": "c6ad48cab930ffcd5dce4de916ca0f103f942cc4f7076255b9656535ef92d8ab",
+      "workItems": {
+        "WI-1": {
+          "conditions": [
+            {
+              "reasonCodes": [
+                "FACET_CHANGED",
+                "HUMAN_RESOLUTION_MISSING",
+                "MISSING_EVIDENCE",
+                "STALE_RECEIPT"
+              ],
+              "type": "Blocked"
+            },
+            {
+              "reasonCodes": [
+                "FACET_CHANGED",
+                "STALE_RECEIPT"
+              ],
+              "type": "Stale"
+            }
+          ],
+          "headSha": null,
+          "promotionApproved": false,
+          "receipt": "f40b016db0ff2c70ccd790c2652e199e74d70de6c28f6f9b2fb3ee5e4db7da1a",
+          "resolutions": [],
+          "revalidating": false,
+          "revalidations": 0,
+          "status": "stale"
+        },
+        "WI-2": {
+          "conditions": [
+            {
+              "reasonCodes": [
+                "FACET_CHANGED",
+                "HUMAN_RESOLUTION_MISSING",
+                "MISSING_EVIDENCE",
+                "STALE_RECEIPT"
+              ],
+              "type": "Blocked"
+            },
+            {
+              "reasonCodes": [
+                "FACET_CHANGED",
+                "STALE_RECEIPT"
+              ],
+              "type": "Stale"
+            }
+          ],
+          "headSha": null,
+          "promotionApproved": false,
+          "receipt": "f40b016db0ff2c70ccd790c2652e199e74d70de6c28f6f9b2fb3ee5e4db7da1a",
+          "resolutions": [],
+          "revalidating": false,
+          "revalidations": 0,
+          "status": "stale"
+        },
+        "WI-3": {
+          "conditions": [
+            {
+              "reasonCodes": [
+                "FACET_CHANGED",
+                "HUMAN_RESOLUTION_MISSING",
+                "MISSING_EVIDENCE",
+                "STALE_RECEIPT"
+              ],
+              "type": "Blocked"
+            },
+            {
+              "reasonCodes": [
+                "FACET_CHANGED",
+                "STALE_RECEIPT"
+              ],
+              "type": "Stale"
+            }
+          ],
+          "headSha": null,
+          "promotionApproved": false,
+          "receipt": "f40b016db0ff2c70ccd790c2652e199e74d70de6c28f6f9b2fb3ee5e4db7da1a",
+          "resolutions": [],
+          "revalidating": false,
+          "revalidations": 0,
+          "status": "stale"
+        },
+        "WI-4": {
+          "conditions": [
+            {
+              "reasonCodes": [],
+              "type": "Fresh"
+            }
+          ],
+          "headSha": null,
+          "promotionApproved": false,
+          "receipt": "f40b016db0ff2c70ccd790c2652e199e74d70de6c28f6f9b2fb3ee5e4db7da1a",
+          "resolutions": [],
+          "revalidating": false,
+          "revalidations": 0,
+          "status": "running"
+        },
+        "WI-5": {
+          "conditions": [
+            {
+              "reasonCodes": [],
+              "type": "Fresh"
+            }
+          ],
+          "headSha": null,
+          "promotionApproved": false,
+          "receipt": "dc64e64d1064a4cd52d7c118102c478f179195c818a01c83db1c1de498b8acf5",
+          "resolutions": [],
+          "revalidating": false,
+          "revalidations": 0,
+          "status": "running"
+        }
+      }
+    }
+  },
+  "when": {
+    "event": {
+      "commitSha": "b0000000000000000000000000000000000000cb",
+      "invalid": [],
+      "records": [
+        {
+          "acceptedAt": "2026-10-13T16:00:00Z",
+          "acceptedBy": "shelter-coordinator",
+          "authority": "shelter-coordinator",
+          "blobHash": "94e71c49ffd262ec3ef632fee7a2ad5b3a5c126b90c3538437ea39bef240dc93",
+          "facetHash": "8cd8331fa4c870cf90a5c21627415e987cdc4e9945a543cef33c5988334f955a",
+          "facets": {
+            "capacity_note": "Hall A holds 120 cots; the shift lead decides on overflow",
+            "hours": "doors open 7:00 to 21:00 daily",
+            "id_required": "ID not listed as a requirement",
+            "pets": "crated pets admitted, pet area in Hall B"
+          },
+          "not": {
+            "id_required": [
+              "ID required"
+            ],
+            "pets": [
+              "service animals only"
+            ]
+          },
+          "recordId": "shelter-intake-policy",
+          "status": "accepted",
+          "validation": "checks/shelter-intake.check",
+          "version": 2
+        }
+      ],
+      "repo": "shelter-intake-baseline",
+      "snapshotHash": "c6ad48cab930ffcd5dce4de916ca0f103f942cc4f7076255b9656535ef92d8ab",
+      "ts": "2026-10-13T16:00:00Z",
+      "type": "BaselinePushed"
+    }
+  }
+}
