@@ -63,37 +63,37 @@ export const policy: Policy = {
 export const commits = {
 	/** 61867a9 (PR #3): where "Cedar County" first appears. */
 	baselineV1: "61867a991e187da94a3c3b152ebc2e484f81da65",
-	/** 2cf1f2e (PR #6): the claims check first counts as a test (evidence policy v1). */
-	evidenceV1: "2cf1f2e3cdf697371fdfe43b3b6e9aa779da3e26",
+	/** 7d7fa09 (PR #6): the claims check first counts as a test (evidence policy v1). */
+	evidenceV1: "7d7fa09fcb5c7deb442302412e7747e3f132e916",
 	/** 59d48e4 (PR #4): scenario naming v2 (Cedar County becomes Larkhaven County). */
 	namingV2: "59d48e4659fde029f10cc0cf5d70d8640c6b74bc",
-	/** 163cb45 (PR #6): evidence policy v2. */
-	evidenceV2: "163cb4559c5b21872287f89a1e58796e8ac5818c",
-	/** cd31c39 (PR #6): evidence policy v3 (required facets come from the receipt). */
-	evidenceV3: "cd31c3910fa83f12bb9238bf5fbde0aceb78a73d",
+	/** 8350830 (PR #6): evidence policy v2. */
+	evidenceV2: "835083048a2807f22e5ba40959b13f82a3b9345a",
+	/** 2f3d2c8 (PR #6): evidence policy v3 (required facets come from the receipt). */
+	evidenceV3: "2f3d2c86a205b7031b4c34ee4691657297d25840",
 	/** Not in git. The one invented event in the replay. */
 	productNamingProse: NOT_IN_GIT,
-	/** b3f0394: the merge of PR #6, where the M4 revalidate loop now lives on main. */
-	wi1Head: "b3f0394243f67b6d671dcbdec979db49d82e2b0b",
-	/** 32dbd75: the merge of PR #7, where the console evidence labels now live on main. */
-	wi2Head: "32dbd75cc9ab7e010482af3244469f9591ddb9a2",
-	/** faf83a8: the video script revised, with the shelter act. */
-	wi3Head: "faf83a88754f5e0bf26b458620190e1518532012",
+	/** ce882f2: the merge of PR #6, where the M4 revalidate loop now lives on main. */
+	wi1Head: "ce882f2ecdd1b6f66f3d0804fa2eb169cc093dd4",
+	/** 6689702: the merge of PR #7, where the console evidence labels now live on main. */
+	wi2Head: "668970268c10adb56035a6a9721a3dd8e2eb4b81",
+	/** f29ac84: the video script revised, with the shelter act. */
+	wi3Head: "f29ac84485004d933a5c3d1db1b74b55e99352cf",
 	/** 61867a9 (PR #3): the shelter fixtures. */
 	wi4Head: "61867a991e187da94a3c3b152ebc2e484f81da65",
 	/** Not in git: the shared brief lives in Notion. */
 	wi5Head: NOT_IN_GIT,
-	/** f30e0ca: tip of the cloud/t9-readme branch (PR #1, unmerged) as of Oct 13. */
-	wi6Head: "f30e0ca4f98ffcf2826c983aa0b094c07a23eda4",
-	/** 2181838 (PR #4): the commit that introduced the console identity header. */
-	wi7Head: "21818387ebf79ac6aefafd68a8d0e09123989d49",
+	/** e0710e6: tip of the cloud/t9-readme branch (PR #1, unmerged) as of Oct 13. */
+	wi6Head: "e0710e60d29e193f5724116e91d2388097544ba4",
+	/** 3036894 (PR #4): the commit that introduced the console identity header. */
+	wi7Head: "30368947b30fc5f4ee8f6d34a9e7721e9c2d9529",
 } as const;
 
 /**
  * Event times. Where a commit exists, the timestamp is that commit's author time in UTC. Three are not:
  * `setup` (the replay registering work items, not history), `notInGit` (the shared brief, no commit) and
  * `productNamingProse` (the invented wording edit).
- * PR #6 and PR #7 were pushed first as commits 2cf1f2e (Oct 12 23:47 ET) and a first version of PR #7
+ * PR #6 and PR #7 were pushed first as commits 7d7fa09 (Oct 12 23:47 ET) and a first version of PR #7
  * (Oct 12 23:54 ET, since rewritten when the branch was rebased, so its sha is not cited). Their heads in the
  * fixture are the merge commits, which is where the work lives now; the claims are what the first versions assumed.
  */
@@ -288,9 +288,9 @@ export async function buildDogfoodBuildScenario() {
 		push,
 		/** Cedar County becomes Larkhaven County (59d48e4). */
 		namingV2: baseline(commits.namingV2, ts.namingV2, snapshotHashes.namingV2, [namingV2]),
-		/** The claims check becomes informational; only a check Delta Convergence runs counts (163cb45). */
+		/** The claims check becomes informational; only a check Delta Convergence runs counts (8350830). */
 		evidenceV2: baseline(commits.evidenceV2, ts.evidenceV2, snapshotHashes.evidenceV2, [evidenceV2]),
-		/** The run check takes its facets from the receipt (cd31c39). */
+		/** The run check takes its facets from the receipt (2f3d2c8). */
 		evidenceV3: baseline(commits.evidenceV3, ts.evidenceV3, snapshotHashes.evidenceV3, [evidenceV3]),
 		/** Invented: wording only, no facet moves, no commit. The negative control. */
 		productNamingProse: baseline(commits.productNamingProse, ts.productNamingProse, snapshotHashes.productNamingProse, [productNamingV2]),
@@ -300,15 +300,15 @@ export async function buildDogfoodBuildScenario() {
 	const timeline: TimelineStep[] = [
 		...items.map((item) => ({ key: `register-${item.id}`, label: `${item.id} registered (replay setup, not history)`, ts: ts.setup, event: register[item.id]! })),
 		{ key: "push-WI-5", label: "WI-5 pushed (not in git)", ts: ts.notInGit, event: push["WI-5"]! },
-		{ key: "push-WI-6", label: "WI-6 pushed (f30e0ca)", ts: ts.wi6Pushed, event: push["WI-6"]! },
+		{ key: "push-WI-6", label: "WI-6 pushed (e0710e6)", ts: ts.wi6Pushed, event: push["WI-6"]! },
 		{ key: "push-WI-4", label: "WI-4 pushed (61867a9)", ts: ts.wi4Pushed, event: push["WI-4"]! },
-		{ key: "push-WI-3", label: "WI-3 pushed (faf83a8)", ts: ts.wi3Pushed, event: push["WI-3"]! },
+		{ key: "push-WI-3", label: "WI-3 pushed (f29ac84)", ts: ts.wi3Pushed, event: push["WI-3"]! },
 		{ key: "namingV2", label: "Scenario naming v2 (59d48e4)", ts: ts.namingV2, event: events.namingV2 },
-		{ key: "push-WI-7", label: "WI-7 pushed (2181838)", ts: ts.wi7Pushed, event: push["WI-7"]! },
+		{ key: "push-WI-7", label: "WI-7 pushed (3036894)", ts: ts.wi7Pushed, event: push["WI-7"]! },
 		{ key: "push-WI-1", label: "WI-1 pushed (first version of PR #6)", ts: ts.wi1Pushed, event: push["WI-1"]! },
 		{ key: "push-WI-2", label: "WI-2 pushed (first version of PR #7)", ts: ts.wi2Pushed, event: push["WI-2"]! },
-		{ key: "evidenceV2", label: "Evidence policy v2 (163cb45)", ts: ts.evidenceV2, event: events.evidenceV2 },
-		{ key: "evidenceV3", label: "Evidence policy v3 (cd31c39)", ts: ts.evidenceV3, event: events.evidenceV3 },
+		{ key: "evidenceV2", label: "Evidence policy v2 (8350830)", ts: ts.evidenceV2, event: events.evidenceV2 },
+		{ key: "evidenceV3", label: "Evidence policy v3 (2f3d2c8)", ts: ts.evidenceV3, event: events.evidenceV3 },
 		{ key: "productNamingProse", label: "Product naming wording edit (invented, not in git)", ts: ts.productNamingProse, event: events.productNamingProse },
 	];
 

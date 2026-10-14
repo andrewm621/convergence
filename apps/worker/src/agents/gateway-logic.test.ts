@@ -808,7 +808,7 @@ describe("limitStream", () => {
 	});
 });
 
-// ---- Cost-cap bypass audit (finding from the automated review of 33fcd24) ----
+// ---- Cost-cap bypass audit (finding from the automated review of 8439945) ----
 // Every path where a call's dollars could escape the per-run cap: a reported cost trusted over the token count, a zero
 // cost accepted by the meter, usage fields dropped as zero, reasoning tokens, settled ids reused, and rounding.
 describe("cost cap: a call is never charged less than its tokens at the table rates", () => {

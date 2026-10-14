@@ -78,16 +78,16 @@ describe("the build-history fixture is valid and carries its honest framing", ()
 	});
 
 	it("uses real full-length commit shas where a commit exists, and no private or ambiguous names", () => {
-		expect(s.commits.wi1Head.startsWith("b3f0394")).toBe(true);
-		expect(s.commits.wi2Head.startsWith("32dbd75")).toBe(true);
-		expect(s.commits.evidenceV1.startsWith("2cf1f2e")).toBe(true);
-		expect(s.commits.evidenceV2.startsWith("163cb45")).toBe(true);
-		expect(s.commits.evidenceV3.startsWith("cd31c39")).toBe(true);
+		expect(s.commits.wi1Head.startsWith("ce882f2")).toBe(true);
+		expect(s.commits.wi2Head.startsWith("6689702")).toBe(true);
+		expect(s.commits.evidenceV1.startsWith("7d7fa09")).toBe(true);
+		expect(s.commits.evidenceV2.startsWith("8350830")).toBe(true);
+		expect(s.commits.evidenceV3.startsWith("2f3d2c8")).toBe(true);
 		expect(s.commits.namingV2.startsWith("59d48e4")).toBe(true);
 		expect(s.commits.baselineV1.startsWith("61867a9")).toBe(true);
-		expect(s.commits.wi3Head.startsWith("faf83a8")).toBe(true);
-		expect(s.commits.wi6Head.startsWith("f30e0ca")).toBe(true);
-		expect(s.commits.wi7Head.startsWith("2181838")).toBe(true);
+		expect(s.commits.wi3Head.startsWith("f29ac84")).toBe(true);
+		expect(s.commits.wi6Head.startsWith("e0710e6")).toBe(true);
+		expect(s.commits.wi7Head.startsWith("3036894")).toBe(true);
 		const everything = JSON.stringify([s.workItems, s.actors, s.expected, s.timeline.map((t) => t.label)]) + Object.values(s.docs).map((d) => d.text).join("\n");
 		// The product name is always written in full; the bare shorthand never appears in this fixture's prose or labels.
 		expect(everything).not.toMatch(/\bDelta\b(?! Convergence)/);
@@ -162,7 +162,7 @@ describe.each(stores)("the replay on the %s", (_label, makeStore) => {
 		expect(state.baselineCommit).toBe(s.commits.namingV2);
 	});
 
-	it("step 2, evidence policy v1 to v2 (163cb45): WI-1, WI-2, WI-3 go stale; WI-4 to WI-7 are untouched", async () => {
+	it("step 2, evidence policy v1 to v2 (8350830): WI-1, WI-2, WI-3 go stale; WI-4 to WI-7 are untouched", async () => {
 		const cell = await replayBefore("evidenceV2", makeStore());
 		const before = structuredClone(await cell.state());
 		const result = await cell.send(s.events.evidenceV2);
@@ -184,7 +184,7 @@ describe.each(stores)("the replay on the %s", (_label, makeStore) => {
 		expect(state.records["evidence-policy"]?.current).toBe(2);
 	});
 
-	it("step 3, evidence policy v2 to v3 (cd31c39): only WI-1, which relies on required-facets, gains a stale facet; WI-4 to WI-7 are untouched", async () => {
+	it("step 3, evidence policy v2 to v3 (2f3d2c8): only WI-1, which relies on required-facets, gains a stale facet; WI-4 to WI-7 are untouched", async () => {
 		const cell = await replayBefore("evidenceV3", makeStore());
 		const before = structuredClone(await cell.state());
 		for (const id of ["WI-1", "WI-2", "WI-3"]) expect(staleFacets(before, id), id).toEqual(s.expected.afterEvidenceV2.stale[id as "WI-1"]);

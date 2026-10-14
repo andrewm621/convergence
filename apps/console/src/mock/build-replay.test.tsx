@@ -180,7 +180,7 @@ describe("the build replay: shas and actions", () => {
 		const hrefs = links.map((link) => link.getAttribute("href"));
 		expect(hrefs).toContain(`https://github.com/andrewm621/delta-convergence/commit/${bundle.commits.wi1Head}`);
 		expect(hrefs).toContain(`https://github.com/andrewm621/delta-convergence/commit/${bundle.commits.baselineV1}`);
-		expect(links.some((link) => link.textContent?.startsWith("b3f0394"))).toBe(true);
+		expect(links.some((link) => link.textContent?.startsWith("ce882f2"))).toBe(true);
 		expect(links.every((link) => !/[0-9a-f]{20}/.test(link.textContent ?? ""))).toBe(true);
 		expect(within(tab).queryByTestId("not-in-git")).toBeNull();
 	});

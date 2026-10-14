@@ -1,6 +1,6 @@
 # Contest requirements checklist (Cloudflare "Build the next GitHub")
 
-**Checked:** 2026-10-13 against the primary sources below, mapped to repo state at commit `baaf6c8`. Task statuses: T-1, T-2, T-3, T-11 done; T-10 review; T-4, T-5, T-9 in progress; T-6, T-7, T-8, T-12 open.
+**Checked:** 2026-10-13 against the primary sources below, mapped to repo state at commit `4656691`. Task statuses: T-1, T-2, T-3, T-11 done; T-10 review; T-4, T-5, T-9 in progress; T-6, T-7, T-8, T-12 open.
 
 **The Official Rules PDF is the authority.** Where the contest page, the submission form or the blog posts disagree with it, follow the Rules and flag the gap (see "Ambiguities to resolve").
 

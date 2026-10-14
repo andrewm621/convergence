@@ -49,7 +49,7 @@ describe("the seed for our own build (end state, not a replay)", () => {
 
 	it("points the shared brief at nothing, because it is not in git", () => {
 		expect(JSON.parse(seed.workItems[4]?.forkFiles[POINTER_FILE] as string).head).toBeNull();
-		expect(JSON.parse(seed.workItems[0]?.forkFiles[POINTER_FILE] as string).head).toBe("b3f0394243f67b6d671dcbdec979db49d82e2b0b");
+		expect(JSON.parse(seed.workItems[0]?.forkFiles[POINTER_FILE] as string).head).toBe("ce882f2ecdd1b6f66f3d0804fa2eb169cc093dd4");
 	});
 
 	it("says what a claim needs when the facet is not there", () => {

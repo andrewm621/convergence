@@ -17,7 +17,7 @@ export const DEMO_IDENTITY_PATH = "context/decisions/demo-identity.md";
 
 const NOTE = "> Retrofitted from this repo's git history. Dependencies are declared by us; no automated evidence.";
 
-/** v1: the agent's own claims check is accepted as the contract test. First landed in commit 2cf1f2e (PR #6). */
+/** v1: the agent's own claims check is accepted as the contract test. First landed in commit 7d7fa09 (PR #6). */
 export const EVIDENCE_POLICY_V1 = `---
 id: evidence-policy
 version: 1
@@ -38,7 +38,7 @@ ${NOTE}
 The check an agent's claims go through is what gates a work item.
 `;
 
-/** v2: only a check Delta Convergence runs counts; the claims check is informational. Commit 163cb45 (PR #6). */
+/** v2: only a check Delta Convergence runs counts; the claims check is informational. Commit 8350830 (PR #6). */
 export const EVIDENCE_POLICY_V2 = `---
 id: evidence-policy
 version: 2
@@ -63,7 +63,7 @@ ${NOTE}
 Only a check that Delta Convergence runs itself counts as a test. The claims check is recorded but informational.
 `;
 
-/** v3: the run check asserts the facets the item relied on, taken from its receipt. Commit cd31c39 (PR #6). */
+/** v3: the run check asserts the facets the item relied on, taken from its receipt. Commit 2f3d2c8 (PR #6). */
 export const EVIDENCE_POLICY_V3 = `---
 id: evidence-policy
 version: 3

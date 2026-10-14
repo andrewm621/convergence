@@ -45,7 +45,7 @@ The fast-forward rows below were observed before the baseline stopped carrying a
 1. **The stub agent blocked its own work item.** It claimed every context record it read, so WI-1 (which depends only on `status-model`) claimed `notifications` too and the gate failed with `UNDECLARED_DEP`. Fix: the stub cites only the records its prompt names (by id or first word), falling back to all when none match. Tested in `stub-agent.test.ts`.
 2. **List facets became a string.** `status.values: [draft, active, blocked, done]` was claimed as the string `"[draft, active, blocked, done]"`, a false `CLAIM_CONFLICT`. Fix: the stub reads flow lists as arrays.
 3. **The stub could not read the records the Worker writes.** The Worker quotes facet keys (`"notifications.cadence": ...`), the stub's reader did not, so a revalidation run produced zero claims and `NO_CLAIMS`. Fix: quoted keys are read.
-4. **Cost-cap bypass paths in the gateway meter** (the finding from commit 33fcd24). See below.
+4. **Cost-cap bypass paths in the gateway meter** (the finding from commit 8439945). See below.
 5. **Parser differential and unbounded reads in the gateways** (security review, commit `fix(m1): canonicalize forwarded model body; bound body reads before buffering`). The model gateway forwarded the raw request text when nothing was dropped or clamped, so a duplicate `model` or `max_tokens` key (read last by our `JSON.parse`, possibly first upstream) could pass the pin and the ceiling and then run something else. It now always forwards `JSON.stringify` of the validated object, and sizes the call by the larger of the received and forwarded bytes (lone surrogates and invalid UTF-8 come out well-formed). The model gateway used to `await request.arrayBuffer()` before the size check; it now reads through `readBodyLimited` and stops at 8 MB with `413`. The git gateway passed a declared-length body through unbounded; `limitStream` now always applies, and a body that runs past 64 MB gets `413`. Tests: duplicate keys, canonical output, chunked oversize bodies, and a false `content-length`, for both gateways.
 
 ### Cost-cap audit (`gateway-logic.ts`)
@@ -83,7 +83,7 @@ Findings from getting there:
 
 ## Oct 13: M4 loop live
 
-The M4 revalidate loop was run on the deployed Worker (version built from `main` at `32dbd75`, `AGENT_MODE=stub`, no model spend), with `scripts/check-live.mjs` and a headless browser on the console.
+The M4 revalidate loop was run on the deployed Worker (version built from `main` at `6689702`, `AGENT_MODE=stub`, no model spend), with `scripts/check-live.mjs` and a headless browser on the console.
 
 | Check | Result | Observed |
 |---|---|---|
@@ -129,7 +129,7 @@ Notes:
 
 ## Console live verification
 
-The console (PR #4) was deployed from `main` (head `2181838`) and checked on the deployed Worker on 2026-10-12 with a headless browser, stub agents only, and no model calls.
+The console (PR #4) was deployed from `main` (head `3036894`) and checked on the deployed Worker on 2026-10-12 with a headless browser, stub agents only, and no model calls.
 
 | Check | Result | Observed |
 |---|---|---|
