@@ -5,7 +5,7 @@ import { ActorChip, RunningDot, SeededBadge, StatusChip, useDegraded } from "@/c
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatDateTime } from "@/lib/format";
 import { useConsole, type InspectorTab } from "@/state/console-context";
-import { agentModelOf, analysisOf, hasProblem, mergeRecord, quietOf, readyByException, runningAgents, workItemsSorted } from "@/state/derive";
+import { agentModelFor, analysisOf, hasProblem, mergeRecord, quietOf, readyByException, runningAgents, workItemsSorted } from "@/state/derive";
 import { useGate } from "@/state/use-gate";
 import { PaneHeader } from "./context-timeline";
 import { ActionsTab } from "./inspector-actions";
@@ -81,7 +81,7 @@ function WorkItemInspector({ wi }: { wi: WorkItemState }) {
 				<h2 className="text-[15px] leading-snug font-semibold">{wi.item.title}</h2>
 				<div className="flex flex-wrap items-center gap-2">
 					<StatusChip status={wi.item.status} leftAlone={quiet !== null} excepted={excepted} />
-					<ActorChip actor={wi.item.actor} label={scenarioMeta(client.scenario, client.kind === "live").agentLabel ?? agentModelOf(view.ledger, wi.item.id) ?? undefined} />
+					<ActorChip actor={wi.item.actor} label={scenarioMeta(client.scenario, client.kind === "live").agentLabel ?? agentModelFor(view, wi.item.id) ?? undefined} />
 					<PromoteButton workItemId={wi.item.id} className="ml-auto" />
 				</div>
 				{merged && (

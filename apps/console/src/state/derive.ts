@@ -105,6 +105,11 @@ export function agentModelOf(ledger: readonly ReconciliationEvent[], workItemId:
 	return null;
 }
 
+/** What runs a work item as the console shows it: the ledger's model first, else the one read from its latest run (live). */
+export function agentModelFor(view: Pick<ViewState, "ledger" | "agentModels">, workItemId: string): string | null {
+	return agentModelOf(view.ledger, workItemId) ?? view.agentModels[workItemId] ?? null;
+}
+
 // ---------- claims vs facets (the semantic diff) ----------
 
 export type ClaimVerdict = "match" | "conflict" | "undeclared" | "ungoverned";

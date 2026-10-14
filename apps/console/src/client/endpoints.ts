@@ -20,6 +20,8 @@ export const endpoints = {
 	dependencies: (scenario: Cell, workItemId: string) => `${item(scenario, workItemId)}/dependencies`,
 	promote: (scenario: Cell, workItemId: string) => `${item(scenario, workItemId)}/promote`,
 	context: (scenario: Cell, recordId: string) => `${scoped(scenario)}/context/${encodeURIComponent(recordId)}`,
+	/** Not scoped to a cell: the latest run of the agent with this id (the lowercase work item id), whichever cell it ran for. */
+	agentRun: (agentId: string) => `${API}/agents/runs/${encodeURIComponent(agentId)}`,
 	contextChanges: (scenario: Cell) => `${scoped(scenario)}/context-changes`,
 } as const;
 
