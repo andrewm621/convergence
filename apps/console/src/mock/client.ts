@@ -10,6 +10,7 @@ import { fanoutScript } from "./script-fanout";
 import { notificationsScript } from "./script-notifications";
 import { salesOpsScript } from "./script-sales-ops";
 import { shelterIntakeScript } from "./script-shelter-intake";
+import { undeclaredScript } from "./script-undeclared";
 import { MockSession } from "./session";
 
 export type MockOptions = {
@@ -57,7 +58,7 @@ type Loaded = { scenario: MockScenario; scripts: MockScript[] };
 async function load(name: ScenarioName): Promise<Loaded> {
 	if (name === "notifications") {
 		const bundle = await buildNotificationsScenario();
-		return { scenario: bundle, scripts: [notificationsScript(bundle), fanoutScript(bundle)] };
+		return { scenario: bundle, scripts: [notificationsScript(bundle), fanoutScript(bundle), undeclaredScript(bundle)] };
 	}
 	if (name === "delta-convergence-build") {
 		const bundle = await buildDogfoodBuildScenario();
@@ -281,6 +282,7 @@ export function createMockClient(options: MockOptions): MockClient {
 				return result;
 			},
 			promote: (input, key) => withSession((s) => s.promote(input, key), fail("Not connected")),
+			decideDependency: (input, key) => withSession((s) => s.decideDependency(input, key), fail("Not connected")),
 			async seedScenario() {
 				return withSession(async (s) => {
 					await s.seedBaseline();

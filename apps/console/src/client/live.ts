@@ -334,6 +334,7 @@ export function createLiveClient(options: LiveOptions): ConsoleClient {
 		proposeContextChange: (input, key) => command(endpoints.contextChanges(cell), input, key),
 		resolve: (input, key) => command(endpoints.resolutions(cell, input.workItemId), input, key),
 		promote: (input, key) => command(endpoints.promote(cell, input.workItemId), input, key),
+		decideDependency: (input, key) => command(endpoints.dependencies(cell, input.workItemId), { recordId: input.recordId, decision: input.decision }, key),
 		seedScenario: async () => unavailable(NOT_IMPLEMENTED.seed),
 		startScenario: async () => unavailable(NOT_IMPLEMENTED.start),
 	};

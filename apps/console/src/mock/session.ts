@@ -13,7 +13,7 @@ import {
 import { buildReceipt, currentSnapshot, diffFacets, evaluateGate } from "delta-core";
 import { DEMO_IDENTITY } from "@/config";
 import { CLAIMS_CHECK_NAME } from "@/lib/evidence";
-import type { CommandResult, ContextChangeInput, FileChange, GateResult, PromoteInput, ResolveInput } from "@/client/types";
+import type { CommandResult, ContextChangeInput, DecideDependencyInput, FileChange, GateResult, PromoteInput, ResolveInput } from "@/client/types";
 import type { MockCell, MockScenario } from "./cell";
 import { changesFor } from "./changes";
 
@@ -209,6 +209,31 @@ export class MockSession {
 			return { ok: true, message: "Revalidation started: the agent is re-running on the current decisions." };
 		}
 		return { ok: true, message: input.kind === "reject" ? "Rejected." : "Exception recorded." };
+	}
+
+	// ---------- a human decides an inferred dependency (R4) ----------
+
+	async decideDependency(input: DecideDependencyInput, key: string): Promise<CommandResult> {
+		const result = await this.cell.send({
+			type: "DependencyDecided",
+			ts: PLACEHOLDER_TS,
+			requestId: key,
+			workItemId: input.workItemId,
+			recordId: input.recordId,
+			decision: input.decision === "accept" ? "accepted" : "rejected",
+			actor: this.human,
+		});
+		const refusal = refusalOf(result.effects);
+		if (result.outcome !== "applied" || refusal) {
+			const code = refusal?.[0];
+			return { ok: false, code: code ?? "REFUSED", message: code === "ALREADY_RESOLVED" ? "There is no open question about that dependency." : refusalMessage(code), reasonCodes: refusal };
+		}
+		return { ok: true, message: input.decision === "accept" ? "Dependency accepted." : "Dependency rejected." };
+	}
+
+	/** Decide a dependency as a presenter driving the demo would. */
+	decideDependencyNow(decision: DecideDependencyInput["decision"], workItemId: string, recordId: string): Promise<CommandResult> {
+		return this.decideDependency({ workItemId, recordId, decision }, this.#key(`dependency-${workItemId}`));
 	}
 
 	// ---------- revalidation: the agent comes back ----------

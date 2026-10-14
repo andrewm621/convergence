@@ -124,6 +124,14 @@ export type ResolveInput = {
 	binding: ResolutionBinding;
 };
 
+/** A human's call on a dependency the engine inferred from an agent's claims (rule R4). Who decides comes from the session. */
+export type DecideDependencyInput = {
+	workItemId: string;
+	/** The record the claims rely on without having been given it. */
+	recordId: string;
+	decision: "accept" | "reject";
+};
+
 export type PromoteInput = {
 	workItemId: string;
 	/** Compare-and-swap inputs: the baseline and fork head the human was looking at. */
@@ -142,6 +150,8 @@ export type ConsoleApi = {
 	proposeContextChange(input: ContextChangeInput, idempotencyKey: string): Promise<CommandResult>;
 	resolve(input: ResolveInput, idempotencyKey: string): Promise<CommandResult>;
 	promote(input: PromoteInput, idempotencyKey: string): Promise<CommandResult>;
+	/** Accept or reject a dependency the engine inferred (`POST /work-items/:id/dependencies`). Reject clears the hold on the work item. */
+	decideDependency(input: DecideDependencyInput, idempotencyKey: string): Promise<CommandResult>;
 	/** Empty state: declare the scenario's first decisions. */
 	seedScenario(idempotencyKey: string): Promise<CommandResult>;
 	/** Create the scenario's work items and start their agents. */

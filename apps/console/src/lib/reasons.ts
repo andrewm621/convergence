@@ -125,6 +125,15 @@ export const REASON_META: Partial<Record<ReasonCode, ReasonMeta>> = {
 	},
 };
 
+/**
+ * The "?" row under "Built on": a decision the agent's claims cite that it was never handed (UNDECLARED_DEP).
+ * The agent said it relied on it; nobody has confirmed that, so it is not shown as a dependency.
+ */
+export const NOT_GIVEN_TEXT = {
+	label: "Not given",
+	detail: "Not given — the agent says it relied on this",
+} as const;
+
 /** Said for a code with no entry above. */
 export const GENERIC_REASON: ReasonMeta = {
 	summary: "Convergence recorded this reason.",

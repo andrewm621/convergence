@@ -17,6 +17,7 @@ export const endpoints = {
 	state: (scenario: Cell) => `${scoped(scenario)}/state`,
 	gate: (scenario: Cell, workItemId: string) => `${item(scenario, workItemId)}/gate`,
 	resolutions: (scenario: Cell, workItemId: string) => `${item(scenario, workItemId)}/resolutions`,
+	dependencies: (scenario: Cell, workItemId: string) => `${item(scenario, workItemId)}/dependencies`,
 	promote: (scenario: Cell, workItemId: string) => `${item(scenario, workItemId)}/promote`,
 	context: (scenario: Cell, recordId: string) => `${scoped(scenario)}/context/${encodeURIComponent(recordId)}`,
 	contextChanges: (scenario: Cell) => `${scoped(scenario)}/context-changes`,

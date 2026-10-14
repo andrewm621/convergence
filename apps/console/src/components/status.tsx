@@ -41,7 +41,7 @@ export const STATUS_META: Record<WorkItemStatus, StatusMeta> = {
 	revalidating: { label: "revalidating", tone: "info", icon: RefreshCw, description: "Re-running on the current decisions." },
 	ready: { label: "Ready to merge", tone: "primary", icon: CheckCheck, description: "Cleared by the merge check. A human decides whether to merge." },
 	promoted: { label: "Merged", tone: "merged", icon: GitMerge, description: "Merged into the baseline." },
-	uncertain: { label: "uncertain", tone: "warning", icon: HelpCircle, description: "Convergence cannot tell: claims are missing or rely on something undeclared." },
+	uncertain: { label: "Held", tone: "warning", icon: HelpCircle, description: "Convergence cannot tell: claims are missing or rely on something undeclared." },
 	rejected: { label: "rejected", tone: "neutral", icon: CircleSlash, description: "A human rejected this work." },
 };
 

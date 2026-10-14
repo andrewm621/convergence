@@ -10,7 +10,7 @@ export type Runtime = {
 	cell?: string;
 	/** Mock only: begin with no accepted context, to show the empty state. */
 	start: "seeded" | "empty";
-	/** Mock only: which script to start on (`story` or `fanout`). */
+	/** Mock only: which script to start on (`story`, `fanout` or `undeclared`). */
 	script?: string;
 	/** Mock only: space agent output out over time. */
 	drip: boolean;

@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { useConsole } from "@/state/console-context";
 import { actorLabel, analysisOf, builtOnStamps, currentRecord, leftAlone, reasonSentences, reliedFacets, semanticDiff, signOffFor, validExceptions } from "@/state/derive";
 import { useGate } from "@/state/use-gate";
+import { DependencyDecision } from "./dependency-decision";
 import { Resolutions } from "./inspector-actions";
 import { ReceiptFacetList } from "./receipt-facets";
 
@@ -91,6 +92,7 @@ export function WhyTab({ wi }: { wi: WorkItemState }) {
 
 	return (
 		<div className="space-y-4 p-4" data-testid="why-tab">
+			<DependencyDecision workItemId={wi.item.id} />
 			<div
 				className={cn("rounded-xl border p-3.5", showReason ? "border-danger/35 bg-danger-soft" : blocked ? "border-warning/35 bg-warning-soft" : promoted ? "border-merged/30 bg-merged-soft" : "bg-card")}
 				data-testid="reason-card"
