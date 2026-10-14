@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ReasonChip } from "@/components/status";
 import { Badge } from "@/components/ui/badge";
 import { formatTime, shortHash } from "@/lib/format";
+import { primaryReason } from "@/lib/reasons";
 import { cn } from "@/lib/utils";
 import { useConsole } from "@/state/console-context";
 import { agentModelOf, summarizeLedgerLine } from "@/state/derive";
@@ -18,7 +19,7 @@ const KIND_META: Record<AgentActivity["kind"], { icon: typeof Terminal; label: s
 
 export function BottomStrip() {
 	return (
-		<div className="grid h-[212px] shrink-0 grid-cols-2 divide-x border-t bg-card">
+		<div className="grid h-[176px] shrink-0 grid-cols-2 divide-x border-t bg-card">
 			<ActivityStream />
 			<LedgerTail />
 		</div>
@@ -55,7 +56,7 @@ function ActivityStream() {
 				ref={scroller}
 				role="log"
 				aria-live="off"
-				className="min-h-0 flex-1 overflow-y-auto px-4 py-2 font-mono text-xs"
+				className="min-h-0 flex-1 overflow-y-auto px-4 py-2 font-mono text-[13px]"
 				onScroll={(e) => {
 					const el = e.currentTarget;
 					pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24;
@@ -142,9 +143,10 @@ function LedgerTail() {
 				) : (
 					lines.map((entry) => {
 						const summary = summarizeLedgerLine(entry);
-						const shown = summary.reasonCodes.slice(0, 3);
+						// One plain chip per line, for the most important code. The others stay in the tooltip.
+						const reason = primaryReason(summary.reasonCodes) ?? (summary.noAction ? "NO_ACTION" : undefined);
 						return (
-							<li key={entry.seq} data-seq={entry.seq} data-type={entry.type} className="row-in flex items-center gap-2 py-[3px] text-xs leading-5">
+							<li key={entry.seq} data-seq={entry.seq} data-type={entry.type} className="row-in flex items-center gap-2 py-[3px] text-[13px] leading-5">
 								<span className="w-9 shrink-0 text-right font-mono text-muted-foreground tabular-nums">#{entry.seq}</span>
 								<span className="shrink-0 text-muted-foreground tabular-nums">{formatTime(entry.ts)}</span>
 								<span className="shrink-0 font-semibold" title={summary.hint}>
@@ -158,13 +160,9 @@ function LedgerTail() {
 								<span className="min-w-0 truncate text-muted-foreground" title={summary.detail}>
 									{summary.detail}
 								</span>
-								<span className="ml-auto flex shrink-0 items-center gap-1" title={summary.effectTypes.join(" · ")}>
-									{summary.noAction && <ReasonChip code="NO_ACTION" className="px-1.5 py-0 text-[10.5px]" />}
-									{shown.map((code) => (
-										<ReasonChip key={code} code={code} className="px-1.5 py-0 text-[10.5px]" />
-									))}
-									{summary.reasonCodes.length > shown.length && <span className="text-muted-foreground">+{summary.reasonCodes.length - shown.length}</span>}
-									<span className="w-14 text-right font-mono text-[10.5px] text-muted-foreground" title={entry.hash}>
+								<span className="ml-auto flex shrink-0 items-center gap-2" title={[...summary.effectTypes, ...summary.reasonCodes].join(" · ")}>
+									{reason && <ReasonChip plain code={reason} className="px-1.5 py-0" />}
+									<span className="w-14 text-right font-mono text-[11px] text-muted-foreground" title={entry.hash}>
 										{shortHash(entry.hash, 7)}
 									</span>
 								</span>
