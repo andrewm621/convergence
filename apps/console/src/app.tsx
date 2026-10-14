@@ -1,7 +1,7 @@
 import { CircleAlert, CircleCheck, Info } from "lucide-react";
 import { useMemo, useState } from "react";
 import { createClient, type Runtime } from "@/client/create-client";
-import type { ScenarioName } from "@/client/types";
+import { cellAfterSwitch, type ScenarioName } from "@/client/types";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { BottomStrip } from "@/features/bottom-strip";
 import { ContextTimeline } from "@/features/context-timeline";
@@ -25,7 +25,7 @@ export function readUi(search: string): UiChoice {
 
 export function App({ runtime, ui = "new" }: { runtime: Runtime; ui?: UiChoice }) {
 	const [scenario, setScenario] = useState<ScenarioName>(runtime.scenario);
-	// A named cell (`?cell=notifications-demo`) belongs to its scenario: choosing another one leaves it.
+	// A named cell (`?cell=notifications-demo`) belongs to its scenario: choosing another one leaves it, except a staged recording cell (`-rec1`), which follows to the same suffix.
 	const [cell, setCell] = useState(runtime.cell);
 	// Switching the scenario swaps the client; the mock and the live client are chosen in `createClient`.
 	const client = useMemo(() => createClient({ ...runtime, scenario, cell }), [runtime, scenario, cell]);
@@ -33,10 +33,12 @@ export function App({ runtime, ui = "new" }: { runtime: Runtime; ui?: UiChoice }
 	function chooseScenario(next: ScenarioName) {
 		if (next === scenario) return;
 		setScenario(next);
-		setCell(undefined);
+		const nextCell = cellAfterSwitch(cell, next);
+		setCell(nextCell);
 		const url = new URL(window.location.href);
 		url.searchParams.set("scenario", next);
-		url.searchParams.delete("cell");
+		if (nextCell) url.searchParams.set("cell", nextCell);
+		else url.searchParams.delete("cell");
 		url.searchParams.delete("script");
 		window.history.replaceState(null, "", url);
 	}

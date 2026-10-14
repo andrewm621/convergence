@@ -35,6 +35,17 @@ export function scenarioOfCell(value: string | null | undefined): ScenarioName |
 	return null;
 }
 
+/**
+ * The cell to open when the switcher moves to `next`. A staged recording cell (`notifications-rec1`) carries its suffix
+ * across (`shelter-intake-rec1`); any other named cell is left, so the scenario's own cell opens (undefined).
+ */
+export function cellAfterSwitch(cell: string | undefined, next: ScenarioName): string | undefined {
+	const suffix = cell?.match(/-rec\d+$/)?.[0];
+	if (!suffix || scenarioOfCell(cell) === null) return undefined;
+	const candidate = `${next}${suffix}`;
+	return scenarioOfCell(candidate) === next ? candidate : undefined;
+}
+
 export type ConnectionState = "connecting" | "live" | "reconnecting" | "polling" | "offline" | "unauthorized" | "mock";
 
 /** Whether the poller that watches the Artifacts repos is keeping up. While it is not, nothing can be called Fresh. */
