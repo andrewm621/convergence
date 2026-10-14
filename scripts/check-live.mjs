@@ -12,6 +12,7 @@
 //                              must be notifications-<something> (lowercase letters, digits, dashes, at most 40), so the
 //                              console can open it with ?cell=<name>. The cell must not exist yet. Implies --keep and
 //                              skips the second (unmoved baseline) scenario.
+//   --model <slug>             run both agents on this allowlisted OpenRouter model instead of the Worker default.
 //   --stop-before-revalidate   stop once notifications v2 has made WI-2 stale and blocked (WI-1 still ready, nothing
 //                              promoted), so the human revalidate, the re-dispatch and both promotions can be done on
 //                              camera in the console. Implies --keep.
@@ -171,7 +172,13 @@ if (wsOk) {
 // 2. Dispatch both stub agents concurrently
 // ---------------------------------------------------------------------------------------------------------
 t = performance.now();
-const dispatchBody = (wi, fork, prompt) => ({ forkRepo: fork, workItemId: agentIds[wi], prompt, wait: true });
+const modelAt = argv.indexOf("--model");
+const modelArg = modelAt >= 0 ? argv[modelAt + 1] : undefined;
+if (modelAt >= 0 && !(typeof modelArg === "string" && /^[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9][A-Za-z0-9._-]*$/.test(modelArg))) {
+	console.error("--model needs an allowlisted OpenRouter slug, for example minimax/minimax-m3");
+	process.exit(2);
+}
+const dispatchBody = (wi, fork, prompt) => ({ forkRepo: fork, workItemId: agentIds[wi], prompt, wait: true, ...(modelArg ? { model: modelArg } : {}) });
 const [d1, d2] = await Promise.all([
 	call("POST", "/api/agents/dispatch", dispatchBody("WI-1", fork1, "Add status badges and the status-change API"), idem("d1")),
 	call("POST", "/api/agents/dispatch", dispatchBody("WI-2", fork2, "Implement notification preferences and delivery"), idem("d2")),

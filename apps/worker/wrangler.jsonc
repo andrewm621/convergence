@@ -37,7 +37,7 @@
     "AGENT_MAX_OUTPUT_TOKENS": "8192",
     // Dollars per run, summed from the cost OpenRouter reports in each response. A cheap model costs a cent or two; a stronger one on camera
     // (the shelter act) needs about a dollar of headroom. The code default is 0.25.
-    "AGENT_MAX_COST_USD": "1.00",
+    "AGENT_MAX_COST_USD": "2.00",
     // Pause between stub steps so concurrent runs visibly overlap.
     "STUB_STEP_MS": "2500",
     // Container size. "lite" runs the stub but is CPU-starved (about 2x slower end to end); claude needs standard-1 or larger.
