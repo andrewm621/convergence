@@ -1,7 +1,9 @@
 import type { WorkItemState } from "contracts";
-import { ChevronRight } from "lucide-react";
+import { ArrowRight, ChevronRight } from "lucide-react";
 import { RunningDot, SeededBadge, StatusChip } from "@/components/status";
+import { formatFacet } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import type { ChangedSetting } from "@/state/derive";
 import type { Tray } from "@/state/trays";
 
 /**
@@ -16,6 +18,8 @@ export function TrayRow({
 	excepted,
 	running,
 	onOpen,
+	settings = [],
+	muted = false,
 }: {
 	wi: WorkItemState;
 	tray: Tray;
@@ -24,13 +28,20 @@ export function TrayRow({
 	excepted: boolean;
 	running: boolean;
 	onOpen(id: string): void;
+	/** Blocked work: the settings it was built on that changed, old → new. */
+	settings?: ChangedSetting[];
+	/** Work that is not affected: quieter, so it stays in view without asking for attention. */
+	muted?: boolean;
 }) {
 	return (
 		<li className="row-in" data-slot="tray-row" data-work-item={wi.item.id}>
 			<button
 				type="button"
 				onClick={() => onOpen(wi.item.id)}
-				className="group flex w-full items-center gap-3 rounded-lg border bg-card px-4 py-3 text-left outline-none transition-colors hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50"
+				className={cn(
+					"group flex w-full items-center gap-3 rounded-lg border px-4 text-left outline-none transition-colors hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50",
+					muted ? "border-dashed bg-transparent py-2 opacity-80" : "bg-card py-3",
+				)}
 			>
 				<span className="min-w-0 flex-1">
 					<span className="flex items-center gap-2">
@@ -45,6 +56,18 @@ export function TrayRow({
 					>
 						{reason}
 					</span>
+					{settings.length > 0 && (
+						<span className="mt-1.5 flex flex-wrap gap-1.5" data-testid={`row-settings-${wi.item.id}`}>
+							{settings.map((setting) => (
+								<span key={`${setting.recordId}:${setting.key}`} className="inline-flex items-center gap-1.5 rounded-md bg-muted/60 px-2 py-0.5 text-xs">
+									<span className="font-medium">{setting.label}</span>
+									<span className="text-muted-foreground line-through">{formatFacet(setting.from)}</span>
+									<ArrowRight className="size-3 text-muted-foreground" aria-hidden />
+									<span className="font-semibold">{formatFacet(setting.to)}</span>
+								</span>
+							))}
+						</span>
+					)}
 				</span>
 				{running && tray !== "working" && <RunningDot label="Agent still working" />}
 				<StatusChip status={wi.item.status} leftAlone={leftAlone} excepted={excepted} className="shrink-0" />

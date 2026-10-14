@@ -14,7 +14,7 @@ import { WhyTab } from "./inspector-why";
 import { PromoteButton } from "./promote-button";
 import { scenarioMeta } from "./scenario-meta";
 
-const TAB_CLASS = "h-auto min-h-9 min-w-0 shrink flex-1 px-1.5 py-1 text-center text-[12.5px] leading-tight whitespace-normal";
+const TAB_CLASS = "h-auto min-h-9 min-w-0 shrink flex-1 px-1.5 py-1 text-center text-xs leading-tight whitespace-normal";
 
 export function Inspector() {
 	const { view, selectedId } = useConsole();
@@ -93,7 +93,7 @@ function WorkItemInspector({ wi }: { wi: WorkItemState }) {
 
 			<Tabs value={tab} onValueChange={(value) => setTab(value as InspectorTab)} className="min-h-0 flex-1">
 				{/* Five tabs share the width and wrap onto a second line, so none is clipped at the narrowest inspector (400 px). */}
-				<TabsList className="items-stretch gap-0 overflow-x-hidden px-1">
+				<TabsList className="items-stretch gap-0 overflow-x-auto px-1">
 					<TabsTrigger value="why" className={TAB_CLASS}>
 						{blocked ? "Why blocked?" : "Why"}
 					</TabsTrigger>

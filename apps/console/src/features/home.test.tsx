@@ -90,6 +90,41 @@ describe("the home trays", () => {
 		expect(await screen.findByTestId("start-agents")).toHaveTextContent("Agents work in parallel. Then a decision changes.");
 	});
 
+	it("lists ready work under Needs you as 'Ready to merge', so the last click is never hidden behind an empty state", async () => {
+		await renderWithMock(<HomeHarness />, { beats: 5 });
+		const section = await screen.findByTestId("needs-you-ready");
+		const row = within(section).getByRole("button", { name: /WI-1/ });
+		expect(within(row).getByText("Ready to merge")).toBeInTheDocument();
+		expect(screen.queryByTestId("empty-needs-you")).toBeNull();
+		expect(screen.getByTestId("tray-count-ready").className).toContain("text-primary");
+	});
+
+	it("keeps WI-1 in view after v2 as not affected, and shows WI-2's changed settings on its row", async () => {
+		await renderWithMock(<HomeHarness />, { beats: 4 });
+		const quiet = await screen.findByTestId("not-affected");
+		expect(quiet).toHaveTextContent("Not affected: nothing they rely on changed");
+		expect(within(quiet).getByRole("button", { name: /WI-1/ })).toBeInTheDocument();
+		expect(screen.getByTestId("row-settings-WI-2")).toHaveTextContent("default");
+		expect(screen.getByTestId("row-settings-WI-2")).toHaveTextContent("opt-in");
+	});
+
+	it("sums up the last change in one line, and says nothing before any change", async () => {
+		const harness = await renderWithMock(<HomeHarness />, { beats: 1 });
+		expect(screen.queryByTestId("change-summary")).toBeNull();
+		await harness.client.controls.jump(4);
+		await waitFor(() => expect(screen.getByTestId("change-summary")).toHaveTextContent("notifications v2 landed"));
+		expect(screen.getByTestId("change-summary")).toHaveTextContent("2 settings changed: cadence, default");
+		expect(screen.getByTestId("change-summary")).toHaveTextContent("1 blocked · 1 left alone");
+	});
+
+	it("turns the empty state into a recap of what was resolved once everything is merged", async () => {
+		const harness = await renderWithMock(<HomeHarness />);
+		await harness.client.controls.jump(harness.client.controls.getState().beats.length);
+		const resolved = await screen.findByTestId("resolved");
+		expect(within(resolved).getByTestId("resolved-WI-2")).toHaveTextContent("blocked, revalidated, merged");
+		expect(within(resolved).getByTestId("resolved-WI-1")).toHaveTextContent("merged");
+	});
+
 	it.each([
 		{ scenario: "notifications" as const, beats: 5 },
 		{ scenario: "shelter-intake" as const, beats: 6 },

@@ -1,5 +1,6 @@
-import type { WorkItemState } from "contracts";
-import { analysisOf, builtOnStamps, mergeRecord, quietOf, readyByException, reasonSentences, validExceptions, workItemsSorted } from "./derive";
+import { parseRecordRef, type WorkItemState } from "contracts";
+import { diffFacets } from "delta-core";
+import { analysisOf, builtOnStamps, mergeRecord, quietOf, readyByException, reasonSentences, settingLabel, validExceptions, workItemsSorted } from "./derive";
 import type { ViewState } from "./store";
 
 /**
@@ -40,6 +41,58 @@ export function groupByTray(view: ViewState, degraded: boolean): Record<Tray, Wo
 	const out: Record<Tray, WorkItemState[]> = { "needs-you": [], working: [], ready: [], merged: [] };
 	for (const wi of workItemsSorted(view)) out[trayOf(view, wi, degraded)].push(wi);
 	return out;
+}
+
+/** Working work the last decision change left alone: shown muted under "Not affected" on the home, so it stays in view. */
+export function notAffected(view: ViewState, degraded: boolean): WorkItemState[] {
+	if (degraded) return [];
+	return workItemsSorted(view).filter((wi) => trayOf(view, wi, degraded) === "working" && quietOf(view, wi) !== null);
+}
+
+/**
+ * The home's one-line summary of the last decision change, e.g. "notifications v2 landed · 2 settings changed".
+ * Null before any change (the seeded first versions are not a change).
+ */
+export function changeSummary(view: ViewState): { lead: string; detail: string | null } | null {
+	const evaluation = view.evaluation;
+	const ref = evaluation?.recordRef ? parseRecordRef(evaluation.recordRef) : null;
+	if (!evaluation || !ref) return null;
+	if (evaluation.proseOnly) return { lead: `${ref.recordId}: wording only`, detail: "no setting changed" };
+	if (ref.version <= 1) return null;
+	const before = view.records[ref.recordId]?.versions[String(ref.version - 1)];
+	const after = view.records[ref.recordId]?.versions[String(ref.version)];
+	const changes = before && after ? diffFacets(before, after) : [];
+	const names = changes.map((change) => settingLabel(change.key));
+	return {
+		lead: `${ref.recordId} v${ref.version} landed`,
+		detail: changes.length === 0 ? null : `${changes.length === 1 ? "1 setting" : `${changes.length} settings`} changed: ${names.join(", ")}`,
+	};
+}
+
+/**
+ * What happened to a finished work item, in order, read from the audit log: "blocked, revalidated, merged".
+ * Each step appears once. Empty when the log in view says nothing about it.
+ */
+export function historyOf(view: ViewState, workItemId: string): string[] {
+	const steps: string[] = [];
+	const add = (step: string) => {
+		if (!steps.includes(step)) steps.push(step);
+	};
+	for (const entry of view.ledger) {
+		const event = entry.payload.event;
+		for (const effect of entry.payload.effects) {
+			if (effect.type !== "RECORD_CONDITION" || !("workItemId" in effect) || effect.workItemId !== workItemId) continue;
+			if (["Stale", "ClaimConflict", "TestFailed"].includes(effect.condition.type)) add("blocked");
+			else if (effect.condition.type === "Uncertain") add("held");
+		}
+		if (event.type === "DependencyDecided" && event.workItemId === workItemId) add(`dependency ${event.decision}`);
+		if (event.type === "ResolutionRecorded" && event.resolution.workItemId === workItemId) {
+			const kind = event.resolution.kind;
+			add(kind === "revalidate" ? "revalidated" : kind === "accept-exception" ? "allowed with an exception" : "rejected");
+		}
+		if (event.type === "PromotionMerged" && event.workItemId === workItemId) add("merged");
+	}
+	return steps;
 }
 
 /**

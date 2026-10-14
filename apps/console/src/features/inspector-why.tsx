@@ -51,6 +51,8 @@ export function WhyTab({ wi, showResolutions = true }: { wi: WorkItemState; /** 
 	const { gate } = useGate(wi.item.id);
 	const analysis = useMemo(() => analysisOf(view, wi.item.id), [view, wi.item.id]);
 	const diff = useMemo(() => (analysis ? semanticDiff(view, wi, analysis) : null), [view, wi, analysis]);
+	// The Condition list's reason codes show only while "Technical details" is open.
+	const [codesOpen, setCodesOpen] = useState(false);
 	if (!analysis) return null;
 
 	const promoted = wi.item.status === "promoted";
@@ -74,6 +76,9 @@ export function WhyTab({ wi, showResolutions = true }: { wi: WorkItemState; /** 
 	const sentences = reasonSentences(view, analysis);
 	const stamps = builtOnStamps(analysis);
 	const signers = signOffFor(view, analysis);
+	// Held only on a dependency it was never given, with the question still open: the dependency card is the action.
+	const askingDependency = analysis.outsideReceipt.some((o) => view.dependencies.some((d) => d.workItemId === wi.item.id && d.recordId === o.recordId && d.status === "proposed"));
+	const held = analysis.stale.length === 0 && analysis.conflicts.length === 0 && analysis.failedChecks.length === 0 && analysis.uncertain.length > 0;
 	// The Worker's claims check has its own row: the engine does not count it as a test, so the Test row does not list it.
 	const claimsChecks = analysis.headEvidence.filter((e) => !analysis.testEvidence.includes(e));
 	const summary = promoted
@@ -94,12 +99,15 @@ export function WhyTab({ wi, showResolutions = true }: { wi: WorkItemState; /** 
 		<div className="space-y-4 p-4" data-testid="why-tab">
 			{showResolutions && <DependencyDecision workItemId={wi.item.id} />}
 			<div
-				className={cn("rounded-xl border p-3.5", showReason ? "border-danger/35 bg-danger-soft" : blocked ? "border-warning/35 bg-warning-soft" : promoted ? "border-merged/30 bg-merged-soft" : "bg-card")}
+				className={cn(
+					"rounded-xl border p-3.5",
+					showReason ? (held ? "border-warning/40 bg-warning/5" : "border-danger/40 bg-danger/5") : blocked ? "border-warning/35 bg-warning-soft" : promoted ? "border-merged/30 bg-merged-soft" : "bg-card",
+				)}
 				data-testid="reason-card"
 			>
 				<h3 className="flex items-center gap-2 text-sm font-semibold">
-					{showReason ? <ShieldAlert className="size-4 text-danger" aria-hidden /> : <Sparkles className="size-4 text-muted-foreground" aria-hidden />}
-					{showReason ? "Why is this blocked?" : "Merge status"}
+					{showReason ? <ShieldAlert className={cn("size-4", held ? "text-warning" : "text-danger")} aria-hidden /> : <Sparkles className="size-4 text-muted-foreground" aria-hidden />}
+					{showReason ? (held ? "Why is this held?" : "Why is this blocked?") : "Merge status"}
 				</h3>
 				{showReason ? (
 					<>
@@ -129,7 +137,9 @@ export function WhyTab({ wi, showResolutions = true }: { wi: WorkItemState; /** 
 						<p className="mt-1.5 flex items-center gap-1.5 text-[13px]" data-testid="signoff">
 							<Gavel className="size-3.5 text-muted-foreground" aria-hidden />
 							<span>
-								{signers.length > 0 ? (
+								{askingDependency && signers.length === 0 ? (
+									"Answer the dependency question above."
+								) : signers.length > 0 ? (
 									<>
 										Sign-off: <span className="font-semibold">{signers.join(" and ")}</span>
 									</>
@@ -152,7 +162,7 @@ export function WhyTab({ wi, showResolutions = true }: { wi: WorkItemState; /** 
 					<p className="mt-1.5 text-[13px] leading-relaxed">{summary}</p>
 				)}
 				{(showReason || (blocked && gate && gate.reasonCodes.length > 0)) && (
-					<details className="group mt-3 text-xs" data-testid="technical-details">
+					<details className="group mt-3 text-xs" data-testid="technical-details" onToggle={(event) => setCodesOpen(event.currentTarget.open)}>
 						<summary className="flex cursor-pointer list-none items-center gap-1 font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50">
 							<ChevronRight className="size-3.5 transition-transform group-open:rotate-90" aria-hidden />
 							Technical details
@@ -318,7 +328,7 @@ export function WhyTab({ wi, showResolutions = true }: { wi: WorkItemState; /** 
 					tone={blocked ? "danger" : "neutral"}
 					last
 				>
-					<ConditionList conditions={wi.conditions} />
+					<ConditionList conditions={wi.conditions} showCodes={codesOpen} />
 					{promoted ? (
 						<p className="mt-2 text-[13px]" data-testid="decided">
 							Merged into the baseline{mergeEntry ? ` at ${formatDateTime(mergeEntry.ts)}` : ""}. This is in the audit log.
@@ -330,7 +340,7 @@ export function WhyTab({ wi, showResolutions = true }: { wi: WorkItemState; /** 
 								Awaiting human
 							</p>
 							<p className="mt-1 text-xs text-muted-foreground">
-								{problem ? "Nobody has decided what to do about this. Revalidate it, allow it with a scoped exception, or reject it." : blocked ? "Nothing is wrong with it so far, but it is not ready: it still needs to push its work." : "Nothing is wrong, but it stays unmerged until a person merges it."}
+								{askingDependency ? "Answer the dependency question above." : problem ? "Nobody has decided what to do about this. Revalidate it, allow it with a scoped exception, or reject it." : blocked ? "Nothing is wrong with it so far, but it is not ready: it still needs to push its work." : "Nothing is wrong, but it stays unmerged until a person merges it."}
 							</p>
 							<Button variant="outline" size="xs" className="mt-2" onClick={() => setTab("actions")}>
 								<CircleAlert aria-hidden /> Open actions
@@ -426,7 +436,7 @@ function CheckOutput({ text }: { text: string }) {
 	);
 }
 
-function ConditionList({ conditions }: { conditions: Condition[] }) {
+function ConditionList({ conditions, showCodes }: { conditions: Condition[]; showCodes: boolean }) {
 	const degraded = useDegraded();
 	if (conditions.length === 0) return <p className="text-[13px] text-muted-foreground">No conditions evaluated yet.</p>;
 	return (
@@ -443,9 +453,10 @@ function ConditionList({ conditions }: { conditions: Condition[] }) {
 								{CONDITION_LABEL[c.type]}
 							</Badge>
 						)}
-						{c.reasonCodes.map((code) => (
-							<ReasonChip key={code} code={code} />
-						))}
+						{showCodes &&
+							c.reasonCodes.map((code) => (
+								<ReasonChip key={code} code={code} />
+							))}
 					</div>
 					{c.message && <p className="mt-0.5 text-xs text-muted-foreground">{c.message}</p>}
 				</li>

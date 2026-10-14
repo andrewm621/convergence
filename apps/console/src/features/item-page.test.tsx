@@ -123,6 +123,15 @@ describe("the item page for held work", () => {
 		expect(page.querySelector("[data-built-on='notifications']")).toHaveAttribute("data-state", "not-given");
 	});
 
+	it("has the Why tab point back at the question, in amber, not at a revalidation", async () => {
+		await renderWithMock(<Page />, { script: "undeclared", beats: 2, select: "WI-1" });
+		const card = await screen.findByTestId("reason-card");
+		expect(within(card).getByRole("heading", { name: "Why is this held?" })).toBeInTheDocument();
+		expect(within(card).getByTestId("signoff")).toHaveTextContent("Answer the dependency question above.");
+		expect(screen.queryByText(/No exception can lift this block/)).toBeNull();
+		expect(card.className).toContain("border-warning");
+	});
+
 	it("moves to Ready when the dependency is rejected", async () => {
 		const user = userEvent.setup();
 		await renderWithMock(<Page />, { script: "undeclared", beats: 2, select: "WI-1" });
