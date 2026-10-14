@@ -9,27 +9,31 @@ import { cn } from "@/lib/utils";
 import type { ViewMode } from "@/state/console-context";
 import { SCENARIO_META, SYNTHETIC_NOTE, scenarioMeta } from "./scenario-meta";
 
-export function ScenarioSwitcher({ value, onChange, live = false }: { value: ScenarioName; onChange(next: ScenarioName): void; live?: boolean }) {
+/** `compact`: the scenarios not open show as icons (named in their tooltip and to screen readers) below 2xl, to make room for Work | Map. */
+export function ScenarioSwitcher({ value, onChange, live = false, compact = false }: { value: ScenarioName; onChange(next: ScenarioName): void; live?: boolean; compact?: boolean }) {
 	return (
 		<div role="radiogroup" aria-label="Scenario" className="inline-flex shrink-0 items-center rounded-lg border bg-muted p-0.5">
 			{SCENARIOS.filter((name) => name === value || !SCENARIO_META[name].hidden).map((name) => {
 				const meta = name === value ? scenarioMeta(name, live) : SCENARIO_META[name];
 				const Icon = meta.icon;
 				const active = name === value;
+				const iconOnly = compact && !active;
 				return (
 					<button
 						key={name}
 						type="button"
 						role="radio"
 						aria-checked={active}
+						title={iconOnly ? `${meta.label} · ${meta.kind}` : undefined}
 						onClick={() => onChange(name)}
 						className={cn(
 							"inline-flex h-8 items-center gap-2 rounded-md px-3 text-[13px] font-medium whitespace-nowrap transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
+							iconOnly && "px-2.5 2xl:px-3",
 							active ? "bg-card text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground",
 						)}
 					>
 						<Icon className="size-3.5" aria-hidden />
-						{meta.label}{" "}
+						<span className={iconOnly ? "sr-only 2xl:not-sr-only" : undefined}>{meta.label}</span>{" "}
 						<span className="hidden text-xs font-normal text-muted-foreground 2xl:inline">· {meta.kind}</span>
 					</button>
 				);
@@ -175,7 +179,7 @@ export function Header({
 				</div>
 				<div className="h-6 w-px shrink-0 bg-border" aria-hidden />
 				{mode && onMode && <ModeSwitcher value={mode} onChange={onMode} />}
-				<ScenarioSwitcher value={scenario} onChange={onScenario} live={live} />
+				<ScenarioSwitcher value={scenario} onChange={onScenario} live={live} compact={mode !== undefined} />
 				<div className="ml-auto flex shrink-0 items-center gap-3">
 					<PollerBadge poller={poller} />
 					<ConnectionBadge state={connection} />
