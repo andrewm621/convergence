@@ -74,6 +74,7 @@ body.idle-cursor { cursor: none; }
 .tag b { font-weight: 700; letter-spacing: .12em; }
 .tag span { display: block; color: var(--muted-foreground); letter-spacing: .01em; }
 .tag.live { color: var(--success); border-color: color-mix(in oklch, var(--success) 60%, transparent); }
+.tag.replay { color: var(--merged); border-color: color-mix(in oklch, var(--merged) 60%, transparent); }
 
 .h1 { position: absolute; left: 80px; font-size: 84px; line-height: 1.04; font-weight: 700; letter-spacing: -.025em; max-width: 1760px; }
 .sub { position: absolute; left: 80px; font-size: 36px; line-height: 1.3; color: var(--muted-foreground); max-width: 1500px; }
@@ -83,6 +84,7 @@ body.idle-cursor { cursor: none; }
 .chip.ok { color: var(--success); background: var(--success-soft); border-color: color-mix(in oklch, var(--success) 45%, transparent); }
 .chip.bad { color: var(--danger); background: var(--danger-soft); border-color: color-mix(in oklch, var(--danger) 55%, transparent); }
 .chip.warn { color: var(--warning); background: var(--warning-soft); border-color: color-mix(in oklch, var(--warning) 50%, transparent); }
+.chip.pri { color: var(--primary); background: color-mix(in oklch, var(--primary) 16%, var(--background)); border-color: color-mix(in oklch, var(--primary) 45%, transparent); }
 .chip.info { color: var(--info); background: var(--info-soft); border-color: color-mix(in oklch, var(--info) 45%, transparent); }
 .chip.mute { color: var(--muted-foreground); }
 .skel { display: grid; gap: 14px; }
@@ -191,8 +193,10 @@ html.rm .o4-edge.go i { animation: none; opacity: 0; }
 .o4-item .reason { margin-top: 4px; font-size: 24px; line-height: 1.25; color: var(--muted-foreground); text-align: right; min-height: 30px; }
 .o4-item[data-status="blocked"], .o4-item[data-status="awaiting"] { background: color-mix(in oklch, var(--danger-soft) 60%, var(--card)); border-color: color-mix(in oklch, var(--danger) 65%, transparent); }
 .o4-item[data-status="blocked"] .reason { color: var(--danger); }
-.o4-item[data-status="revalidating"], .o4-item[data-status="exception"] { background: color-mix(in oklch, var(--warning-soft) 60%, var(--card)); border-color: color-mix(in oklch, var(--warning) 60%, transparent); }
-.o4-item[data-status="ready"] { background: color-mix(in oklch, var(--success-soft) 60%, var(--card)); border-color: color-mix(in oklch, var(--success) 55%, transparent); }
+.o4-item[data-status="exception"] { background: color-mix(in oklch, var(--warning-soft) 60%, var(--card)); border-color: color-mix(in oklch, var(--warning) 60%, transparent); }
+.o4-item[data-status="revalidating"] { background: color-mix(in oklch, var(--info-soft) 60%, var(--card)); border-color: color-mix(in oklch, var(--info) 55%, transparent); }
+.o4-item[data-status="ready"] { background: color-mix(in oklch, var(--primary) 12%, var(--card)); border-color: color-mix(in oklch, var(--primary) 55%, transparent); }
+.o4-item[data-status="fresh"] .reason { color: var(--success); }
 .o4-item[data-status="ready"] .reason, .o4-item[data-status="revalidating"] .reason, .o4-item[data-status="exception"] .reason { color: var(--foreground); }
 .o4-item[data-status="rejected"] { opacity: .7; }
 .o4-item.click { cursor: pointer; }
@@ -235,11 +239,8 @@ html.rm #o4sheet, html.rm #o4scrim, html.rm .btn { transition-duration: .2s; }
 .o5-tag.seeded { color: var(--info); border-color: var(--info); background: var(--info-soft); }
 .o5-tag.replay { color: var(--merged); border-color: var(--merged); background: color-mix(in oklch, var(--merged) 16%, var(--background)); }
 .o5-tag.ghost { background: transparent; opacity: .35; }
-#o5-corner { position: absolute; right: 48px; bottom: 40px; z-index: 6; }
-#o5-corner .tag { position: static; }
-.slide.on .o5-gfx { animation: oldOut .5s ease 4.2s both; }
-.o5-gfx { opacity: 0; }
-html.rm .slide .o5-gfx { animation: none !important; }
+#o5-tags { position: absolute; right: 48px; bottom: 40px; z-index: 5; display: flex; align-items: flex-end; gap: 14px; }
+#o5-tags .tag { position: static; }
 
 /* ---------- C ---------- */
 .big-q { position: absolute; left: 120px; top: 190px; font-size: 100px; line-height: 1.08; font-weight: 700; letter-spacing: -.03em; width: 1700px; }
@@ -400,7 +401,7 @@ html.rm .slide .c4-ghost { animation: none !important; }
   <p class="sub rv live-only" style="top:306px;font-size:32px;--t:.9s">This next part is the deployed product; today it runs in replay or live.</p>
   <div class="o5-row rv" style="top:440px;--t:1.6s"><span class="o5-tag live" id="o5live">LIVE</span><span>A real run: real agents, the deployed Worker.</span></div>
   <div class="o5-row rv" style="top:560px;--t:2.4s"><span class="o5-tag seeded">SEEDED</span><span>Synthetic data from a fixture. No model behind it.</span></div>
-  <div class="o5-row rv" style="top:680px;--t:3.2s"><span class="o5-tag replay">REPLAY</span><span>A recorded event log, re-driven through the same engine.</span></div>
+  <div class="o5-row rv" style="top:680px;--t:3.2s"><span class="o5-tag replay" id="o5replay">REPLAY</span><span>A recorded event log, re-driven through the same engine.</span></div>
 </section>
 
 <!-- ============ C1 ============ -->
@@ -468,7 +469,7 @@ html.rm .slide .c4-ghost { animation: none !important; }
   <div class="c4-box rv" style="left:440px;--t:3.0s"><b>receipt</b><code>context-receipt.json</code></div>
   <div class="c4-box rv" style="left:800px;--t:3.4s"><b>dependency</b><code>dependency.json</code></div>
   <div class="c4-box rv" style="left:1160px;--t:3.8s"><b>resolution</b><code>resolution.json</code></div>
-  <div class="c4-box rv" style="left:1520px;--t:4.2s"><b>ledger</b><code>cell-snapshot.json</code></div>
+  <div class="c4-box rv" style="left:1520px;--t:4.2s"><b>ledger</b><code>reconciliation-event.json</code></div>
 </section>
 
 <!-- ============ C5 ============ -->
@@ -491,14 +492,12 @@ html.rm .slide .c4-ghost { animation: none !important; }
     <li class="rv" style="--t:1.6s"><b>The gate.</b> <span style="color:var(--muted-foreground)">Awaiting human.</span></li>
   </ol>
   <div class="abs rv" style="left:80px;top:760px;font-size:36px;--t:2.2s">
-    <div class="lbl" style="margin-bottom:12px">Try it</div>
-    <div class="mono" id="q1url" style="font-size:40px"></div>
+    <div style="font-size:40px">Try it: the link is in the README.</div>
+    <div id="q1url" hidden></div>
     <div style="color:var(--muted-foreground);margin-top:10px">Add <span class="mono" style="color:var(--info)">?mock=1</span> to run it in replay, no credentials needed.</div>
   </div>
 </section>
 </div>
-
-<div id="o5-corner" hidden></div>
 
 <div id="hud" aria-label="Deck controls">
   <button type="button" id="prev" aria-label="Previous slide">‹</button>
@@ -555,7 +554,7 @@ html.rm .slide .c4-ghost { animation: none !important; }
   Object.keys(slides).forEach(function (id) {
     var el = slides[id];
     var wm = document.createElement("div"); wm.className = "wm"; wm.innerHTML = MARK + "<span>Convergence</span>"; el.insertBefore(wm, el.firstChild);
-    if (id === "O5") return; // O5 owns its corner tag, see below
+    if (id === "O5") return; // O5 builds its own tag cluster, see below
     var tag = document.createElement("div"); tag.className = "tag";
     tag.innerHTML = "<b>" + el.dataset.tag + "</b>" + (el.dataset.tag2 ? "<span>" + el.dataset.tag2 + "</span>" : "");
     el.appendChild(tag);
@@ -601,7 +600,6 @@ html.rm .slide .c4-ghost { animation: none !important; }
     "status-model": { 1: { "status-model.states": "queued, running, done" } },
     "support-hours": { 1: { "support-hours.weekdays": "08:00–18:00" } }
   };
-  var PRETTY = { "weekly-digest": "weekly digest" };
   var ITEMS = [
     { id: 1, short: "delivery service", title: "Notification delivery service", kind: "code", pins: { notifications: 1, "status-model": 1 }, relies: ["notifications.default", "notifications.cadence"] },
     { id: 3, short: "help-centre article", title: "Help-centre article: your notification settings", kind: "doc", pins: { notifications: 1 }, relies: ["notifications.default"] },
@@ -631,7 +629,7 @@ html.rm .slide .c4-ghost { animation: none !important; }
       var card = document.createElement("div"); card.className = "o4-item"; card.style.gridRow = rowNo; card.dataset.id = it.id; card.dataset.status = "fresh";
       card.innerHTML =
         '<div><div class="title"></div><div class="rcpt"></div></div>' +
-        '<div><div class="chips"><span class="chip mute">' + it.kind + '</span><span class="chip mute">agent</span><span class="chip ok st">Fresh</span></div><div class="reason"></div></div>' +
+        '<div><div class="chips"><span class="chip mute">' + it.kind + '</span><span class="chip mute">agent</span><span class="chip ok st">Up to date</span></div><div class="reason"></div></div>' +
         '<div class="panel"><div class="who"><b>Awaiting human</b> · the decision owner signs off.</div>' +
         '<div class="acts"><span class="owner">Decision owner</span><button class="btn pri" data-act="revalidate" type="button">Revalidate</button><button class="btn" data-act="exception" type="button">Allow with exception</button><button class="btn" data-act="reject" type="button">Reject</button></div></div>';
       card.querySelector(".title").textContent = it.title;
@@ -659,8 +657,8 @@ html.rm .slide .c4-ghost { animation: none !important; }
   function view(it) { var m = itemModel(it); return { relies: it.relies, pins: m.pins }; }
 
   var STATUS_UI = {
-    fresh: ["ok", "Fresh"], blocked: ["bad", "Blocked"], revalidating: ["warn", "Revalidating"],
-    ready: ["ok", "✓ Ready to merge"], exception: ["warn", "Ready · exception"], rejected: ["mute", "Rejected"]
+    fresh: ["ok", "Up to date"], blocked: ["bad", "Blocked"], revalidating: ["info", "revalidating"],
+    ready: ["pri", "Ready to merge"], exception: ["warn", "Ready · exception"], rejected: ["mute", "rejected"]
   };
   function paintItem(it) {
     var m = itemModel(it), e = els[it.id], ui = STATUS_UI[m.status];
@@ -684,7 +682,7 @@ html.rm .slide .c4-ghost { animation: none !important; }
       var row = document.createElement("div");
       row.innerHTML = '<span class="k"></span><span class="val"></span>';
       row.firstChild.textContent = k + ":";
-      var v = row.lastChild; v.textContent = PRETTY[val] ? val : val; v.className = "val" + (changed ? " chg" + (animate ? " fresh" : "") : "");
+      var v = row.lastChild; v.textContent = val; v.className = "val" + (changed ? " chg" + (animate ? " fresh" : "") : "");
       host.appendChild(row);
     });
     var btn = document.getElementById("o4change");
@@ -703,7 +701,7 @@ html.rm .slide .c4-ghost { animation: none !important; }
       var row = document.createElement("div"), k = document.createElement("span"); k.className = "k"; k.textContent = p[0];
       row.appendChild(k);
       if (a[p[1]] === b[p[1]]) { var s = document.createElement("span"); s.className = "same"; s.textContent = a[p[1]] + "  (unchanged)"; row.appendChild(s); }
-      else { var f = document.createElement("span"); f.className = "from"; f.textContent = a[p[1]]; var ar = document.createElement("span"); ar.textContent = "→"; var t = document.createElement("span"); t.className = "to"; t.textContent = PRETTY[b[p[1]]] || b[p[1]]; row.appendChild(f); row.appendChild(ar); row.appendChild(t); }
+      else { var f = document.createElement("span"); f.className = "from"; f.textContent = a[p[1]]; var ar = document.createElement("span"); ar.textContent = "→"; var t = document.createElement("span"); t.className = "to"; t.textContent = b[p[1]]; row.appendChild(f); row.appendChild(ar); row.appendChild(t); }
       d.appendChild(row);
     });
     document.getElementById("o4effect").textContent = effectLine();
@@ -711,25 +709,32 @@ html.rm .slide .c4-ghost { animation: none !important; }
   function effectLine() {
     var cur = { notifications: 2, "status-model": 1, "support-hours": 1 };
     var blocked = ITEMS.filter(function (it) { return M.items[it.id].status === "fresh" && isStale(view(it), cur); });
-    var left = ITEMS.length - blocked.length;
-    return "This makes v2 the decision. Blocks " + blocked.length + " built on v1: " + blocked.map(function (i) { return i.short; }).join(", ") + ". Leaves " + left + " alone.";
+    var left = ITEMS.filter(function (it) { return blocked.indexOf(it) < 0; });
+    function names(list) { return list.map(function (i) { return i.short; }).join(", "); }
+    return "This makes v2 the decision. Blocks " + blocked.length + " built on v1: " + names(blocked) + ". Leaves " + left.length + " alone: " + names(left) + ".";
   }
   function setCap(t) { M.cap = t; var c = document.getElementById("o4cap"); c.textContent = t; }
 
   function paintAll(animate) {
     ITEMS.forEach(paintItem); paintDecision(animate); paintSheet(); setCap(M.cap);
-    ITEMS.forEach(function (it) { els[it.id].edge.classList.toggle("hot", M.items[it.id].status !== "fresh" && it.relies[0].indexOf("notifications") === 0 && M.v > 1 && itemModel(it).reason !== "Same record, setting unchanged" && it.id !== 5); });
+    ITEMS.forEach(function (it) { els[it.id].edge.classList.toggle("hot", M.items[it.id].status === "blocked"); });
   }
   function resetO4() { clearTimers(); M = freshModel(); ITEMS.forEach(function (it) { els[it.id].edge.className = "o4-edge"; els[it.id].git.classList.remove("ping"); }); paintAll(false); }
 
   /* --- transitions --- */
-  function openSheet(focus) {
+  var sheetOpener = null;
+  function openSheet(focus, opener) {
     if (M.v > 1 || M.sheet) return;
+    sheetOpener = opener || (document.activeElement !== document.body ? document.activeElement : null);
     M.sheet = true; paintSheet();
     if (focus) later(function () { document.getElementById("o4commit").focus(); }, 60);
     announce("Change this decision. " + effectLine());
   }
-  function closeSheet() { M.sheet = false; paintSheet(); }
+  function closeSheet(returnFocus) {
+    M.sheet = false; paintSheet();
+    if (returnFocus && sheetOpener && sheetOpener.focus) sheetOpener.focus({ preventScroll: true });
+    sheetOpener = null;
+  }
   function commit() {
     if (M.v > 1) return;
     var cur = { notifications: 2, "status-model": 1, "support-hours": 1 };
@@ -740,13 +745,14 @@ html.rm .slide .c4-ghost { animation: none !important; }
     var nBlocked = 0;
     ITEMS.forEach(function (it, idx) {
       var m = itemModel(it), notif = it.relies[0].indexOf("notifications") === 0;
-      if (staleIds[it.id]) { m.status = "blocked"; m.reason = "Built on v" + m.pins.notifications + " · now v2"; nBlocked++; }
-      else m.reason = notif ? "Same record, setting unchanged" : "No dependency on what changed";
+      if (staleIds[it.id]) { m.status = "blocked"; m.reason = "Built on notifications v" + m.pins.notifications + " · now v2"; nBlocked++; }
+      else m.reason = notif ? "Left alone: same record, setting unchanged" : "Left alone: no recorded dependency on what changed";
       var base = notif ? 250 + idx * 130 : 0;
       if (notif) later(function () { var e = els[it.id].edge; e.classList.remove("go"); void e.offsetWidth; e.classList.add("go"); }, base);
       later(function () {
         paintItem(it);
-        if (staleIds[it.id]) els[it.id].edge.classList.add("hot");
+        // a card resolved before this timer fires must not regain its red edge
+        if (staleIds[it.id] && m.status === "blocked") els[it.id].edge.classList.add("hot");
       }, notif ? base + 330 : 1000);
     });
     later(function () { ITEMS.forEach(function (it) { var g = els[it.id].git; g.classList.remove("ping"); void g.offsetWidth; g.classList.add("ping"); }); }, 1900);
@@ -763,12 +769,12 @@ html.rm .slide .c4-ghost { animation: none !important; }
     if (!it || m.status !== "blocked") return;
     M.sel = null;
     if (act === "revalidate") {
-      m.status = "revalidating"; m.reason = "Decision owner revalidating"; m.pins.notifications = 2; paintItem(it);
-      later(function () { m.status = "ready"; m.reason = "Revalidated by the decision owner"; paintItem(it); }, 600);
+      m.status = "revalidating"; m.reason = "Agent re-running on v2"; paintItem(it);
+      later(function () { if (m.status !== "revalidating") return; m.status = "ready"; m.reason = "Re-run on v2 · checks pass"; m.pins.notifications = 2; paintItem(it); }, 600);
       setCap("The others wait. Nothing resolves itself.");
-      announce(it.title + ": revalidated by the decision owner, ready to merge. The others wait. Nothing resolves itself.");
+      announce(it.title + ": the decision owner asked for a revalidation. The agent re-ran on v2 and it is ready to merge. The others wait. Nothing resolves itself.");
     } else if (act === "exception") {
-      m.status = "exception"; m.reason = "Covers: this draft only. Ends when notifications gets a new version."; paintItem(it);
+      m.status = "exception"; m.reason = "Covers: this draft only. Ends when notifications gets a new version or the agent pushes again."; paintItem(it);
       setCap("Exception by the decision owner. Bound to v2.");
       announce(it.title + ": exception allowed by the decision owner, this draft only.");
     } else {
@@ -807,15 +813,15 @@ html.rm .slide .c4-ghost { animation: none !important; }
     prev: function () { var s = o4Step(); if (s === 0) return false; o4Goto(s - 1, true); return true; },
     reset: function () { o4Goto(0, true); }
   };
-  document.getElementById("o4change").addEventListener("click", function (e) { openSheet(e.detail === 0); if (e.detail) this.blur(); });
+  document.getElementById("o4change").addEventListener("click", function (e) { openSheet(e.detail === 0, this); if (e.detail) this.blur(); });
   document.getElementById("o4commit").addEventListener("click", function (e) { commit(); if (e.detail) this.blur(); });
-  document.getElementById("o4cancel").addEventListener("click", function () { closeSheet(); document.getElementById("o4change").focus({ preventScroll: true }); });
+  document.getElementById("o4cancel").addEventListener("click", function () { if (!sheetOpener) sheetOpener = document.getElementById("o4change"); closeSheet(true); });
   document.getElementById("o4typo").addEventListener("click", function (e) { fixTypo(); if (e.detail) this.blur(); });
   wrap.addEventListener("click", function (e) {
     var b = e.target.closest("[data-act]");
     var card = e.target.closest(".o4-item");
     if (b && card) { resolve(+card.dataset.id, b.dataset.act); if (e.detail) b.blur(); return; }
-    if (card) select(+card.dataset.id, e.detail === 0);
+    if (card) { select(+card.dataset.id, e.detail === 0); if (e.detail) card.blur(); }
   });
   wrap.addEventListener("keydown", function (e) {
     var card = e.target.closest && e.target.closest(".o4-item");
@@ -823,46 +829,45 @@ html.rm .slide .c4-ghost { animation: none !important; }
   });
 
   /* =================== C3: three cues =================== */
-  var c3 = { step: 3 };
+  var c3 = { step: 1 };
   var c3Lines = Array.prototype.slice.call(slides.C3.querySelectorAll(".c3-line"));
   function c3Apply() {
     var n = rm ? 3 : c3.step;
     c3Lines.forEach(function (l, i) { l.classList.toggle("vis", i < n); l.classList.toggle("dim", n === 3 && i < 2); });
   }
+  // Snap to the target state with transitions off, so arriving never shows lines easing in or out.
+  function c3Snap() {
+    c3Lines.forEach(function (l) { l.style.transition = "none"; });
+    c3Apply(); void slides.C3.offsetWidth;
+    c3Lines.forEach(function (l) { l.style.transition = ""; });
+  }
   var c3m = {
-    enter: function (fromEnd) { c3.step = fromEnd ? 3 : 1; c3Apply(); },
+    enter: function (fromEnd) { c3.step = fromEnd ? 3 : 1; c3Snap(); },
     next: function () { if (rm || c3.step >= 3) return false; c3.step++; c3Apply(); return true; },
     prev: function () { if (rm || c3.step <= 1) return false; c3.step--; c3Apply(); return true; },
     reset: function () { c3.step = 1; c3Apply(); }
   };
-  c3Apply();
+  c3Snap();
 
-  /* =================== O5: the LIVE tag lands in the corner =================== */
-  var o5corner = document.getElementById("o5-corner");
+  /* =================== O5: a "next" chip lands beside the GRAPHIC tag; the slide itself is never labelled LIVE =================== */
+  var o5next = qs.get("console") === "replay" ? { id: "o5replay", cls: "replay", label: "next: REPLAY" } : { id: "o5live", cls: "live", label: "next: LIVE" };
+  var o5chip, o5anims = [];
   (function () {
-    var el = slides.O5;
-    var box = document.createElement("div"); box.className = "tag"; box.innerHTML = "<b>GRAPHIC</b>"; box.classList.add("o5-gfx");
-    var liveTag = document.createElement("div"); liveTag.className = "tag live"; liveTag.id = "o5landed"; liveTag.innerHTML = "<b>LIVE</b>";
-    var g = document.createElement("div"); g.style.cssText = "position:absolute;right:48px;bottom:40px"; g.appendChild(liveTag);
-    var gfxWrap = document.createElement("div"); gfxWrap.style.cssText = "position:absolute;right:48px;bottom:40px"; gfxWrap.appendChild(box); box.style.position = "static";
-    // static GRAPHIC tag stays visible until the LIVE tag lands in the same spot
-    var base = document.createElement("div"); base.className = "tag o5-base"; base.innerHTML = "<b>GRAPHIC</b>"; base.style.zIndex = 4;
-    el.appendChild(base); el.appendChild(g);
-    liveTag.style.position = "static";
+    var box = document.createElement("div"); box.id = "o5-tags";
+    o5chip = document.createElement("div"); o5chip.className = "tag " + o5next.cls; o5chip.innerHTML = "<b>" + o5next.label + "</b>";
+    var gfx = document.createElement("div"); gfx.className = "tag"; gfx.innerHTML = "<b>GRAPHIC</b>";
+    box.appendChild(o5chip); box.appendChild(gfx); slides.O5.appendChild(box);
   })();
   function o5Play() {
-    var liveTag = document.getElementById("o5landed"), src = document.getElementById("o5live"), base = slides.O5.querySelector(".o5-base");
-    var row = src;
-    if (liveTag._anim) { liveTag._anim.cancel(); liveTag._anim = null; }
-    liveTag.style.opacity = rm ? 1 : 0; base.style.opacity = rm ? 0 : 1; row.classList.toggle("ghost", rm);
+    var src = document.getElementById(o5next.id);
+    o5anims.forEach(function (a) { a.cancel(); }); o5anims = [];
+    o5chip.style.opacity = rm ? 1 : 0; src.classList.toggle("ghost", rm);
     if (rm) return;
     var k = parseFloat(stage.style.getPropertyValue("--k")) || 1;
-    var a = src.getBoundingClientRect(), b = liveTag.getBoundingClientRect();
+    var a = src.getBoundingClientRect(), b = o5chip.getBoundingClientRect();
     var dx = (a.left + a.width / 2 - (b.left + b.width / 2)) / k, dy = (a.top + a.height / 2 - (b.top + b.height / 2)) / k;
-    var anim = liveTag.animate([{ transform: "translate(" + dx + "px," + dy + "px) scale(1.5)", opacity: 0 }, { transform: "translate(" + dx + "px," + dy + "px) scale(1.5)", opacity: 1, offset: 0.2 }, { transform: "none", opacity: 1 }], { duration: 1100, delay: 4300, easing: "cubic-bezier(.2,.7,.2,1)", fill: "both" });
-    liveTag._anim = anim;
-    base.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 300, delay: 4200, fill: "both" });
-    row.animate([{ opacity: 1 }, { opacity: .35 }], { duration: 500, delay: 4400, fill: "both" });
+    o5anims.push(o5chip.animate([{ transform: "translate(" + dx + "px," + dy + "px) scale(1.5)", opacity: 0 }, { transform: "translate(" + dx + "px," + dy + "px) scale(1.5)", opacity: 1, offset: 0.2 }, { transform: "none", opacity: 1 }], { duration: 1100, delay: 4300, easing: "cubic-bezier(.2,.7,.2,1)", fill: "both" }));
+    o5anims.push(src.animate([{ opacity: 1 }, { opacity: .35 }], { duration: 500, delay: 4400, fill: "both" }));
   }
   var o5m = {
     enter: function () { o5Play(); },
@@ -905,9 +910,9 @@ html.rm .slide .c4-ghost { animation: none !important; }
   var help = document.getElementById("help"), hud = document.getElementById("hud");
   function interactive(t) { return t && t.closest && t.closest("button, a, input, [role=button], #help"); }
   addEventListener("keydown", function (e) {
-    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.metaKey || e.ctrlKey || e.altKey || e.repeat) return;
     var k = e.key, onBtn = interactive(e.target);
-    if (k === "Escape") { if (help.classList.contains("open")) help.classList.remove("open"); else if (M.sheet) closeSheet(); return; }
+    if (k === "Escape") { if (help.classList.contains("open")) help.classList.remove("open"); else if (M.sheet) closeSheet(true); return; }
     if (onBtn && (k === " " || k === "Enter")) return; // native activation of the focused control
     if (k === "ArrowRight" || k === " " || k === "PageDown") { e.preventDefault(); next(); }
     else if (k === "ArrowLeft" || k === "PageUp") { e.preventDefault(); prev(); }
@@ -919,7 +924,12 @@ html.rm .slide .c4-ghost { animation: none !important; }
     else if (k === "f" || k === "F") { if (document.fullscreenElement) document.exitFullscreen(); else if (html.requestFullscreen) html.requestFullscreen(); }
     else if (k === "?") help.classList.toggle("open");
   });
+  // The click that brings the window to the front is not a "next".
+  var justFocused = true;
+  function markFocused() { justFocused = true; clearTimeout(markFocused.t); markFocused.t = setTimeout(function () { justFocused = false; }, 300); }
+  addEventListener("focus", markFocused); markFocused();
   stage.addEventListener("click", function (e) {
+    if (justFocused) return;
     if (interactive(e.target) || e.target.closest("#o4wrap, #o4sheet, #o4scrim")) return;
     if (cur() === "O4") return; // the model moves on buttons and the arrow keys, never on a stray click
     if (e.shiftKey) prev(); else next();
@@ -929,9 +939,6 @@ html.rm .slide .c4-ghost { animation: none !important; }
   document.getElementById("helpbtn").addEventListener("click", function () { help.classList.toggle("open"); });
   help.addEventListener("click", function () { help.classList.remove("open"); });
   if (qs.get("hud") === "0") hud.classList.add("hide");
-
-  // Q1 shows where this deployment lives
-  document.getElementById("q1url").textContent = /^https?:$/.test(location.protocol) ? location.host : "this deployment";
 
   /* ---------- go ---------- */
   var start = ORDER.indexOf(deep); if (start < 0) start = 0;
