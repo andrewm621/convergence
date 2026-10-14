@@ -42,7 +42,7 @@ describe("the Worker-run contract checks (R8)", () => {
 		const { port, tree } = repoOf(files);
 		const result = await runContractCheck(port, { repo: "r", sha: SHA, tree, check: NOTIFICATIONS_CHECK, facets: V2, required: WI2_NOTIFICATIONS });
 		expect(result?.pass).toBe(true);
-		expect(result?.output).toContain(`Delta-run contract check ${NOTIFICATIONS_CHECK} at ${SHA.slice(0, 7)}`);
+		expect(result?.output).toContain(`Convergence contract check ${NOTIFICATIONS_CHECK} at ${SHA.slice(0, 7)}`);
 		expect(result?.output).toContain("src/work/wi-2.ts");
 		expect(result?.output).toContain("asserting notifications.cadence, notifications.default");
 		expect(result?.output).toContain('notifications.default = "opt-in" as accepted');
@@ -83,7 +83,7 @@ describe("the Worker-run contract checks (R8)", () => {
 		const { port, tree } = repoOf(files);
 		const result = await runContractCheck(port, { repo: "r", sha: SHA, tree, check: NOTIFICATIONS_CHECK, facets: V2, required: WI2_NOTIFICATIONS });
 		expect(result?.pass).toBe(false);
-		expect(result?.output).toContain(`Delta-run contract check ${NOTIFICATIONS_CHECK}`);
+		expect(result?.output).toContain(`Convergence contract check ${NOTIFICATIONS_CHECK}`);
 		expect(result?.output).toContain('src/work/wi-2.ts: notifications.default = "on", accepted is "opt-in"');
 	});
 
@@ -201,6 +201,6 @@ describe("the Worker-run contract checks (R8)", () => {
 		const empty: Record<string, ContractCheck> = { "x.check": { reads: () => false, run: (files) => ({ pass: Object.keys(files).length === 0, output: "saw no files" }) } };
 		const { port, tree } = repoOf({ "src/a.ts": "x" });
 		const result = await runContractCheck(port, { repo: "r", sha: SHA, tree, check: "x.check", facets: {}, required: [] }, empty);
-		expect(result).toEqual({ pass: true, output: `Delta-run contract check x.check at ${SHA.slice(0, 7)}, reading no files: saw no files` });
+		expect(result).toEqual({ pass: true, output: `Convergence contract check x.check at ${SHA.slice(0, 7)}, reading no files: saw no files` });
 	});
 });

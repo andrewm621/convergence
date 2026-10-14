@@ -44,16 +44,16 @@ export async function runContractCheck(
 	const definition = registry[input.check] as ContractCheck;
 	const at = input.sha.slice(0, 7);
 	const paths = [...input.tree.keys()].filter((path) => definition.reads(path)).sort();
-	if (paths.length > MAX_FILES) return { pass: false, output: `Delta-run contract check ${input.check} at ${at} failed closed: ${paths.length} files to read, the limit is ${MAX_FILES}.` };
+	if (paths.length > MAX_FILES) return { pass: false, output: `Convergence contract check ${input.check} at ${at} failed closed: ${paths.length} files to read, the limit is ${MAX_FILES}.` };
 
 	const files: Record<string, string> = {};
 	for (const path of paths) {
 		const entry = input.tree.get(path);
 		const text = entry ? await port.readBlob(input.repo, entry.hash) : null;
 		if (text === null) throw new Error(`cannot read ${path} at ${at}`);
-		if (text.length > MAX_FILE_CHARS) return { pass: false, output: `Delta-run contract check ${input.check} at ${at} failed closed: ${path} is larger than ${MAX_FILE_CHARS} characters.` };
+		if (text.length > MAX_FILE_CHARS) return { pass: false, output: `Convergence contract check ${input.check} at ${at} failed closed: ${path} is larger than ${MAX_FILE_CHARS} characters.` };
 		files[path] = text;
 	}
 	const result = definition.run(files, input.facets, input.required);
-	return { pass: result.pass, output: capped(`Delta-run contract check ${input.check} at ${at}, reading ${paths.length === 0 ? "no files" : paths.join(", ")}: ${result.output}`) };
+	return { pass: result.pass, output: capped(`Convergence contract check ${input.check} at ${at}, reading ${paths.length === 0 ? "no files" : paths.join(", ")}: ${result.output}`) };
 }

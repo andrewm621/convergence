@@ -143,7 +143,7 @@ describe("revalidate loop (M4)", () => {
 		expect(ran.map((e) => e.check).sort()).toEqual(CHECKS);
 		for (const e of ran) {
 			expect(e).toMatchObject({ pass: true });
-			expect(e.output).toMatch(/Delta-run contract check .* at [0-9a-f]{7}, reading src\/index\.ts, src\/work\/wi-2\.ts/);
+			expect(e.output).toMatch(/Convergence contract check .* at [0-9a-f]{7}, reading src\/index\.ts, src\/work\/wi-2\.ts/);
 			expect(e.output).not.toMatch(/NOT A TEST/);
 		}
 		// Each check asserts exactly the facets WI-2 declared a dependency on, and found them declared in the pushed code
@@ -353,7 +353,7 @@ describe("revalidate loop (M4)", () => {
 		expect(gate.reasonCodes).not.toContain("STALE_RECEIPT"); // the receipt is current; the work is what is wrong
 	}, 30_000);
 
-	it("R8: claims that cite v2 over code that does not encode v2 fail the Delta-run contract check by its real name", async () => {
+	it("R8: claims that cite v2 over code that does not encode v2 fail the Convergence contract check by its real name", async () => {
 		const s = await stale({ agent: { outcome: "wrong-code" } });
 		await revalidate(s);
 		await jobAt(s, "done");
