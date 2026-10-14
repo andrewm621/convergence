@@ -2,7 +2,7 @@
 
 A decision shouldn't just be written down. The system should know what depends on it.
 
-It works like a lockfile for decisions. Each agent's context is pinned to the exact version of every decision it was given, so when one changes, you know exactly whose work was built on the old version. That work gets blocked from merging, even if it sits in a different file and git merges it clean, until a named human revalidates it. Everything else stays green, and no model makes any of those calls.
+It works like a lockfile for decisions. Each agent's context is pinned to the exact version of every decision it was given, so when one changes, you know exactly whose work was built on the old version. That work gets blocked from merging, even if it sits in a different file and git merges it clean, until a named human resolves it. Everything else stays green, and no model makes any of those calls.
 
 ## Try it in 60 seconds
 
