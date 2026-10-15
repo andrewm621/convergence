@@ -2,7 +2,7 @@
 
 > Synthetic scenario. Not operational guidance. Larkhaven County, its river flood and the Larkhaven Mutual Aid Network are invented.
 
-The second act of the demo is the Larkhaven County shelter policy: knowledge work, no code. The console replays it from fixtures (`?mock=1&scenario=shelter-intake`, five drafts). This page is the live version: two real model agents each write a real document on their own fork, the policy changes while they work, and the Worker's deterministic rules do the rest. No model decides a condition, an authorization or a promotion.
+The Larkhaven County shelter policy is a knowledge-work scenario, no code. It also runs live on the deployed Worker, but it is not in the submission video: the video's knowledge-work act is the Sablewood Sales replay. The console replays the shelter story from fixtures (`?mock=1&scenario=shelter-intake`, five drafts). This page is the live version: two real model agents each write a real document on their own fork, the policy changes while they work, and the Worker's deterministic rules do the rest. No model decides a condition, an authorization or a promotion.
 
 ## What happens
 
@@ -27,13 +27,13 @@ Revalidating SH-1 makes the Worker issue a new receipt at v2 and re-dispatch the
 
 The Worker needs `ENABLE_SMOKE=1`, `AGENT_MODE=claude` and the `OPENROUTER_API_KEY` secret (see `docs/agent-runtime.md`). `AGENT_MAX_COST_USD` is 1.00 in `wrangler.jsonc`, enough headroom for a stronger model.
 
-Stage it for camera (seed, two agents, decision change while they run, stop with SH-1 stale and blocked and SH-2 ready; the repos are kept):
+Stage it for a live demo, not used in the submission video (seed, two agents, decision change while they run, stop with SH-1 stale and blocked and SH-2 ready; the repos are kept):
 
 ```bash
 WORKER_URL=https://<worker>.workers.dev DEV_TOKEN=... node scripts/check-live-shelter.mjs --cell shelter-intake-demo --stop-before-revalidate
 ```
 
-Open `<worker url>/?cell=shelter-intake-demo` in the console. On camera: Revalidate SH-1, watch the re-dispatch, then promote SH-2 and SH-1.
+Open `<worker url>/?cell=shelter-intake-demo` in the console. To walk it through: Revalidate SH-1, watch the re-dispatch, then promote SH-2 and SH-1.
 
 Run the whole act unattended (the repos are deleted at the end, by exact name):
 
