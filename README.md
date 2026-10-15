@@ -285,10 +285,10 @@ Result on `main` plus this README, run 2026-10-14 from a fresh install: typechec
 |---|---|---|
 | `packages/contracts` | 5 | 81 |
 | `packages/delta-core` | 16 | 290 |
-| `apps/worker` | 34 | 760 |
+| `apps/worker` | 34 | 761 |
 | `apps/console` | 39 | 374 |
 | `conformance` | 4 | 177 |
-| **Total** | **98** | **1,682** |
+| **Total** | **98** | **1,683** |
 
 The console tests run in jsdom with a 10-second async-wait timeout (set in `apps/console/src/test/setup.ts`). On a heavily loaded machine one can still time out; if it does, rerun that package alone (`pnpm --filter console test`) before treating it as a failure. The counts above come from a fresh clone with the stock settings.
 

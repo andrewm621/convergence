@@ -52,12 +52,12 @@ export function redactPublic(text: string, secrets: ReadonlyArray<string | undef
 /**
  * Redact a JSON body by walking it and rewriting each string value on its own. Redacting the serialized text instead is
  * unsafe: the URL-credentials pattern can match from one JSON string into the next (`"see https://a.example","b":"ops@x"`)
- * and break the document. Object keys are left as they are.
+ * and break the document. Object keys are redacted too, since agent claims can carry arbitrary keys.
  */
 export function redactPublicJson(value: unknown, secrets: ReadonlyArray<string | undefined> = []): unknown {
 	if (typeof value === "string") return redactPublic(value, secrets);
 	if (Array.isArray(value)) return value.map((item) => redactPublicJson(item, secrets));
-	if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, redactPublicJson(item, secrets)]));
+	if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([key, item]) => [redactPublic(key, secrets), redactPublicJson(item, secrets)]));
 	return value;
 }
 

@@ -91,6 +91,12 @@ describe("redactPublic", () => {
 		expect(out.list[0]).toBe("https://host.example/x.git");
 	});
 
+	it("redacts secrets that appear as object keys", () => {
+		const text = redactPublicBody(JSON.stringify({ claims: { [`${TOKEN}`]: 1, "sk-or-v1-abcdefghijklmnopqrstuvwxyz": 2 } }), [TOKEN]);
+		expect(() => JSON.parse(text)).not.toThrow();
+		for (const needle of [TOKEN, "abcdefghijklmnopqrstuvwxyz"]) expect(text).not.toContain(needle);
+	});
+
 	it("falls back to text redaction for a body that is not JSON", () => {
 		expect(redactPublicBody("plain https://u:p@h/x", [])).toBe("plain https://h/x");
 	});
