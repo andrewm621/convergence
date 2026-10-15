@@ -10,3 +10,4 @@ export * from "./receipt";
 export * from "./reconcile";
 export * from "./store";
 export * from "./summary";
+export * from "./what-if";
