@@ -79,13 +79,15 @@ describe("the console, mock-driven end to end", () => {
 		}
 	});
 
-	it("keeps Northwind Sales Ops out of the switcher, but opens it from ?scenario=sales-ops on the same screen", async () => {
+	it("offers Sablewood Sales in the switcher, opens it from ?scenario=sales-ops, and keeps the synthetic note in view", async () => {
 		const user = userEvent.setup();
 		const { unmount } = render(<App runtime={runtime} />);
-		expect(screen.queryByRole("radio", { name: /Northwind/ })).toBeNull();
+		expect(screen.getByRole("radio", { name: /Sablewood Sales · knowledge work/ })).toBeInTheDocument();
+		expect(document.body).not.toHaveTextContent(/Northwind/);
 		unmount();
 		render(<App runtime={{ ...runtime, scenario: "sales-ops" }} ui="classic" />);
-		expect(screen.getByRole("radio", { name: /Northwind Sales Ops/ })).toBeInTheDocument();
+		expect(screen.getByRole("radio", { name: /Sablewood Sales/ })).toBeChecked();
+		expect(screen.getByTestId("scenario-note")).toHaveTextContent("Synthetic scenario. Sablewood is a fictional software company");
 		expect(await screen.findByRole("heading", { name: "qualified-lead" })).toBeInTheDocument();
 		await next(user, 4);
 		const graph = await screen.findByRole("region", { name: "Work graph" });
@@ -99,7 +101,6 @@ describe("the console, mock-driven end to end", () => {
 		const user = userEvent.setup();
 		render(<App runtime={runtime} ui="classic" />);
 		expect(screen.queryByTestId("scenario-note")).toBeNull();
-		expect(screen.queryByRole("radio", { name: /Northwind/ })).toBeNull();
 		await user.click(screen.getByRole("radio", { name: /Larkhaven County Shelter · knowledge work/ }));
 		expect(await screen.findByRole("heading", { name: "shelter-intake-policy" })).toBeInTheDocument();
 		expect(screen.getByTestId("scenario-note")).toHaveTextContent("Synthetic scenario. Not operational guidance.");

@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 import type { ViewMode } from "@/state/console-context";
 import { SCENARIO_META, SYNTHETIC_NOTE, scenarioMeta } from "./scenario-meta";
 
-/** `compact`: the scenarios not open show as icons (named in their tooltip and to screen readers) below 2xl, to make room for Work | Map. */
+/** `compact`: the scenarios not open show as icons (named in their tooltip and to screen readers) below 2xl, to make room for Work | Map. Only the open one shows its kind until very wide screens, so four scenarios fit at 1920. */
 export function ScenarioSwitcher({ value, onChange, live = false, compact = false }: { value: ScenarioName; onChange(next: ScenarioName): void; live?: boolean; compact?: boolean }) {
 	return (
 		<div role="radiogroup" aria-label="Scenario" className="inline-flex shrink-0 items-center rounded-lg border bg-muted p-0.5">
@@ -34,7 +34,7 @@ export function ScenarioSwitcher({ value, onChange, live = false, compact = fals
 					>
 						<Icon className="size-3.5" aria-hidden />
 						<span className={iconOnly ? "sr-only 2xl:not-sr-only" : undefined}>{meta.label}</span>{" "}
-						<span className="hidden text-xs font-normal text-muted-foreground 2xl:inline">· {meta.kind}</span>
+						<span className={cn("hidden text-xs font-normal text-muted-foreground", active ? "2xl:inline" : "min-[2200px]:inline")}>· {meta.kind}</span>
 					</button>
 				);
 			})}

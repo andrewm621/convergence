@@ -106,8 +106,8 @@ const salesWi3: FileChange[] = [
 		"+",
 		"+| Segment | Qualified leads | Weighted pipeline |",
 		"+| --- | --- | --- |",
-		"+| Field service, 50-249 | 212 | $1.84M |",
-		"+| Field service, 250+ | 96 | $2.31M |",
+		"+| Mid-market, 50-249 employees | 212 | $1.84M |",
+		"+| Enterprise, 250+ employees | 96 | $2.31M |",
 	]),
 ];
 
