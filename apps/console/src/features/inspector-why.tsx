@@ -14,6 +14,7 @@ import { useGate } from "@/state/use-gate";
 import { DependencyDecision } from "./dependency-decision";
 import { Resolutions } from "./inspector-actions";
 import { ReceiptFacetList } from "./receipt-facets";
+import { RejectedNote } from "./rejected-note";
 
 const CONDITION_TONE: Record<ConditionType, "danger" | "warning" | "success" | "primary" | "merged"> = {
 	Fresh: "success",
@@ -277,6 +278,7 @@ export function WhyTab({ wi, showResolutions = true }: { wi: WorkItemState; /** 
 									<span className="font-semibold">{formatFacet(row.claim.value)}</span>
 									<span className="font-mono text-[11px] text-muted-foreground">({row.claim.basedOn})</span>
 									{row.verdict !== "match" && <Badge tone={row.verdict === "conflict" ? "danger" : "warning"}>{row.verdict === "ungoverned" ? "not governed" : row.verdict}</Badge>}
+									{row.rejected && <RejectedNote rejected={row.rejected} />}
 								</li>
 							))}
 						</ul>

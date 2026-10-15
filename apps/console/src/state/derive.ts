@@ -123,6 +123,8 @@ export type ClaimRow = {
 	/** The claim cites a version that is no longer current. */
 	superseded: boolean;
 	note: string | null;
+	/** Set when the claimed value is one the governing decision declared rejected (the engine's `REJECTED_ALTERNATIVE`). */
+	rejected?: NonNullable<Analysis["conflicts"][number]["rejected"]>;
 };
 
 export type SemanticDiff = {
@@ -148,7 +150,7 @@ export function semanticDiff(view: ViewState, wi: WorkItemState, analysis: Analy
 		const undeclared = ref ? analysis.outsideReceipt.some((o) => o.recordId === ref.recordId && o.subjects.includes(claim.subject)) : false;
 		const conflict = analysis.conflicts.find((c) => c.subject === claim.subject && c.basedOn === claim.basedOn);
 		if (undeclared) return { claim, verdict: "undeclared" as const, accepted, acceptedRef, superseded, note: `${ref?.recordId ?? "This decision"} was not among what it was given and has no accepted dependency.` };
-		if (conflict) return { claim, verdict: "conflict" as const, accepted, acceptedRef, superseded, note: conflict.reasonCodes.includes("SUPERSEDED_BASIS") && accepted !== null && facetValuesEqual(claim.value, accepted) ? "Right value, but built on a superseded version of a setting that changed." : null };
+		if (conflict) return { claim, verdict: "conflict" as const, accepted, acceptedRef, superseded, note: conflict.reasonCodes.includes("SUPERSEDED_BASIS") && accepted !== null && facetValuesEqual(claim.value, accepted) ? "Right value, but built on a superseded version of a setting that changed." : null, ...(conflict.rejected ? { rejected: conflict.rejected } : {}) };
 		if (accepted === null) return { claim, verdict: "ungoverned" as const, accepted, acceptedRef, superseded, note: "No setting governs this." };
 		return { claim, verdict: "match" as const, accepted, acceptedRef, superseded, note: superseded ? "Based on an older version, but this setting did not change." : null };
 	});
