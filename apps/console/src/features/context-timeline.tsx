@@ -11,7 +11,7 @@ import { formatDateTime, formatFacet, parseFacetInput, plural, shortHash } from 
 import { cn } from "@/lib/utils";
 import { UnavailableHint } from "@/components/unavailable-hint";
 import { useConsole } from "@/state/console-context";
-import { CompareAlternatives, CompareLinks, scrollToTopOfParent, useHeldOptions } from "./compare-alternatives";
+import { CompareAlternatives, CompareLinks, useHeldOptions } from "./compare-alternatives";
 import { scenarioMeta } from "./scenario-meta";
 import { actorLabel, impactSentence, impactSummary, previewImpact, proseEdits, recordIds } from "@/state/derive";
 
@@ -328,11 +328,6 @@ export function ChangeEditor({ recordId, snapshot, onClose }: { recordId: string
 	// Compare alternatives: edits held for a side-by-side preview. A preview only; nothing here is saved or sent.
 	const [comparing, setComparing] = useState(false);
 	const { held, hold, remove } = useHeldOptions();
-	const compareRef = useRef<HTMLDivElement>(null);
-	useEffect(() => {
-		// Bring the panel to the top of the card: the sticky footer would otherwise sit over it. Again when an edit is held, so its result is in view.
-		if (comparing) scrollToTopOfParent(compareRef.current);
-	}, [comparing, held.length]);
 
 	async function submit() {
 		setSubmitted(true);
@@ -427,17 +422,16 @@ export function ChangeEditor({ recordId, snapshot, onClose }: { recordId: string
 			</div>
 
 			{comparing && !moved && (
-				<div ref={compareRef}>
-					<CompareAlternatives
-						view={view}
-						recordId={recordId}
-						snapshot={snapshot}
-						held={held}
-						draft={facets}
-						onRemove={remove}
-						onLoad={(loaded) => setRows(toRows(loaded).map((row) => ({ ...row, original: row.key in snapshot.facets })))}
-					/>
-				</div>
+				<CompareAlternatives
+					view={view}
+					recordId={recordId}
+					snapshot={snapshot}
+					held={held}
+					draft={facets}
+					onRemove={remove}
+					onLoad={(loaded) => setRows(toRows(loaded).map((row) => ({ ...row, original: row.key in snapshot.facets })))}
+					onClose={() => setComparing(false)}
+				/>
 			)}
 
 			{/* Sticky: the effect line and the save button stay in view however far the settings and wording push them down. */}

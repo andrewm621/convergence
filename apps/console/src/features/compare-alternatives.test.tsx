@@ -114,6 +114,34 @@ describe("compare alternatives", () => {
 		expect(spies[0]).not.toHaveBeenCalled();
 	});
 
+	it("opens as a dialog over the main pane; Escape and Close shut it, and held edits survive", async () => {
+		const { user } = await openEditor();
+		const link = screen.getByRole("button", { name: "Compare alternatives" });
+		expect(screen.queryByTestId("compare-panel")).toBeNull();
+
+		await user.click(link);
+		const sheet = screen.getByTestId("compare-panel");
+		expect(sheet).toHaveAttribute("role", "dialog");
+		expect(within(sheet).getByRole("heading", { name: "Compare alternatives" })).toBeInTheDocument();
+		// The editor is not inside it, and stays live beside it.
+		expect(within(sheet).queryByLabelText("Why this change")).toBeNull();
+		await waitFor(() => expect(within(sheet).getByRole("button", { name: "Close" })).toHaveFocus());
+
+		await hold(user, /Hold this edit as Option A/);
+		await screen.findByTestId("compare-option");
+
+		await user.keyboard("{Escape}");
+		expect(screen.queryByTestId("compare-panel")).toBeNull();
+		expect(screen.getByRole("button", { name: "Compare alternatives" })).toHaveFocus();
+		expect(screen.getByText("1 held")).toBeInTheDocument();
+
+		// Reopened, the held edit is still there; Close shuts it too.
+		await user.click(screen.getByRole("button", { name: "Compare alternatives" }));
+		expect(await screen.findByTestId("compare-option")).toBeInTheDocument();
+		await user.click(within(screen.getByTestId("compare-panel")).getByRole("button", { name: "Close" }));
+		expect(screen.queryByTestId("compare-panel")).toBeNull();
+	});
+
 	it("holds at most three edits", async () => {
 		const { user } = await openEditor();
 		await user.click(screen.getByRole("button", { name: "Compare alternatives" }));
