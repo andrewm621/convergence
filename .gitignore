@@ -1,4 +1,4 @@
-# --- Local-only context (points at a private knowledge vault; never public) ---
+# --- Local-only context (never committed) ---
 CLAUDE.local.md
 AGENTS.local.md
 *.local.md
@@ -12,7 +12,7 @@ AGENTS.local.md
 .dev.vars.*
 !.dev.vars.example
 
-# --- Private research / raw transcripts: these live in the vault, never here ---
+# --- Research notes and raw transcripts: kept out of the repo ---
 sources/
 research/
 docs/research/

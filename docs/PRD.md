@@ -302,8 +302,6 @@ The build lifts from the author's own prior spikes rather than rebuilding them:
 - React Flow + dagre graph layout
 - Durable Object WebSocket fan-out
 
-The source paths are in the local, untracked context file.
-
 All of this is the maintainer's own prior code. Keep the contest repo's commit history entirely inside the contest window; the rules require "own original content".
 
 ## 11. Risks and mitigations
@@ -322,7 +320,7 @@ All of this is the maintainer's own prior code. Keep the contest repo's commit h
 
 ## 12. Submission copy (draft; revise to match what was actually built)
 
-**Project name:** Convergence (the reconciliation engine inside it is Delta, the `delta-core` package). Use one public name only; ProofMerge, Convergence Lab and the rest stay internal.
+**Project name:** Convergence (the reconciliation engine inside it is Delta, the `delta-core` package). Use one public name only.
 
 **One-line pitch:** Git tells you when two agents changed the same lines. Convergence tells you when two agents are building from different decisions, and won't let the stale one merge.
 
@@ -340,7 +338,7 @@ All of this is the maintainer's own prior code. Keep the contest repo's commit h
 
 ## 13. Open decisions (need the decision owner)
 
-1. ~~**Cloudflare account.**~~ **Decided (Oct 12):** the maintainer's account; he will supply an API token. Account details live in the local untracked context file. Still to verify at M0: Workers Paid and Containers access (`wrangler whoami`).
+1. ~~**Cloudflare account.**~~ **Decided (Oct 12):** the maintainer's account; he will supply an API token. Still to verify at M0: Workers Paid and Containers access (`wrangler whoami`).
 2. ~~**Model key for agents.**~~ **Decided (Oct 12):** OpenRouter. Agents reach Claude models through OpenRouter (`OPENROUTER_API_KEY`, set by the decision owner as a Worker secret and in `.dev.vars`; model pinned by config). AI Gateway is optional on top and claimed only if used.
 3. **Team fields.** Solo entry, or a second attendee?
 4. **Video.** Who narrates, and should it be a screen recording or have a face cam?
@@ -372,4 +370,4 @@ Status labels are strict. **Owner-decided** means he stated or approved it. **Ow
 | The canvas is a projection, not the source of truth; no giant mandatory graph | Recommended, adopted |
 | Rejected: DAO framing, chat-first UI, Kubernetes compatibility, a broad horizontal platform | Recommended-rejected |
 | Deferred to after the contest: the authority/autonomy model (A0–A4), the Agent Council demo, Try Together / What-if, a separate context service, AI dependency inference | Deferred |
-| Raw transcripts and research stay out of the public repo, in a private knowledge vault | Owner-decided (Oct 12) |
+| Raw transcripts and research stay out of the public repo | Owner-decided (Oct 12) |

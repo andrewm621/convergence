@@ -7,7 +7,7 @@ import { initialViewState, toCellState, type ViewState } from "./store";
 import { compareOptions } from "./what-if";
 
 /**
- * Guards the numbers the video script's row 10a speaks for the LIVE shelter act (docs/submission/video-script.md).
+ * Guards the numbers the video script's row 10a speaks for the LIVE shelter act.
  *
  * The staged live cell `shelter-intake-rec1` has two work items, seeded by apps/worker/src/smoke-shelter.ts:
  *   SH-1 Front-desk intake script        relies on pets, id_required

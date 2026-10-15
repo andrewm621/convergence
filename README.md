@@ -361,11 +361,9 @@ As of 2026-10-13, checked against `main`. "Built" means code on `main` with test
 | Container-run project test suite as evidence | Not built | Only the plain-text contract check exists |
 | Real per-user auth, authority and approvals as first-class objects | Not built | After the contest |
 | MCP server, AI dependency inference, claim extraction | Not built | After the contest |
-| Demo video | Not yet | Link to be added |
+| Demo video | Submitted with the entry | Link added here after upload |
 
 A preview at commit time is built: before the Decision owner commits a new version, the editor names the work it will block and the work it leaves alone, and says which exceptions it ends. A test commits through the engine and checks the preview matched, for each story's change and for one-setting edits at every step. The editor can also hold two or three candidate versions of one decision and show which known dependent work each would block. It runs the same `reconcile` function as a real commit, as a dry run with nothing saved. Tests check the comparison against the engine, and check that for the scripted edit the preview blocks the same work a real commit does. Full what-if branching across a whole project is still not built.
-
-<!-- [AFTER RECORDING: add the demo video link here and in the "Demo video" row of the table above once the video is uploaded] -->
 
 ## Why not X?
 
