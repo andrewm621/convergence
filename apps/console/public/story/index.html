@@ -363,6 +363,18 @@ html.nomo .slide .mo, html.nomo .slide .mo *, html.nomo .slide .o4-edge { animat
 #help dl { background: var(--popover); border: 1.5px solid var(--input); border-radius: 16px; padding: 26px 34px; display: grid; grid-template-columns: auto 1fr; gap: 8px 28px; font-size: 18px; }
 #help dt { font-family: var(--font-mono); color: var(--info); }
 #help h2 { grid-column: 1 / -1; font-size: 22px; margin-bottom: 6px; }
+
+/* ---------- progress cues: position dots (one per slide) + a 2px line for the current slide's animation ----------
+   Fixed to the viewport, outside the stage: nothing in a slide moves, nothing here takes a click or a key. ?progress=0 hides them. */
+#prog { position: fixed; inset: 0; z-index: 25; pointer-events: none; }
+#prog.hide { display: none; }
+#prog-dots { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); display: flex; gap: 8px; }
+#prog-dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--input); transition: background .25s; }
+#prog-dots i.on { background: var(--foreground); }
+#prog-line { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: color-mix(in oklch, var(--primary) 75%, transparent); transform-origin: left center; transform: scaleX(0); opacity: 0; transition: opacity .4s ease; }
+#prog-line.on { opacity: 1; }
+html.rm #prog-dots i, html.rm #prog-line { transition: none; }
+@media (max-width: 700px) { #prog-dots { bottom: 42px; } } /* clear of the deck controls */
 </style>
 </head>
 <body>
@@ -621,6 +633,7 @@ html.nomo .slide .mo, html.nomo .slide .mo *, html.nomo .slide .o4-edge { animat
     <dt>?slide=O4</dt><dd>Deep link · &amp;step=0..4 on O4 · ?mode=live adds T0 and Q1</dd>
   </dl>
 </div>
+<div id="prog" aria-hidden="true"><div id="prog-dots"></div><div id="prog-line"></div></div>
 <div id="live" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
 
 <script>
@@ -980,6 +993,37 @@ html.nomo .slide .mo, html.nomo .slide .mo *, html.nomo .slide .o4-edge { animat
     reset: function () { o5Play(); }
   };
 
+  /* ---------- progress cues ----------
+     Dots: one per slide, current filled. Line: elapsed / latest end time of the current slide's CSS and Web Animations
+     (transitions are skipped: they are user-paced), sampled each frame. One run per entry or replay; it holds at 100% briefly, then fades.
+     A slide with no timed motion (reduced motion, &motion=0 leftovers) never shows it. */
+  var prog = (function () {
+    var root = document.getElementById("prog"), dotsEl = document.getElementById("prog-dots"), line = document.getElementById("prog-line");
+    if (qs.get("progress") === "0") { root.classList.add("hide"); return { go: function () {}, reset: function () {} }; }
+    var dots = ORDER.map(function () { var d = document.createElement("i"); dotsEl.appendChild(d); return d; });
+    var el, t0, end, closed = true, fadeT;
+    function reset() { clearTimeout(fadeT); t0 = document.timeline.currentTime; end = 0; closed = false; line.classList.remove("on"); line.style.transform = "scaleX(0)"; }
+    function tick() {
+      requestAnimationFrame(tick);
+      if (closed || !el || !el.getAnimations) return;
+      var now = document.timeline.currentTime;
+      el.getAnimations({ subtree: true }).forEach(function (a) {
+        if (a instanceof CSSTransition || a.startTime == null) return;
+        var t = a.effect.getComputedTiming(), e = a.startTime + t.endTime / (a.playbackRate || 1);
+        if (isFinite(e) && e > end) end = e;
+      });
+      if (!end) return;
+      var p = end > t0 ? Math.max(0, Math.min(1, (now - t0) / (end - t0))) : 1;
+      line.classList.add("on"); line.style.transform = "scaleX(" + p + ")";
+      if (p >= 1) { closed = true; fadeT = setTimeout(function () { line.classList.remove("on"); }, 350); }
+    }
+    requestAnimationFrame(tick);
+    return {
+      go: function (i) { dots.forEach(function (d, n) { d.classList.toggle("on", n === i); }); el = slides[ORDER[i]]; reset(); },
+      reset: reset
+    };
+  })();
+
   /* =================== navigation =================== */
   var handlers = { O4: o4, C3: c3m, O5: o5m };
   var idx = -1, counter = document.getElementById("count");
@@ -996,6 +1040,7 @@ html.nomo .slide .mo, html.nomo .slide .mo *, html.nomo .slide .o4-edge { animat
     el.inert = false; el.removeAttribute("aria-hidden");
     el.classList.add("on");
     var h = handlers[id]; if (h && h.enter) h.enter(!!opts.fromEnd, opts.step);
+    prog.go(idx);
     counter.textContent = id + " · " + (idx + 1) + " / " + ORDER.length;
     document.title = id + " · Convergence · the story";
     announce("Slide " + (idx + 1) + " of " + ORDER.length + ": " + el.dataset.title);
@@ -1005,7 +1050,7 @@ html.nomo .slide .mo, html.nomo .slide .mo *, html.nomo .slide .o4-edge { animat
   }
   function next() { var h = handlers[cur()]; if (h && h.next && h.next()) return; if (idx < ORDER.length - 1) show(idx + 1); }
   function prev() { var h = handlers[cur()]; if (h && h.prev && h.prev()) return; if (idx > 0) show(idx - 1, { fromEnd: true }); }
-  function replay() { var id = cur(), h = handlers[id]; replayCSS(slides[id]); if (h && h.reset) h.reset(); }
+  function replay() { var id = cur(), h = handlers[id]; replayCSS(slides[id]); if (h && h.reset) h.reset(); prog.reset(); }
 
   /* ---------- cursor: visible on O4, hidden after a pause elsewhere ---------- */
   var cursorTimer;
