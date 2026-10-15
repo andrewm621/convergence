@@ -12,7 +12,7 @@ A draft protocol for decisions people and agents rely on. When one changes, work
 
 ## 2a. Short description (54 words)
 
-Convergence is a draft protocol for decisions people and agents rely on; this is its first implementation. When an accepted decision changes mid-flight, it finds the agent work built on the old version, blocks that work from merging until a named human resolves it, and leaves the rest alone. No model makes those calls.
+Convergence is a draft protocol for decisions people and agents rely on; this is its first implementation. When an accepted decision changes mid-flight, it finds the work built on the old version, code or documents, and holds it back until a named human resolves it, leaving the rest alone. No model makes those calls.
 
 ## 2b. Tagline (11 words)
 
