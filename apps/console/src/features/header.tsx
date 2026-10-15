@@ -56,7 +56,7 @@ const MODES: { value: ViewMode; label: string; icon: typeof Radio; hint: string 
 	{ value: "process", label: "Process", icon: ChartNoAxesGantt, hint: "What each agent did over time, and where a decision change landed" },
 ];
 
-/** Work | Map | Process: the new shell's views. Below 1440 px the buttons show as icons (named in their tooltip and to screen readers), so three views fit the header at 1280. */
+/** Work | Map | Process: the new shell's views. Below 1440 px the buttons show as icons (named, with what each view shows, in their tooltip, and to screen readers), so three views fit the header at 1280. */
 export function ModeSwitcher({ value, onChange }: { value: ViewMode; onChange(next: ViewMode): void }) {
 	return (
 		<div role="radiogroup" aria-label="View" data-testid="mode-switcher" className="inline-flex shrink-0 items-center rounded-lg border bg-muted p-0.5">
@@ -68,7 +68,7 @@ export function ModeSwitcher({ value, onChange }: { value: ViewMode; onChange(ne
 						type="button"
 						role="radio"
 						aria-checked={active}
-						title={hint}
+						title={`${label} · ${hint}`}
 						onClick={() => onChange(mode)}
 						className={cn(
 							"inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-[13px] font-medium whitespace-nowrap transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",

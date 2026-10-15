@@ -185,8 +185,11 @@ export function processLanes(input: { ledger: readonly ReconciliationEvent[]; wo
 					const prior = lastVersion.get(record.recordId);
 					const refused = effects.some((e) => e.type === "NO_ACTION" && e.recordId === record.recordId && e.reasonCodes.some((c) => RECORD_REFUSAL_CODES.has(c)));
 					if (record.status !== "accepted" || refused) continue;
-					const from = prior ?? record.version - 1;
 					lastVersion.set(record.recordId, Math.max(prior ?? 0, record.version));
+					// A re-push of the same bytes, or a version bump that moved no governed setting, changed no decision: no line.
+					const unchanged = effects.some((e) => e.type === "NO_ACTION" && e.recordId === record.recordId && (e.reasonCodes.includes("PROSE_ONLY") || e.reasonCodes.includes("NO_CONTEXT_CHANGE")));
+					if (unchanged) continue;
+					const from = prior ?? record.version - 1;
 					if (record.version > from && from >= 1) decisions.push({ seq: entry.seq, recordId: record.recordId, from, to: record.version, label: `${record.recordId} v${from} → v${record.version}` });
 				}
 				if (event.records.length === 0) break;

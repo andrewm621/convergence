@@ -1,3 +1,4 @@
+import { fakeSha, type DeltaEvent } from "contracts";
 import type { ScenarioName } from "@/client/types";
 import { startMock } from "@/test/harness";
 import { describe, expect, it } from "vitest";
@@ -155,6 +156,35 @@ describe("Scenario C, shelter intake", () => {
 		expect(lapsed.at(-1)?.detail).toEqual(["Exception ended"]);
 		// The two items the change never reached stay calm throughout.
 		for (const id of ["WI-4", "WI-5"]) expect(laneOf(model, id).marks.some((m) => m.tone === "danger")).toBe(false);
+	});
+});
+
+describe("a decision line only for a real accepted version change", () => {
+	/** The notifications cell with both items registered, then the picked events sent in order; the ledger and state it holds. */
+	async function ledgerAfter(pick: (events: Record<string, DeltaEvent>) => DeltaEvent[]) {
+		const { buildNotificationsScenario } = await import("scenario-notifications");
+		const { MockCell } = await import("@/mock/cell");
+		const bundle = await buildNotificationsScenario();
+		const cell = new MockCell(bundle, () => {});
+		await cell.init("seeded");
+		const events = bundle.events as Record<string, DeltaEvent>;
+		for (const event of [events.registerWi1, events.registerWi2, ...pick(events)]) await cell.send(event as DeltaEvent);
+		return { ledger: await cell.store.ledger(), state: await cell.state() };
+	}
+
+	it("a version bump that moved no setting (PROSE_ONLY) draws no line, whole ledger or truncated tail", async () => {
+		const { ledger, state } = await ledgerAfter((e) => [e.v2 as DeltaEvent, e.v3ProseBump as DeltaEvent]);
+		expect(ledger.at(-1)?.payload.effects.flatMap((f) => f.reasonCodes)).toContain("PROSE_ONLY");
+		expect(processLanes({ ledger, workItems: state.workItems }).decisions.map((d) => d.label)).toEqual(["notifications v1 → v2"]);
+		// The tail has scrolled past v2: the bump is all that is left, and it must not be guessed into "v2 → v3".
+		expect(processLanes({ ledger: ledger.slice(-1), workItems: state.workItems }).decisions).toEqual([]);
+	});
+
+	it("a same-version re-push (NO_CONTEXT_CHANGE) draws no line when the earlier version has scrolled out of the tail", async () => {
+		const { ledger, state } = await ledgerAfter((e) => [e.v2 as DeltaEvent, { ...(e.v2 as DeltaEvent), commitSha: fakeSha("c", 4321) } as DeltaEvent]);
+		expect(ledger.at(-1)?.payload.effects.flatMap((f) => f.reasonCodes)).toContain("NO_CONTEXT_CHANGE");
+		expect(processLanes({ ledger, workItems: state.workItems }).decisions).toHaveLength(1);
+		expect(processLanes({ ledger: ledger.slice(-1), workItems: state.workItems }).decisions).toEqual([]);
 	});
 });
 
