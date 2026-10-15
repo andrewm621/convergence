@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="boot">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -63,6 +63,8 @@ body.idle-cursor { cursor: none; }
   transition: opacity var(--fade) ease, visibility 0s linear var(--fade);
 }
 .slide.on { opacity: 1; visibility: visible; transition: opacity var(--fade) ease, visibility 0s; }
+/* First paint: the page can be styled before the script picks the opening slide, which would fade it in from blank (and stall there if frames don't tick). `boot` is on <html> in the markup and dropped after the first frames. */
+html.boot .slide, html.boot .slide.on { transition: none; }
 .abs { position: absolute; }
 
 .wm { position: absolute; left: 80px; top: 40px; display: flex; align-items: center; gap: 14px; font-size: 28px; font-weight: 600; letter-spacing: -.01em; }
@@ -1048,6 +1050,7 @@ html.nomo .slide .mo, html.nomo .slide .mo *, html.nomo .slide .o4-edge { animat
   var start = ORDER.indexOf(deep); if (start < 0) start = 0;
   var stepParam = qs.get("step");
   show(start, { step: ORDER[start] === "O4" && stepParam != null ? Math.max(0, Math.min(4, +stepParam || 0)) : null });
+  requestAnimationFrame(function () { requestAnimationFrame(function () { html.classList.remove("boot"); }); });
 })();
 </script>
 </body>
