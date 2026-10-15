@@ -297,6 +297,39 @@ html.nomo .c5-list li:nth-child(1) { --t: 2.2s; } html.nomo .c5-list li:nth-chil
 .slide.on .k1-edge { animation: moDraw .4s var(--ease) var(--t, 0s) both; }
 .k1-foot { position: absolute; left: 80px; top: 932px; font-size: 30px; color: var(--muted-foreground); }
 
+/* ---------- R1 / N1: what it is, and that it runs ----------
+   Both reuse the K1 grammar: a grid inside .mo, a thin edge between cells that draws in, a muted foot line. */
+.flow-edge { align-self: center; height: 4px; margin: 0 12px; border-radius: 2px; background: color-mix(in oklch, var(--input) 90%, transparent); transform-origin: left center; position: relative; }
+.flow-edge::after { content: ""; position: absolute; right: -2px; top: -7px; border: 9px solid transparent; border-left: 13px solid color-mix(in oklch, var(--input) 90%, transparent); border-right: 0; }
+.slide.on .flow-edge { animation: moDraw .4s var(--ease) var(--t, 0s) both; }
+.r1-grid { position: absolute; left: 80px; top: 440px; width: 1760px; display: grid; grid-template-columns: 370px 93px 370px 93px 370px 93px 370px; align-items: stretch; }
+.r1-card { position: relative; display: flex; flex-direction: column; gap: 18px; padding: 32px 30px; }
+.r1-card b { font-size: 52px; line-height: 1.05; letter-spacing: -.02em; }
+.r1-card span { font-size: 30px; line-height: 1.3; color: var(--muted-foreground); }
+.r1-card.gate { border-color: color-mix(in oklch, var(--danger) 65%, transparent); background: color-mix(in oklch, var(--danger-soft) 45%, var(--card)); }
+.r1-foot { position: absolute; left: 80px; top: 932px; font-size: 30px; color: var(--muted-foreground); }
+.r1-foot .mono { color: var(--foreground); }
+.n1-grid { position: absolute; left: 80px; top: 282px; width: 1760px; display: grid; grid-template-columns: 720px 60px 980px; row-gap: 22px; align-items: stretch; }
+.n1-grid .lbl { font-size: 24px; align-self: end; }
+.n1-git, .n1-cv { display: flex; align-items: center; min-height: 112px; padding: 14px 32px; border-radius: 18px; border: 1.5px solid var(--border); background: var(--card); font-size: 36px; line-height: 1.2; }
+.n1-git { color: var(--muted-foreground); }
+.n1-cv { font-weight: 600; background: color-mix(in oklch, var(--primary) 12%, var(--card)); border-color: color-mix(in oklch, var(--primary) 55%, transparent); }
+
+/* ---------- A1 / M1 / K8 / Z1: the framing slides (text-first; same grammar as R1 / N1) ---------- */
+.a1-big { position: absolute; left: 80px; top: 400px; max-width: 1760px; font-size: 64px; line-height: 1.2; font-weight: 600; letter-spacing: -.015em; }
+.m1-card { top: 400px; width: 840px; display: flex; flex-direction: column; gap: 22px; padding: 36px 40px; }
+.m1-card p { font-size: 36px; line-height: 1.35; color: var(--muted-foreground); }
+.m1-card.rec { border-color: color-mix(in oklch, var(--primary) 55%, transparent); background: color-mix(in oklch, var(--primary) 12%, var(--card)); }
+.m1-card.rec p { color: var(--foreground); }
+.k8-grid { position: absolute; left: 80px; top: 300px; width: 1760px; display: grid; gap: 24px; }
+.k8-row { display: flex; flex-direction: column; gap: 12px; padding: 24px 36px; border-radius: 18px; border: 1.5px solid var(--border); background: var(--card); }
+.k8-row p { font-size: 42px; line-height: 1.25; color: var(--muted-foreground); }
+.k8-row.cv { border-color: color-mix(in oklch, var(--primary) 55%, transparent); background: color-mix(in oklch, var(--primary) 12%, var(--card)); }
+.k8-row.cv p { color: var(--foreground); font-weight: 600; }
+.k8-line { position: absolute; left: 80px; top: 700px; font-size: 38px; line-height: 1.3; font-weight: 600; color: var(--warning); max-width: 1700px; }
+.z1-list { position: absolute; left: 80px; top: 190px; width: 1640px; list-style: none; display: grid; gap: 40px; font-size: 52px; line-height: 1.25; color: var(--muted-foreground); }
+.z1-list .em { color: var(--foreground); font-weight: 700; font-size: 60px; }
+
 /* ---------- motifs: timeline (O3), dependency lines (O4 edges), judgment boundary (C5) ----------
    Same rule as the reveals: every default is the end state; keyframes only supply the path there.
    &motion=0 (html.nomo) and reduced motion both show that end state. */
@@ -446,6 +479,13 @@ html.rm #prog-dots i, html.rm #prog-line { transition: none; }
   <p class="sub rv" style="left:80px;top:918px;font-size:40px;color:var(--foreground);--t:8.4s">Which of these relied on the old one?</p>
 </section>
 
+<!-- ============ A1: the diligent agent (copy is a draft: every string below is the slide's text) ============ -->
+<section class="slide" data-id="A1" data-title="The risky agent isn’t the rogue one." data-tag="GRAPHIC">
+  <h1 class="h1 rv" style="top:118px;--t:.1s">The risky agent isn’t the rogue one.</h1>
+  <p class="a1-big rv" style="--t:1.0s">It’s the diligent one, working from yesterday’s assumption.</p>
+  <p class="r1-foot rv" style="--t:2.6s">Convergence makes the assumption visible, checkable and blockable before the work merges.</p>
+</section>
+
 <!-- ============ O3 ============ -->
 <section class="slide" data-id="O3" data-title="A lockfile for decisions." data-tag="GRAPHIC">
   <h1 class="h1 rv" style="top:118px;--t:.1s">A lockfile for decisions.</h1>
@@ -487,6 +527,20 @@ html.rm #prog-dots i, html.rm #prog-line { transition: none; }
   <div class="o3-word rv" style="left:1290px;--t:7.2s"><b>Gate</b><span>Block the merge until a person decides.</span></div>
 </section>
 
+<!-- ============ M1: memory vs decisions of record (copy is a draft: every string below is the slide's text) ============ -->
+<section class="slide" data-id="M1" data-title="Shared memory isn’t shared truth." data-tag="GRAPHIC">
+  <h1 class="h1 rv" style="top:118px;--t:.1s">Shared memory isn’t shared truth.</h1>
+  <div class="card m1-card rv" style="left:80px;--t:.6s;--dx:-30px;--dy:0">
+    <div class="lbl">Memory</div>
+    <p>What one agent remembers. Different for every agent. Sometimes that’s the point: a reviewer that never saw the draft argues better.</p>
+  </div>
+  <div class="card m1-card rec rv" style="left:1000px;--t:1.4s;--dx:30px;--dy:0">
+    <div class="lbl" style="color:var(--primary)">Decisions of record</div>
+    <p>What the team has accepted. The same for everyone. Versioned, so every piece of work says which version it used.</p>
+  </div>
+  <p class="r1-foot rv" style="--t:2.8s">Agents can forget different things. They shouldn’t be working from different decisions.</p>
+</section>
+
 <!-- ============ O4 (centrepiece) ============ -->
 <section class="slide" data-id="O4" data-title="Change the decision. Watch what it touches." data-tag="GRAPHIC" data-tag2="synthetic data · the live demo follows">
   <h1 class="abs rv" style="left:80px;top:72px;font-size:56px;line-height:1.1;font-weight:700;letter-spacing:-.02em;--t:.05s">Change the decision. Watch what it touches.</h1>
@@ -511,6 +565,21 @@ html.rm #prog-dots i, html.rm #prog-line { transition: none; }
     <p class="effect" id="o4effect"></p>
     <div class="sheet-acts"><button class="btn pri" id="o4commit" type="button">Make v2 the decision</button><button class="btn ghost" id="o4cancel" type="button">Cancel</button></div>
   </div>
+</section>
+
+<!-- ============ R1: it runs on Cloudflare (copy is a draft: every string below is the slide's text) ============ -->
+<section class="slide" data-id="R1" data-title="This runs on Cloudflare." data-tag="GRAPHIC">
+  <h1 class="h1 rv" style="top:118px;--t:.1s">This runs on Cloudflare.</h1>
+  <div class="r1-grid mo">
+    <div class="card r1-card rv" style="grid-column:1;--t:.6s;--dx:-30px;--dy:0"><b>Agents</b><span>Claude, in Cloudflare Sandbox containers. No tokens inside.</span></div>
+    <div class="flow-edge" style="grid-column:2;--t:1.1s"></div>
+    <div class="card r1-card rv" style="grid-column:3;--t:1.3s;--dx:-30px;--dy:0"><b>Artifacts</b><span>One git fork per work item.</span></div>
+    <div class="flow-edge" style="grid-column:4;--t:1.8s"></div>
+    <div class="card r1-card rv" style="grid-column:5;--t:2.0s;--dx:-30px;--dy:0"><b>Referee</b><span>A Durable Object per workspace. Fixed rules, no model calls.</span></div>
+    <div class="flow-edge" style="grid-column:6;--t:2.5s"></div>
+    <div class="card r1-card gate rv" style="grid-column:7;--t:2.7s;--dx:-30px;--dy:0"><b>Gate</b><span>Stale work can’t merge until a person decides.</span></div>
+  </div>
+  <p class="r1-foot rv mo" style="--t:3.8s">Observed live on the deployed Worker · <span class="mono">1,651</span> tests · <span class="mono">81/81</span> conformance vectors · MIT</p>
 </section>
 
 <!-- ============ O5 ============ -->
@@ -616,6 +685,40 @@ html.rm #prog-dots i, html.rm #prog-line { transition: none; }
   <div class="c4-box rv" style="left:800px;--t:3.4s"><b>dependency</b><code>dependency.json</code></div>
   <div class="c4-box rv" style="left:1160px;--t:3.8s"><b>resolution</b><code>resolution.json</code></div>
   <div class="c4-box rv" style="left:1520px;--t:4.2s"><b>ledger</b><code>reconciliation-event.json</code></div>
+  <p class="k1-foot rv" style="--t:4.9s">The screens can change. The records, receipts and rules underneath are what last.</p>
+</section>
+
+<!-- ============ K8: desired state, for decisions (copy is a draft: every string below is the slide's text) ============ -->
+<section class="slide" data-id="K8" data-title="Desired state, for decisions." data-tag="GRAPHIC">
+  <h1 class="h1 rv" style="top:118px;--t:.1s">Desired state, for decisions.</h1>
+  <div class="k8-grid">
+    <div class="k8-row rv" style="--t:.6s;--dy:14px"><div class="lbl">Kubernetes</div><p>You declare the desired state. Controllers keep reconciling the cluster toward it.</p></div>
+    <div class="k8-row cv rv" style="--t:1.6s;--dy:14px"><div class="lbl" style="color:var(--primary)">Convergence</div><p>People accept the decisions. The referee keeps checking the work against them.</p></div>
+  </div>
+  <p class="k8-line rv" style="--t:2.8s">When the next step is consequential, Convergence stops and asks a person.</p>
+  <p class="r1-foot rv" style="--t:3.8s">The decisions change as you learn. The checking stays deterministic.</p>
+</section>
+
+<!-- ============ N1: what Git did for files (copy is a draft: every string below is the slide's text) ============ -->
+<section class="slide" data-id="N1" data-title="What Git did for files, for decisions." data-tag="GRAPHIC">
+  <h1 class="h1 rv" style="top:118px;--t:.1s">What Git did for files, for decisions.</h1>
+  <div class="n1-grid mo">
+    <div class="lbl rv" style="grid-column:1;--t:.5s;--dy:8px">Git</div>
+    <div class="lbl rv" style="grid-column:3;color:var(--primary);--t:.5s;--dy:8px">Convergence</div>
+    <div class="n1-git rv" style="grid-row:2;grid-column:1;--t:0.90s;--dx:-30px;--dy:0">Versions files</div>
+    <div class="flow-edge" style="grid-row:2;grid-column:2;--t:1.10s"></div>
+    <div class="n1-cv rv" style="grid-row:2;grid-column:3;--t:1.25s;--dx:-20px;--dy:0">Versions decisions</div>
+    <div class="n1-git rv" style="grid-row:3;grid-column:1;--t:1.70s;--dx:-30px;--dy:0">Flags conflicting lines</div>
+    <div class="flow-edge" style="grid-row:3;grid-column:2;--t:1.90s"></div>
+    <div class="n1-cv rv" style="grid-row:3;grid-column:3;--t:2.05s;--dx:-20px;--dy:0">Flags conflicting assumptions</div>
+    <div class="n1-git rv" style="grid-row:4;grid-column:1;--t:2.50s;--dx:-30px;--dy:0">CI checks the code still builds</div>
+    <div class="flow-edge" style="grid-row:4;grid-column:2;--t:2.70s"></div>
+    <div class="n1-cv rv" style="grid-row:4;grid-column:3;--t:2.85s;--dx:-20px;--dy:0">Checks the work still fits what was decided</div>
+    <div class="n1-git rv" style="grid-row:5;grid-column:1;--t:3.30s;--dx:-30px;--dy:0">A pull request waits for review</div>
+    <div class="flow-edge" style="grid-row:5;grid-column:2;--t:3.50s"></div>
+    <div class="n1-cv rv" style="grid-row:5;grid-column:3;--t:3.65s;--dx:-20px;--dy:0">Stale work waits for the decision owner</div>
+  </div>
+  <p class="r1-foot rv mo" style="--t:4.3s">The more of the work agents do, the more this is the conflict that matters.</p>
 </section>
 
 <!-- ============ C5 ============ -->
@@ -640,6 +743,17 @@ html.rm #prog-dots i, html.rm #prog-line { transition: none; }
     <li class="rv">Compares up to three versions of one decision; not whole-project branching.</li>
   </ul>
   <p class="c5-small rv">MIT · replay runs without credentials · see the README</p>
+</section>
+
+<!-- ============ Z1: closing (copy is a draft: every string below is the slide's text) ============ -->
+<section class="slide" data-id="Z1" data-title="Somebody still has to coordinate all of it." data-tag="GRAPHIC">
+  <ul class="z1-list">
+    <li class="rv" style="--t:.5s">We can make each person and each agent more productive.</li>
+    <li class="rv" style="--t:1.3s">That doesn’t mean everyone is working toward the same outcome.</li>
+    <li class="rv em" style="--t:2.1s">Somebody still has to coordinate all of it.</li>
+    <li class="rv" style="--t:2.9s">How much of that coordination can we make more reliable, without taking the important decisions away from people?</li>
+    <li class="rv" style="--t:3.7s">That’s what we’re exploring with Convergence.</li>
+  </ul>
 </section>
 
 <!-- ============ Q1 (live final only) ============ -->
@@ -687,8 +801,8 @@ html.rm #prog-dots i, html.rm #prog-line { transition: none; }
   var deep = (qs.get("slide") || location.hash.replace("#", "") || "").toUpperCase();
   var live = qs.get("mode") === "live" || deep === "T0" || deep === "Q1";
   var ORDER = live
-    ? ["T0", "O1", "O2", "O4", "O3", "O5", "K1", "C1", "C2", "C3", "C4", "C5", "Q1"]
-    : ["O1", "O2", "O3", "O4", "O5", "K1", "C1", "C2", "C3", "C4", "C5"];
+    ? ["T0", "O1", "O2", "A1", "O4", "O3", "M1", "R1", "O5", "K1", "C1", "C2", "C3", "C4", "K8", "N1", "C5", "Z1", "Q1"]
+    : ["O1", "O2", "A1", "O3", "M1", "O4", "R1", "O5", "K1", "C1", "C2", "C3", "C4", "K8", "N1", "C5", "Z1"];
   document.body.classList.toggle("live", live);
 
   var stage = document.getElementById("stage");
