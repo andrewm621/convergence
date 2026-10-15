@@ -8,6 +8,7 @@ import { ContextTimeline } from "@/features/context-timeline";
 import { Header } from "@/features/header";
 import { Home } from "@/features/home";
 import { Inspector } from "@/features/inspector";
+import { NotPublic } from "@/features/not-public";
 import { ItemPage } from "@/features/item-page";
 import { MockControls } from "@/features/mock-controls";
 import { WorkGraph } from "@/features/work-graph";
@@ -46,17 +47,20 @@ export function App({ runtime, ui = "new" }: { runtime: Runtime; ui?: UiChoice }
 	return (
 		<TooltipProvider>
 			<ConsoleProvider client={client}>
-				{ui === "classic" ? (
-					<ClassicShell scenario={scenario} onScenario={chooseScenario} controls={runtime.controls} />
-				) : (
-					<NewShell scenario={scenario} onScenario={chooseScenario} controls={runtime.controls} />
-				)}
+				<Shell ui={ui} scenario={scenario} onScenario={chooseScenario} controls={runtime.controls} cell={cell ?? scenario} />
 			</ConsoleProvider>
 		</TooltipProvider>
 	);
 }
 
 type ShellProps = { scenario: ScenarioName; onScenario(next: ScenarioName): void; controls: boolean };
+
+/** The public read-only view of a cell the Worker does not list shows a plain message instead of an empty console. */
+function Shell({ ui, cell, ...props }: ShellProps & { ui: UiChoice; cell: string }) {
+	const { connection } = useConsole();
+	if (connection === "not-public") return <NotPublic cell={cell} />;
+	return ui === "classic" ? <ClassicShell {...props} /> : <NewShell {...props} />;
+}
 
 /**
  * Work view: decisions on the left, and the home trays (or, once a row is opened, its item page) across the rest.
@@ -69,7 +73,7 @@ function NewShell({ scenario, onScenario, controls }: ShellProps) {
 	const mock = client.kind === "mock" ? <MockControls mock={client as MockClient} initiallyVisible={controls} /> : null;
 	return (
 		<div className="flex h-full flex-col bg-background">
-			<Header scenario={scenario} onScenario={onScenario} connection={connection} poller={view.poller} live={client.kind === "live"} mode={mode} onMode={setMode} />
+			<Header scenario={scenario} onScenario={onScenario} connection={connection} poller={view.poller} live={client.kind === "live"} readOnly={client.readOnly} mode={mode} onMode={setMode} />
 			{mode === "map" ? (
 				// No decisions rail here: the decisions are nodes on the graph, and the graph needs the width to stay readable.
 				<main className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_minmax(400px,480px)] divide-x">
@@ -103,7 +107,7 @@ function ClassicShell({ scenario, onScenario, controls }: ShellProps) {
 	const { client, connection, view } = useConsole();
 	return (
 		<div className="flex h-full flex-col bg-background">
-			<Header scenario={scenario} onScenario={onScenario} connection={connection} poller={view.poller} live={client.kind === "live"} />
+			<Header scenario={scenario} onScenario={onScenario} connection={connection} poller={view.poller} live={client.kind === "live"} readOnly={client.readOnly} />
 			<main className="grid min-h-0 flex-1 grid-cols-[minmax(280px,320px)_minmax(0,1fr)_minmax(400px,480px)] divide-x">
 				<div className="flex min-h-0 flex-col bg-card/40">
 					<ContextTimeline />

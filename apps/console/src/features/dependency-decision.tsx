@@ -4,8 +4,8 @@ import { newIdempotencyKey } from "@/client/types";
 import { UnavailableHint } from "@/components/unavailable-hint";
 import { Button } from "@/components/ui/button";
 import { useConsole } from "@/state/console-context";
+import { useReadOnlyReason } from "@/state/read-only";
 import { analysisOf, recordName } from "@/state/derive";
-import { scenarioMeta } from "./scenario-meta";
 
 type Decision = "accept" | "reject";
 
@@ -31,10 +31,10 @@ export function DependencyDecision({ workItemId }: { workItemId: string }) {
 			.filter((recordId) => view.dependencies.some((d) => d.workItemId === workItemId && d.recordId === recordId && d.status === "proposed"));
 	}, [analysis, view.dependencies, workItemId, wi?.item.status]);
 
+	const readOnly = useReadOnlyReason();
+
 	if (!wi) return null;
 	if (open.length === 0 && !answered) return null;
-
-	const readOnly = scenarioMeta(client.scenario, client.kind === "live").readOnlyReason;
 
 	async function decide(recordId: string, decision: Decision) {
 		setBusy({ recordId, decision });

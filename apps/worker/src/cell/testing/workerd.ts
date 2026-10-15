@@ -12,11 +12,17 @@ import type { WorldOp } from "./test-worker";
 export const TEST_TOKEN = "test-bearer-token";
 const ENTRY = fileURLToPath(import.meta.url).replace(/[^/]+$/, "test-worker.ts");
 
-export type WorkerdOptions = { pollIntervalMs?: number };
+/** Bound as OPENROUTER_API_KEY so a test can prove a public response never carries it. */
+export const TEST_MODEL_KEY = "model-key-fixture-0123456789";
+
+/** `publicRead` is PUBLIC_READ_SCENARIOS; left out, the var is unset. */
+export type WorkerdOptions = { pollIntervalMs?: number; publicRead?: string };
 
 export type Workerd = {
 	/** `Authorization` is added for /api paths. */
 	fetch(path: string, init?: { method?: string; headers?: Record<string, string>; body?: unknown }): Promise<Response>;
+	/** A request with no credentials at all, as a stranger would send it. */
+	anon(method: string, path: string, options?: { body?: unknown; headers?: Record<string, string> }): Promise<{ status: number; text: string; headers: Headers }>;
 	/** JSON request with the bearer secret; returns status, body and headers. */
 	api(method: string, path: string, options?: { body?: unknown; headers?: Record<string, string> }): Promise<{ status: number; body: any; headers: Headers }>;
 	/** Call a public method on a scenario's cell (Durable Object RPC) and return its result. */
@@ -64,6 +70,8 @@ export async function startWorkerd(options: WorkerdOptions = {}): Promise<Worker
 					bindings: {
 						DEV_TOKEN: TEST_TOKEN,
 						POLL_INTERVAL_MS: String(options.pollIntervalMs ?? 150),
+						OPENROUTER_API_KEY: TEST_MODEL_KEY,
+						...(options.publicRead === undefined ? {} : { PUBLIC_READ_SCENARIOS: options.publicRead }),
 						DEMO_ACTOR_ID: "decision-owner",
 						DEMO_ACTOR_NAME: "Decision owner (demo identity)",
 					},
@@ -88,6 +96,11 @@ export async function startWorkerd(options: WorkerdOptions = {}): Promise<Worker
 		return { status: res.status, body: text ? JSON.parse(text) : null, headers: res.headers };
 	};
 
+	const anon: Workerd["anon"] = async (method, path, { body, headers = {} } = {}) => {
+		const res = await send(`/api${path}`, { method, headers: { ...(body === undefined ? {} : { "Content-Type": "application/json" }), ...headers }, body });
+		return { status: res.status, text: await res.text(), headers: res.headers };
+	};
+
 	const cell: Workerd["cell"] = async (scenario, method, ...args) => {
 		const res = await send(`/__test/cell/${scenario}/${method}`, { method: "POST", body: JSON.stringify(args) });
 		const out = (await res.json()) as { ok?: any; error?: { name: string; message: string } };
@@ -98,6 +111,7 @@ export async function startWorkerd(options: WorkerdOptions = {}): Promise<Worker
 	return {
 		fetch: send,
 		api,
+		anon,
 		cell,
 		world: (scenario, op) => cell(scenario, "testWorld", op),
 		async openSocket(scenario, since) {

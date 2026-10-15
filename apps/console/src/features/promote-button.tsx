@@ -8,10 +8,10 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { DEMO_IDENTITY } from "@/config";
 import { useConsole } from "@/state/console-context";
+import { useReadOnlyReason } from "@/state/read-only";
 import { gateWaivers, mergeChecks } from "@/state/derive";
 import { isDegraded } from "@/state/store";
 import { useGate } from "@/state/use-gate";
-import { scenarioMeta } from "./scenario-meta";
 
 /**
  * Merge, gated (the action and endpoint are still "promote"). The button is disabled unless `GET /work-items/:id/gate`
@@ -35,7 +35,7 @@ export function PromoteButton({ workItemId, className, showReasons = false }: { 
 	const promoted = wi?.item.status === "promoted";
 	const degraded = isDegraded(view);
 	// While the poller is degraded a baseline change could be unread, so even a passing gate is not trusted.
-	const readOnly = scenarioMeta(client.scenario, client.kind === "live").readOnlyReason;
+	const readOnly = useReadOnlyReason();
 	const canPromote = Boolean(wi) && Boolean(gate?.pass) && !promoted && !promoting && wi?.headSha !== null && !degraded && !readOnly;
 
 	// The sheet's facts, read while it is open, from the same analysis the gate runs.

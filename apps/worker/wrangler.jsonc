@@ -44,6 +44,10 @@
     "SANDBOX_INSTANCE": "standard-1",
     // How often a WorkspaceCell polls its repos through the Artifacts binding (ms, 100-60000).
     "POLL_INTERVAL_MS": "3000",
+    // Opt-in public read-only view: comma-separated cell names (as in /api/scenarios/:name) whose state, ledger and per-item gate
+    // anyone may GET without the bearer token. Empty = every /api route needs the token, as before. Set it at deploy time
+    // (--var PUBLIC_READ_SCENARIOS:name1,name2); nothing else is opened, and every write still needs the token.
+    "PUBLIC_READ_SCENARIOS": "",
     // The one human the bearer secret stands for. Must match the authority in the scenario's policy.
     "DEMO_ACTOR_ID": "decision-owner",
     "DEMO_ACTOR_NAME": "Decision owner (demo identity)"

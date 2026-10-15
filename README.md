@@ -10,6 +10,8 @@ We're not necessarily trying to give every agent the same knowledge. We're tryin
 
 ## Try it in 60 seconds
 
+- An agent or reviewer can verify the code without any account or key: `pnpm install && pnpm test && pnpm conformance`.
+
 **A. Open the deployed console in replay mode.** No account, no keys:
 
 <https://delta-convergence.andrew-8c6.workers.dev/?mock=1>
@@ -249,6 +251,7 @@ pnpm --filter worker exec wrangler deploy
 ```
 
 - **Bearer token.** Every `/api/*` route and the WebSocket need `DEV_TOKEN`. The console asks for it on first load and keeps it in `sessionStorage` only. Do not put it in a URL or commit it.
+- **Public read-only view.** Optional. `PUBLIC_READ_SCENARIOS` in `apps/worker/wrangler.jsonc` is empty by default, and while it is empty every `/api/*` route needs the token, as above. Set it at deploy time to a comma-separated list of cell names (for example `--var PUBLIC_READ_SCENARIOS:notifications-demo`) and anyone may then `GET` three things for those cells without a token: `/api/scenarios/:cell/state`, `.../ledger` and `.../work-items/:id/gate`. Nothing else opens: every write, the WebSocket, `ledger/verify`, the poller status, the agent routes and every cell not on the list still answer 401. Pass the var on every deploy; a deploy that leaves it out closes the public view. JSON responses are parsed and each string is passed through a redaction step for token-shaped strings, URL credentials, account hosts and model keys. The console opens a listed cell with `/?cell=<cell>&view=public` (or `/?scenario=<name>&view=public` for a cell named after its scenario). In that mode it never asks for or reads a token, polls the state every 3 seconds instead of opening a socket, shows "Live · read-only", and disables the action buttons. The audit-log badge still checks the hashes in the browser. A cell that is not on the list shows a plain message and a link to the replay.
 - **`ENABLE_SMOKE`.** Seeding and cleanup routes create and delete real repos, so they are off by default (`ENABLE_SMOKE=0`). Deploy with `--var ENABLE_SMOKE:1` to use them, and turn them off again afterwards.
 - **Check the whole loop.** `scripts/check-live.mjs` seeds a baseline and two forks, runs the Notifications scenario end to end with stub agents, prints PASS or FAIL per check with timings, and deletes the repos it made:
 
@@ -282,10 +285,10 @@ Result on `main` plus this README, run 2026-10-14 from a fresh install: typechec
 |---|---|---|
 | `packages/contracts` | 5 | 81 |
 | `packages/delta-core` | 16 | 290 |
-| `apps/worker` | 32 | 736 |
-| `apps/console` | 38 | 367 |
+| `apps/worker` | 34 | 760 |
+| `apps/console` | 39 | 374 |
 | `conformance` | 4 | 177 |
-| **Total** | **95** | **1,651** |
+| **Total** | **98** | **1,682** |
 
 The console tests run in jsdom with a 10-second async-wait timeout (set in `apps/console/src/test/setup.ts`). On a heavily loaded machine one can still time out; if it does, rerun that package alone (`pnpm --filter console test`) before treating it as a failure. The counts above come from a fresh clone with the stock settings.
 
@@ -314,6 +317,7 @@ And the limits of the system itself:
 - **Claims are self-reported.** Only the checks that Convergence runs are verified, and only for what the check asserts. See [Tests](#tests) for how narrow that is.
 - **One Durable Object per workspace.** Events for a scenario are applied one at a time, which keeps the ledger consistent and caps throughput for that scenario. Scale beyond that has not been tested.
 - **Polling latency.** Pushes are noticed on a poll (3 s by default) rather than pushed to the Worker. On the deployed Worker, a decision change showed up as stale in 1.2 to 4 seconds in recorded runs. That timing includes the commit push itself.
+- **The public live view is read-only and polled.** It shows a cell's state, ledger and merge-check results to anyone with the link, including work item titles, fork repo names and the ledger's text, so list only cells that hold nothing private. It polls every 3 seconds (no socket) and cannot show live agent output, which stays behind the token. The redaction step is a pattern match, not a guarantee, and the allowlist is set at deploy time by the maintainer.
 - **Identity is simulated.** The demo uses one shared bearer token and a labelled "Decision owner (demo identity)". In the solo demo, one person holds both exception and promote authority. Real per-user auth is not built.
 - **A merge can still conflict.** If a fork's text conflicts with the baseline at promotion, the promote is refused with `MERGE_CONFLICT`. Convergence reports it and does not resolve it.
 - **A permanently unreadable blob wedges a cell.** The poller never skips a baseline commit, so promotes and context changes return `503 POLLER_BEHIND`, and there is no operator escape yet.
@@ -350,7 +354,8 @@ As of 2026-10-13, checked against `main`. "Built" means code on `main` with test
 | Fan-out over seeded items | Built | Engine test with 50 items, plus a 300-item timing test. The console script shows 40 seeded items, labelled as seeded |
 | Larkhaven County shelter scenario | Replay and engine tests; observed live with two real agents on the deployed Worker (`scripts/check-live-shelter.mjs`) | Synthetic, not operational guidance. Not in the submission video. The live act has two drafts, not the replay's five. Verified Oct 13: two agents ran at once on separate forks, the policy changed mid-run, SH-1 went stale and blocked within about 64 ms, SH-2 stayed green and promoted, SH-1 was revalidated and promoted, and the server's `ledger/verify` check on the stored chain passed. Replay is the fallback |
 | Gate fails closed (R5, R7) | Built, tested | An unreadable decision blob leaves the commit unobserved rather than reading it as valid. A promote with a moved `expectedBaselineCommit` gets `409 BASELINE_MOVED`. Two promotes fired together against one baseline merge exactly once. Worker tests, not a live run |
-| Our own build, live cell | Built (code and tests) | Pointer work items and humans resolving outside the console, per `docs/dogfooding.md`. Its cell needs the bearer token, so the public link shows the replay only |
+| Our own build, live cell | Built (code and tests) | Pointer work items and humans resolving outside the console, per `docs/dogfooding.md`. Its cell needs the bearer token unless the maintainer lists it for the public read-only view; otherwise the public link shows the replay only |
+| Public read-only live view | Built (code and tests); not yet observed live | `PUBLIC_READ_SCENARIOS` allowlist, three token-free `GET` reads, `?view=public` in the console. Worker tests (in workerd) check that those reads call no Artifacts method, write no ledger line and arm no poller alarm, that every other route is 401, and that responses carry no token-shaped strings |
 | Queues push events | Not built | Polling is used instead |
 | Local agent runner fallback (`apps/runner`) | Not built | Sandbox worked, so it was not needed |
 | Container-run project test suite as evidence | Not built | Only the plain-text contract check exists |

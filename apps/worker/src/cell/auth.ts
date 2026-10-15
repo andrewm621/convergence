@@ -1,5 +1,6 @@
 import type { MiddlewareHandler } from "hono";
 import type { Actor } from "contracts";
+import { isPublicRead, parsePublicScenarios, redactPublicResponse } from "./public-read";
 
 // Who is calling, as far as the Worker can tell. There is one shared bearer secret and no user
 // accounts (the console says "Acting as: ... (demo identity)"), so the secret maps to one human.
@@ -48,14 +49,31 @@ async function safeEqual(a: string, b: string): Promise<boolean> {
 	return crypto.subtle.timingSafeEqual(ha, hb);
 }
 
+async function tokenMatches(expected: string | undefined, request: Request): Promise<boolean> {
+	const given = bearerFromRequest(request);
+	return !!expected && !!given && (await safeEqual(given, expected));
+}
+
 /** The guard for everything under /api: the shared bearer secret. Fails closed when `DEV_TOKEN` is unset. */
 export const bearerGuard: MiddlewareHandler<{ Bindings: { DEV_TOKEN?: string } }> = async (c, next) => {
-	const expected = c.env.DEV_TOKEN;
-	const given = bearerFromRequest(c.req.raw);
-	if (!expected || !given || !(await safeEqual(given, expected))) {
+	if (!(await tokenMatches(c.env.DEV_TOKEN, c.req.raw))) {
 		return c.json({ error: { code: "UNAUTHORIZED", message: "missing or invalid bearer token" } }, 401);
 	}
 	await next();
+};
+
+/**
+ * The guard index.ts mounts on /api. A valid bearer secret passes exactly as before. Without one, only a GET
+ * on the fixed read routes of a scenario named in `PUBLIC_READ_SCENARIOS` passes (see public-read.ts), and its
+ * response is redacted. With that var empty (the default) this behaves as `bearerGuard`.
+ */
+export const apiGuard: MiddlewareHandler<{ Bindings: { DEV_TOKEN?: string; OPENROUTER_API_KEY?: string; PUBLIC_READ_SCENARIOS?: string } }> = async (c, next) => {
+	if (await tokenMatches(c.env.DEV_TOKEN, c.req.raw)) return next();
+	if (!isPublicRead(c.req.method, c.req.path, parsePublicScenarios(c.env.PUBLIC_READ_SCENARIOS))) {
+		return c.json({ error: { code: "UNAUTHORIZED", message: "missing or invalid bearer token" } }, 401);
+	}
+	await next();
+	await redactPublicResponse(c, [c.env.DEV_TOKEN, c.env.OPENROUTER_API_KEY]);
 };
 
 export type SessionEnv = { DEMO_ACTOR_ID?: string; DEMO_ACTOR_NAME?: string };

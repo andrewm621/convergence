@@ -5,7 +5,7 @@
 import { DurableObject } from "cloudflare:workers";
 import { Hono } from "hono";
 import { LedgerConflictError } from "delta-core";
-import { bearerGuard } from "../auth";
+import { apiGuard } from "../auth";
 import { CellBase } from "../cell-base";
 import type { AgentRuntimePort } from "../agent-port";
 import type { ArtifactsPort } from "../ports";
@@ -111,6 +111,12 @@ export class TestCell extends CellBase {
 		return durableObjectSql(this.ctx.storage).all(query, ...bindings);
 	}
 
+	/** The poller's alarm: its scheduled time, or null. "clear" removes it first (to prove a read does not arm it). */
+	async testAlarm(op: "get" | "clear"): Promise<number | null> {
+		if (op === "clear") await this.ctx.storage.deleteAlarm();
+		return this.ctx.storage.getAlarm();
+	}
+
 	/** Reset the object as a crash or eviction would; storage and alarms survive. */
 	testAbort(): void {
 		this.ctx.abort("test restart");
@@ -162,7 +168,7 @@ type TestEnv = Env & { STORE: DurableObjectNamespace<StoreHarness> };
 const app = new Hono<{ Bindings: TestEnv }>();
 
 // The very guard index.ts mounts on /api.
-app.use("/api/*", bearerGuard);
+app.use("/api/*", apiGuard);
 app.route("/api", cellApi);
 
 app.post("/__test/store/:id", async (c) => c.env.STORE.getByName(c.req.param("id")).fetch(c.req.raw));

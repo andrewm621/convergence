@@ -46,7 +46,8 @@ export function cellAfterSwitch(cell: string | undefined, next: ScenarioName): s
 	return scenarioOfCell(candidate) === next ? candidate : undefined;
 }
 
-export type ConnectionState = "connecting" | "live" | "reconnecting" | "polling" | "offline" | "unauthorized" | "mock";
+/** `not-public`: the public read-only view was asked for a cell the Worker does not list as public. */
+export type ConnectionState = "connecting" | "live" | "reconnecting" | "polling" | "offline" | "unauthorized" | "not-public" | "mock";
 
 /** Whether the poller that watches the Artifacts repos is keeping up. While it is not, nothing can be called Fresh. */
 export type PollerHealth = {
@@ -194,6 +195,8 @@ export type ConsoleClient = {
 	readonly scenario: ScenarioName;
 	/** What this data source supports. The UI disables, with a tooltip, whatever it does not. */
 	readonly capabilities: Capabilities;
+	/** The public read-only view: no token, no commands. Left out (false) for the mock and the authenticated live client. */
+	readonly readOnly?: boolean;
 	/** Open the stream: a `snapshot` first, then `event` and `agent-activity` messages. Returns a disposer. */
 	connect(handlers: ClientHandlers): () => void;
 	/** Ask for a fresh snapshot (REST read in live mode). Used when the stream has a gap. */
