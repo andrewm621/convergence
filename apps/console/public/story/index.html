@@ -280,6 +280,23 @@ html.rm .slide .c4-ghost { animation: none !important; }
 .c5-list li:nth-child(1) { --t: 6s; } .c5-list li:nth-child(2) { --t: 6.5s; } .c5-list li:nth-child(3) { --t: 7s; } .c5-small { --t: 8s; }
 html.nomo .c5-list li:nth-child(1) { --t: 2.2s; } html.nomo .c5-list li:nth-child(2) { --t: 2.8s; } html.nomo .c5-list li:nth-child(3) { --t: 3.4s; } html.nomo .c5-small { --t: 4.6s; }
 
+/* ---------- K1: the same rule across everyday knowledge work ----------
+   Each row: the decision changes → the work caught (red) → the work left alone (green). Rows land one by one;
+   the rows sit inside .mo, so &motion=0 and reduced motion both show the end state. */
+.k1-grid { position: absolute; left: 80px; top: 286px; width: 1760px; display: grid; grid-template-columns: 590px 72px 470px 48px 580px; row-gap: 22px; align-items: stretch; }
+.k1-grid .lbl { font-size: 22px; align-self: end; }
+.k1-dec, .k1-hit, .k1-ok { display: flex; align-items: center; min-height: 112px; padding: 14px 28px; border-radius: 18px; border: 1.5px solid var(--border); background: var(--card); font-size: 32px; line-height: 1.2; }
+.k1-dec { gap: 20px; font-weight: 600; }
+.k1-dec::before { content: ""; flex: none; width: 6px; align-self: stretch; border-radius: 3px; background: var(--warning); }
+.k1-hit { gap: 12px; flex-wrap: wrap; background: color-mix(in oklch, var(--danger-soft) 60%, var(--card)); border-color: color-mix(in oklch, var(--danger) 65%, transparent); }
+.k1-hit .chip, .k1-ok .chip { font-size: 28px; min-height: 46px; padding: 4px 18px; }
+.k1-ok { background: color-mix(in oklch, var(--success-soft) 45%, var(--card)); border-color: color-mix(in oklch, var(--success) 45%, transparent); color: var(--success); gap: 14px; }
+.k1-ok svg { width: 30px; height: 30px; flex: none; }
+.k1-edge { align-self: center; height: 4px; margin: 0 10px; border-radius: 2px; background: color-mix(in oklch, var(--danger) 70%, transparent); transform-origin: left center; position: relative; }
+.k1-edge::after { content: ""; position: absolute; right: -2px; top: -7px; border: 9px solid transparent; border-left: 13px solid color-mix(in oklch, var(--danger) 70%, transparent); border-right: 0; }
+.slide.on .k1-edge { animation: moDraw .4s var(--ease) var(--t, 0s) both; }
+.k1-foot { position: absolute; left: 80px; top: 932px; font-size: 30px; color: var(--muted-foreground); }
+
 /* ---------- motifs: timeline (O3), dependency lines (O4 edges), judgment boundary (C5) ----------
    Same rule as the reveals: every default is the end state; keyframes only supply the path there.
    &motion=0 (html.nomo) and reduced motion both show that end state. */
@@ -506,6 +523,33 @@ html.rm #prog-dots i, html.rm #prog-line { transition: none; }
   <div class="o5-row rv" style="top:680px;--t:3.2s"><span class="o5-tag replay" id="o5replay">REPLAY</span><span>A recorded event log, re-driven through the same engine.</span></div>
 </section>
 
+<!-- ============ K1: same rule, beyond code ============ -->
+<section class="slide" data-id="K1" data-title="Not just code." data-tag="GRAPHIC">
+  <h1 class="h1 rv" style="top:118px;--t:.1s">Not just code.</h1>
+  <div class="k1-grid mo">
+    <div class="lbl rv" style="grid-column:1;--t:.5s;--dy:8px">The decision changes</div>
+    <div class="lbl rv" style="grid-column:3;color:var(--danger);--t:.5s;--dy:8px">Caught: relied on the old one</div>
+    <div class="lbl rv" style="grid-column:5;color:var(--success);--t:.5s;--dy:8px">Left alone</div>
+    <div class="k1-dec rv" style="grid-row:2;grid-column:1;--t:1.00s;--dx:-30px;--dy:0">Qualified lead now needs a verified budget</div>
+    <div class="k1-edge" style="grid-row:2;grid-column:2;--t:1.20s"></div>
+    <div class="k1-hit rv" style="grid-row:2;grid-column:3;--t:1.35s;--dx:-20px;--dy:0"><span class="chip bad">Q4 forecast</span><span class="chip bad">sales playbook</span></div>
+    <div class="k1-ok rv" style="grid-row:2;grid-column:5;--t:1.55s;--dy:0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>glossary</span></div>
+    <div class="k1-dec rv" style="grid-row:3;grid-column:1;--t:1.80s;--dx:-30px;--dy:0">Spring discount ends early</div>
+    <div class="k1-edge" style="grid-row:3;grid-column:2;--t:2.00s"></div>
+    <div class="k1-hit rv" style="grid-row:3;grid-column:3;--t:2.15s;--dx:-20px;--dy:0"><span class="chip bad">email campaign</span></div>
+    <div class="k1-ok rv" style="grid-row:3;grid-column:5;--t:2.35s;--dy:0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>website banner, already removed</span></div>
+    <div class="k1-dec rv" style="grid-row:4;grid-column:1;--t:2.60s;--dx:-30px;--dy:0">Refund window: 14 → 30 days</div>
+    <div class="k1-edge" style="grid-row:4;grid-column:2;--t:2.80s"></div>
+    <div class="k1-hit rv" style="grid-row:4;grid-column:3;--t:2.95s;--dx:-20px;--dy:0"><span class="chip bad">payments rules</span></div>
+    <div class="k1-ok rv" style="grid-row:4;grid-column:5;--t:3.15s;--dy:0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>support replies, already updated</span></div>
+    <div class="k1-dec rv" style="grid-row:5;grid-column:1;--t:3.40s;--dx:-30px;--dy:0">Shelter now admits crated pets</div>
+    <div class="k1-edge" style="grid-row:5;grid-column:2;--t:3.60s"></div>
+    <div class="k1-hit rv" style="grid-row:5;grid-column:3;--t:3.75s;--dx:-20px;--dy:0"><span class="chip bad">front-desk script</span></div>
+    <div class="k1-ok rv" style="grid-row:5;grid-column:5;--t:3.95s;--dy:0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>supply list</span></div>
+  </div>
+  <p class="k1-foot rv mo" style="--t:4.6s">Same rule: it only knows work that recorded what it relied on.</p>
+</section>
+
 <!-- ============ C1 ============ -->
 <section class="slide" data-id="C1" data-title="What did you rely on? Is it still accepted?" data-tag="GRAPHIC">
   <h1 class="big-q" data-type="What did you rely on? Is it still accepted?" style="--t0:.3s">What did you rely on? Is it still accepted?</h1>
@@ -643,8 +687,8 @@ html.rm #prog-dots i, html.rm #prog-line { transition: none; }
   var deep = (qs.get("slide") || location.hash.replace("#", "") || "").toUpperCase();
   var live = qs.get("mode") === "live" || deep === "T0" || deep === "Q1";
   var ORDER = live
-    ? ["T0", "O1", "O2", "O4", "O3", "O5", "C1", "C2", "C3", "C4", "C5", "Q1"]
-    : ["O1", "O2", "O3", "O4", "O5", "C1", "C2", "C3", "C4", "C5"];
+    ? ["T0", "O1", "O2", "O4", "O3", "O5", "K1", "C1", "C2", "C3", "C4", "C5", "Q1"]
+    : ["O1", "O2", "O3", "O4", "O5", "K1", "C1", "C2", "C3", "C4", "C5"];
   document.body.classList.toggle("live", live);
 
   var stage = document.getElementById("stage");
