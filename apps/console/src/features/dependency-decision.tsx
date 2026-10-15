@@ -31,10 +31,10 @@ export function DependencyDecision({ workItemId }: { workItemId: string }) {
 			.filter((recordId) => view.dependencies.some((d) => d.workItemId === workItemId && d.recordId === recordId && d.status === "proposed"));
 	}, [analysis, view.dependencies, workItemId, wi?.item.status]);
 
+	const readOnly = useReadOnlyReason();
+
 	if (!wi) return null;
 	if (open.length === 0 && !answered) return null;
-
-	const readOnly = useReadOnlyReason();
 
 	async function decide(recordId: string, decision: Decision) {
 		setBusy({ recordId, decision });

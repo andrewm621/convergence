@@ -19,7 +19,7 @@ const app = new Hono<{ Bindings: Env }>();
 
 app.get("/health", (c) => c.json({ ok: true, version: c.env.APP_VERSION }));
 
-// Everything under /api needs the bearer secret, except four GET reads of the cells in PUBLIC_READ_SCENARIOS (empty by
+// Everything under /api needs the bearer secret, except three GET reads of the cells in PUBLIC_READ_SCENARIOS (empty by
 // default; see cell/public-read.ts). Fails closed when DEV_TOKEN is unset.
 app.use("/api/*", apiGuard);
 

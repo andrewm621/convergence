@@ -40,7 +40,7 @@ afterAll(async () => {
 const head = async (s: string) => (await w.api("GET", `/scenarios/${s}/ledger`)).body.head as { seq: number; hash: string };
 
 describe("public reads, allowlisted cell", () => {
-	it("serves state, ledger, ledger/verify and the gate with no token", async () => {
+	it("serves state, ledger and the gate with no token", async () => {
 		const state = await w.anon("GET", `/scenarios/${OPEN}/state`);
 		expect(state.status).toBe(200);
 		expect(state.headers.get("X-Delta-Access")).toBe("public-read");
@@ -49,10 +49,6 @@ describe("public reads, allowlisted cell", () => {
 		const ledger = await w.anon("GET", `/scenarios/${OPEN}/ledger?limit=5`);
 		expect(ledger.status).toBe(200);
 		expect(JSON.parse(ledger.text).entries.length).toBeGreaterThan(0);
-
-		const verify = await w.anon("GET", `/scenarios/${OPEN}/ledger/verify`);
-		expect(verify.status).toBe(200);
-		expect(JSON.parse(verify.text)).toMatchObject({ ok: true });
 
 		const gate = await w.anon("GET", `/scenarios/${OPEN}/work-items/WI-1/gate`);
 		expect(gate.status).toBe(200);
@@ -71,7 +67,7 @@ describe("public reads, allowlisted cell", () => {
 		const callsBefore = (await w.world(OPEN, { op: "calls" })) as string[];
 
 		for (let i = 0; i < 6; i++) {
-			for (const path of ["/state", "/ledger", "/ledger/verify", "/work-items/WI-1/gate"]) expect((await w.anon("GET", `/scenarios/${OPEN}${path}`)).status).toBe(200);
+			for (const path of ["/state", "/ledger", "/work-items/WI-1/gate"]) expect((await w.anon("GET", `/scenarios/${OPEN}${path}`)).status).toBe(200);
 		}
 		await new Promise((r) => setTimeout(r, 300));
 
@@ -85,7 +81,7 @@ describe("public reads, allowlisted cell", () => {
 		const authed = JSON.stringify((await w.api("GET", `/scenarios/${OPEN}/state`)).body);
 		expect(authed).toContain("hunter2hunter2"); // the title really is in the cell, so the redaction below is doing the work
 		const bodies: string[] = [];
-		for (const path of ["/state", "/ledger?limit=1000", "/ledger/verify", "/work-items/WI-1/gate"]) {
+		for (const path of ["/state", "/ledger?limit=1000", "/work-items/WI-1/gate"]) {
 			const res = await w.anon("GET", `/scenarios/${OPEN}${path}`);
 			expect(res.status).toBe(200);
 			bodies.push(res.text, JSON.stringify([...res.headers.entries()]));
@@ -106,8 +102,8 @@ describe("public reads, allowlisted cell", () => {
 });
 
 describe("public reads, everything else stays closed", () => {
-	it("is 401 for a cell that is not allowlisted, on all four reads", async () => {
-		for (const path of ["/state", "/ledger", "/ledger/verify", "/work-items/WI-1/gate"]) expect((await w.anon("GET", `/scenarios/${SHUT}${path}`)).status, path).toBe(401);
+	it("is 401 for a cell that is not allowlisted, on all three reads", async () => {
+		for (const path of ["/state", "/ledger", "/work-items/WI-1/gate"]) expect((await w.anon("GET", `/scenarios/${SHUT}${path}`)).status, path).toBe(401);
 	});
 
 	it("is 401 for every other route of the allowlisted cell, and for an unknown route", async () => {
@@ -115,6 +111,7 @@ describe("public reads, everything else stays closed", () => {
 		const closed: Array<[string, string, unknown?]> = [
 			["GET", "/poller"],
 			["GET", "/dispatches"],
+			["GET", "/ledger/verify"],
 			["GET", "/context/notifications"],
 			["GET", "/ws"],
 			["POST", "/init", { baselineRepo: BASELINE, policy }],

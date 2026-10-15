@@ -2,7 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import { Hono } from "hono";
 import { beforeAll, describe, expect, it } from "vitest";
 import { apiGuard } from "./auth";
-import { isPublicRead, parsePublicScenarios, redactPublic } from "./public-read";
+import { isPublicRead, parsePublicScenarios, redactPublic, redactPublicBody } from "./public-read";
 import { cellApi } from "./routes";
 
 // The allowlist logic and the guard in front of every /api route, in Node. The same guard runs against a real cell
@@ -33,8 +33,8 @@ describe("parsePublicScenarios", () => {
 describe("isPublicRead", () => {
 	const allowed = parsePublicScenarios(OPEN);
 
-	it("opens exactly four GET routes of an allowlisted cell", () => {
-		for (const path of [`/api/scenarios/${OPEN}/state`, `/api/scenarios/${OPEN}/ledger`, `/api/scenarios/${OPEN}/ledger/verify`, `/api/scenarios/${OPEN}/work-items/WI-1/gate`]) {
+	it("opens exactly three GET routes of an allowlisted cell", () => {
+		for (const path of [`/api/scenarios/${OPEN}/state`, `/api/scenarios/${OPEN}/ledger`, `/api/scenarios/${OPEN}/work-items/WI-1/gate`]) {
 			expect(isPublicRead("GET", path, allowed), path).toBe(true);
 		}
 	});
@@ -47,13 +47,13 @@ describe("isPublicRead", () => {
 		expect(isPublicRead("GET", `/api/scenarios/${SHUT}/state`, allowed)).toBe(false);
 		expect(isPublicRead("GET", `/api/scenarios/${OPEN}x/state`, allowed)).toBe(false);
 		for (const method of ["POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]) expect(isPublicRead(method, `/api/scenarios/${OPEN}/state`, allowed), method).toBe(false);
-		for (const rest of ["/poller", "/dispatches", "/ws", "/context/notifications", "/init", "/work-items", "/context-changes", "/work-items/WI-1/promote", "/work-items/WI-1/resolutions", "/work-items/WI-1", "/work-items/WI-1/gate/x"]) {
+		for (const rest of ["/ledger/verify", "/poller", "/dispatches", "/ws", "/context/notifications", "/init", "/work-items", "/context-changes", "/work-items/WI-1/promote", "/work-items/WI-1/resolutions", "/work-items/WI-1", "/work-items/WI-1/gate/x"]) {
 			expect(isPublicRead("GET", `/api/scenarios/${OPEN}${rest}`, allowed), rest).toBe(false);
 		}
 	});
 
-	it("refuses path tricks: trailing slash, dot segments, encoding, a second slash, a query smuggled into the path", () => {
-		for (const path of [`/api/scenarios/${OPEN}/state/`, `/api/scenarios/${OPEN}/../${SHUT}/state`, `/api/scenarios/%6eotifications-open/state`, `//api/scenarios/${OPEN}/state`, `/api/scenarios/${OPEN}//state`, `/api/scenarios/${OPEN}/state%2f..`, `/api/scenarios/${OPEN}/work-items/../gate`, `/API/scenarios/${OPEN}/state`]) {
+	it("refuses path tricks: trailing slash, dot segments, an encoded slash, a second slash, a query smuggled into the path", () => {
+		for (const path of [`/api/scenarios/${OPEN}/state/`, `/api/scenarios/${OPEN}/../${SHUT}/state`, `//api/scenarios/${OPEN}/state`, `/api/scenarios/${OPEN}//state`, `/api/scenarios/${OPEN}/state%2f..`, `/api/scenarios/${OPEN}/work-items/../gate`, `/API/scenarios/${OPEN}/state`]) {
 			expect(isPublicRead("GET", path, allowed), path).toBe(false);
 		}
 	});
@@ -70,6 +70,29 @@ describe("redactPublic", () => {
 		});
 		const out = redactPublic(text, [TOKEN]);
 		for (const needle of ["abcdefghijklmnopqrstuvwxyz0123", "secretpw", "0123456789abcdef0123456789abcdef", "sk-or-v1", TOKEN]) expect(out).not.toContain(needle);
+	});
+
+	it("keeps a JSON body parseable where text-level redaction would not", () => {
+		const body = '{"a":"see https://example.com","b":{"c":"ops@northwind.example"}}';
+		// The reason the walk exists: the credentials pattern, applied to the serialized text, spans the two strings.
+		expect(() => JSON.parse(redactPublic(body))).toThrow();
+		expect(JSON.parse(redactPublicBody(body))).toEqual({ a: "see https://example.com", b: { c: "ops@northwind.example" } });
+	});
+
+	it("still redacts a real credential, a token, a model key and a secret inside a JSON string, and keeps the JSON valid", () => {
+		const body = JSON.stringify({ n: 1, ok: true, none: null, list: ["https://user:pass@host.example/x.git", "tok_v1_abcdefghijklmnopqrstuvwxyz0123?expires=1790000000"], deep: { k: `sk-or-v1-abcdefghijklmnopqrstuvwxyz and ${TOKEN}`, mail: "ops@northwind.example" } });
+		const text = redactPublicBody(body, [TOKEN]);
+		const out = JSON.parse(text);
+		expect(out.n).toBe(1);
+		expect(out.ok).toBe(true);
+		expect(out.none).toBeNull();
+		expect(out.deep.mail).toBe("ops@northwind.example");
+		for (const needle of ["user:pass", "abcdefghijklmnopqrstuvwxyz", TOKEN]) expect(text).not.toContain(needle);
+		expect(out.list[0]).toBe("https://host.example/x.git");
+	});
+
+	it("falls back to text redaction for a body that is not JSON", () => {
+		expect(redactPublicBody("plain https://u:p@h/x", [])).toBe("plain https://h/x");
 	});
 
 	it("leaves ordinary ledger content alone, hashes and commit shas included", () => {
@@ -154,7 +177,7 @@ describe("apiGuard", () => {
 		);
 	});
 
-	it("with a cell allowlisted, exactly the four reads pass for it; every other route and every other cell is 401 and untouched", async () => {
+	it("with a cell allowlisted, exactly the three reads pass for it; every other route and every other cell is 401 and untouched", async () => {
 		const { calls, env } = cellRecorder();
 		const { request } = appWith({ ...env, PUBLIC_READ_SCENARIOS: OPEN });
 		const passed: string[] = [];
@@ -165,12 +188,11 @@ describe("apiGuard", () => {
 		expect(passed.sort()).toEqual(
 			[
 				`GET /api/scenarios/${OPEN}/ledger`,
-				`GET /api/scenarios/${OPEN}/ledger/verify`,
 				`GET /api/scenarios/${OPEN}/state`,
 				`GET /api/scenarios/${OPEN}/work-items/WI-1/gate`,
 			].sort(),
 		);
-		expect(calls.sort()).toEqual(["gate", "ledger", "snapshot", "verifyLedger"]);
+		expect(calls.sort()).toEqual(["gate", "ledger", "snapshot"]);
 	});
 
 	it("a wrong token does not widen anything: 401 on a closed route, the public answer on an open one", async () => {

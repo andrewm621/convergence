@@ -10,8 +10,6 @@ We're not necessarily trying to give every agent the same knowledge. We're tryin
 
 ## Try it in 60 seconds
 
-- Public read-only live view: <link added at deploy>
-  It opens a live cell on the deployed Worker with no account and no token. It is read-only: you can look at the work graph, the "Why is this blocked?" answer, the audit log and the ledger check, but every action (revalidate, accept an exception, merge, edit a decision) needs the maintainer's token and is switched off. Only cells the maintainer lists for public reading can be opened this way.
 - An agent or reviewer can verify the code without any account or key: `pnpm install && pnpm test && pnpm conformance`.
 
 **A. Open the deployed console in replay mode.** No account, no keys:
@@ -253,7 +251,7 @@ pnpm --filter worker exec wrangler deploy
 ```
 
 - **Bearer token.** Every `/api/*` route and the WebSocket need `DEV_TOKEN`. The console asks for it on first load and keeps it in `sessionStorage` only. Do not put it in a URL or commit it.
-- **Public read-only view.** Optional. `PUBLIC_READ_SCENARIOS` in `apps/worker/wrangler.jsonc` is empty by default, and while it is empty every `/api/*` route needs the token, as above. Set it at deploy time to a comma-separated list of cell names (for example `--var PUBLIC_READ_SCENARIOS:notifications-demo`) and anyone may then `GET` four things for those cells without a token: `/api/scenarios/:cell/state`, `.../ledger`, `.../ledger/verify` and `.../work-items/:id/gate`. Nothing else opens: every write, the WebSocket, the poller status, the agent routes and every cell not on the list still answer 401. Responses are passed through a redaction step for token-shaped strings, URL credentials, account hosts and model keys. The console opens a listed cell with `/?cell=<cell>&view=public` (or `/?scenario=<name>&view=public` for a cell named after its scenario). In that mode it never asks for or reads a token, polls the state every 3 seconds instead of opening a socket, shows "Live · read-only", and disables the action buttons. A cell that is not on the list shows a plain message and a link to the replay.
+- **Public read-only view.** Optional. `PUBLIC_READ_SCENARIOS` in `apps/worker/wrangler.jsonc` is empty by default, and while it is empty every `/api/*` route needs the token, as above. Set it at deploy time to a comma-separated list of cell names (for example `--var PUBLIC_READ_SCENARIOS:notifications-demo`) and anyone may then `GET` three things for those cells without a token: `/api/scenarios/:cell/state`, `.../ledger` and `.../work-items/:id/gate`. Nothing else opens: every write, the WebSocket, `ledger/verify`, the poller status, the agent routes and every cell not on the list still answer 401. Pass the var on every deploy; a deploy that leaves it out closes the public view. JSON responses are parsed and each string is passed through a redaction step for token-shaped strings, URL credentials, account hosts and model keys. The console opens a listed cell with `/?cell=<cell>&view=public` (or `/?scenario=<name>&view=public` for a cell named after its scenario). In that mode it never asks for or reads a token, polls the state every 3 seconds instead of opening a socket, shows "Live · read-only", and disables the action buttons. The audit-log badge still checks the hashes in the browser. A cell that is not on the list shows a plain message and a link to the replay.
 - **`ENABLE_SMOKE`.** Seeding and cleanup routes create and delete real repos, so they are off by default (`ENABLE_SMOKE=0`). Deploy with `--var ENABLE_SMOKE:1` to use them, and turn them off again afterwards.
 - **Check the whole loop.** `scripts/check-live.mjs` seeds a baseline and two forks, runs the Notifications scenario end to end with stub agents, prints PASS or FAIL per check with timings, and deletes the repos it made:
 
@@ -287,10 +285,10 @@ Result on `main` plus this README, run 2026-10-14 from a fresh install: typechec
 |---|---|---|
 | `packages/contracts` | 5 | 81 |
 | `packages/delta-core` | 16 | 290 |
-| `apps/worker` | 34 | 757 |
+| `apps/worker` | 34 | 760 |
 | `apps/console` | 39 | 374 |
 | `conformance` | 4 | 177 |
-| **Total** | **98** | **1,679** |
+| **Total** | **98** | **1,682** |
 
 The console tests run in jsdom with a 10-second async-wait timeout (set in `apps/console/src/test/setup.ts`). On a heavily loaded machine one can still time out; if it does, rerun that package alone (`pnpm --filter console test`) before treating it as a failure. The counts above come from a fresh clone with the stock settings.
 
@@ -357,7 +355,7 @@ As of 2026-10-13, checked against `main`. "Built" means code on `main` with test
 | Larkhaven County shelter scenario | Replay and engine tests; observed live with two real agents on the deployed Worker (`scripts/check-live-shelter.mjs`) | Synthetic, not operational guidance. Not in the submission video. The live act has two drafts, not the replay's five. Verified Oct 13: two agents ran at once on separate forks, the policy changed mid-run, SH-1 went stale and blocked within about 64 ms, SH-2 stayed green and promoted, SH-1 was revalidated and promoted, and the server's `ledger/verify` check on the stored chain passed. Replay is the fallback |
 | Gate fails closed (R5, R7) | Built, tested | An unreadable decision blob leaves the commit unobserved rather than reading it as valid. A promote with a moved `expectedBaselineCommit` gets `409 BASELINE_MOVED`. Two promotes fired together against one baseline merge exactly once. Worker tests, not a live run |
 | Our own build, live cell | Built (code and tests) | Pointer work items and humans resolving outside the console, per `docs/dogfooding.md`. Its cell needs the bearer token unless the maintainer lists it for the public read-only view; otherwise the public link shows the replay only |
-| Public read-only live view | Built (code and tests); not yet observed live | `PUBLIC_READ_SCENARIOS` allowlist, four token-free `GET` reads, `?view=public` in the console. Worker tests (in workerd) check that those reads call no Artifacts method, write no ledger line and arm no poller alarm, that every other route is 401, and that responses carry no token-shaped strings |
+| Public read-only live view | Built (code and tests); not yet observed live | `PUBLIC_READ_SCENARIOS` allowlist, three token-free `GET` reads, `?view=public` in the console. Worker tests (in workerd) check that those reads call no Artifacts method, write no ledger line and arm no poller alarm, that every other route is 401, and that responses carry no token-shaped strings |
 | Queues push events | Not built | Polling is used instead |
 | Local agent runner fallback (`apps/runner`) | Not built | Sandbox worked, so it was not needed |
 | Container-run project test suite as evidence | Not built | Only the plain-text contract check exists |
