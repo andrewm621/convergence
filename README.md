@@ -275,15 +275,16 @@ pnpm -r typecheck
 pnpm -r test          # vitest; no network and no keys
 ```
 
-Result on `main` plus this README, run 2026-10-13: typecheck clean, and all tests pass.
+Result on `main` plus this README, run 2026-10-14 from a fresh install: typecheck clean, all tests pass, and `pnpm conformance` prints `PASS: 79/79 vectors passed (protocol convergence/0.1)`.
 
 | Package | Test files | Tests |
 |---|---|---|
-| `packages/contracts` | 4 | 59 |
+| `packages/contracts` | 5 | 79 |
 | `packages/delta-core` | 15 | 280 |
-| `apps/worker` | 32 | 730 |
-| `apps/console` | 24 | 256 |
-| **Total** | **75** | **1,325** |
+| `apps/worker` | 32 | 733 |
+| `apps/console` | 31 | 338 |
+| `conformance` | 4 | 173 |
+| **Total** | **87** | **1,603** |
 
 The console tests run in jsdom with a 10-second async-wait timeout (set in `apps/console/src/test/setup.ts`). On a heavily loaded machine one can still time out; if it does, rerun that package alone (`pnpm --filter console test`) before treating it as a failure. The counts above come from a fresh clone with the stock settings.
 
@@ -354,7 +355,7 @@ As of 2026-10-13, checked against `main`. "Built" means code on `main` with test
 
 A preview at commit time is built: before the Decision owner commits a new version, the editor names the work it will block and the work it leaves alone, and says which exceptions it ends. A test commits through the engine and checks the preview matched, for each story's change and for one-setting edits at every step. Full what-if branching (trying alternative decisions side by side before choosing one) is still not built.
 
-<!-- TODO(andrew): add the demo video link once it is recorded and uploaded. -->
+<!-- [AFTER RECORDING: add the demo video link here and in the "Demo video" row of the table above once the video is uploaded] -->
 
 ## Why not X?
 
