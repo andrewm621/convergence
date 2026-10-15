@@ -302,8 +302,8 @@ html.nomo .c5-list li:nth-child(1) { --t: 2.2s; } html.nomo .c5-list li:nth-chil
 .flow-edge { align-self: center; height: 4px; margin: 0 12px; border-radius: 2px; background: color-mix(in oklch, var(--input) 90%, transparent); transform-origin: left center; position: relative; }
 .flow-edge::after { content: ""; position: absolute; right: -2px; top: -7px; border: 9px solid transparent; border-left: 13px solid color-mix(in oklch, var(--input) 90%, transparent); border-right: 0; }
 .slide.on .flow-edge { animation: moDraw .4s var(--ease) var(--t, 0s) both; }
-.r1-grid { position: absolute; left: 80px; top: 400px; width: 1760px; display: grid; grid-template-columns: 370px 93px 370px 93px 370px 93px 370px; align-items: stretch; }
-.r1-card { position: relative; display: flex; flex-direction: column; gap: 18px; padding: 32px 30px; min-height: 330px; }
+.r1-grid { position: absolute; left: 80px; top: 440px; width: 1760px; display: grid; grid-template-columns: 370px 93px 370px 93px 370px 93px 370px; align-items: stretch; }
+.r1-card { position: relative; display: flex; flex-direction: column; gap: 18px; padding: 32px 30px; }
 .r1-card b { font-size: 52px; line-height: 1.05; letter-spacing: -.02em; }
 .r1-card span { font-size: 30px; line-height: 1.3; color: var(--muted-foreground); }
 .r1-card.gate { border-color: color-mix(in oklch, var(--danger) 65%, transparent); background: color-mix(in oklch, var(--danger-soft) 45%, var(--card)); }
@@ -685,6 +685,7 @@ html.rm #prog-dots i, html.rm #prog-line { transition: none; }
   <div class="c4-box rv" style="left:800px;--t:3.4s"><b>dependency</b><code>dependency.json</code></div>
   <div class="c4-box rv" style="left:1160px;--t:3.8s"><b>resolution</b><code>resolution.json</code></div>
   <div class="c4-box rv" style="left:1520px;--t:4.2s"><b>ledger</b><code>reconciliation-event.json</code></div>
+  <p class="k1-foot rv" style="--t:4.9s">The screens can change. The records, receipts and rules underneath are what last.</p>
 </section>
 
 <!-- ============ K8: desired state, for decisions (copy is a draft: every string below is the slide's text) ============ -->
