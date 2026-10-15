@@ -274,16 +274,16 @@ pnpm -r typecheck
 pnpm -r test          # vitest; no network and no keys
 ```
 
-Result on `main` plus this README, run 2026-10-14 from a fresh install: typecheck clean, all tests pass, and `pnpm conformance` prints `PASS: 79/79 vectors passed (protocol convergence/0.1)`.
+Result on `main` plus this README, run 2026-10-14 from a fresh install: typecheck clean, all tests pass, and `pnpm conformance` prints `PASS: 81/81 vectors passed (protocol convergence/0.1)`.
 
 | Package | Test files | Tests |
 |---|---|---|
-| `packages/contracts` | 5 | 79 |
-| `packages/delta-core` | 15 | 280 |
-| `apps/worker` | 32 | 733 |
-| `apps/console` | 31 | 338 |
-| `conformance` | 4 | 173 |
-| **Total** | **87** | **1,603** |
+| `packages/contracts` | 5 | 81 |
+| `packages/delta-core` | 16 | 290 |
+| `apps/worker` | 32 | 736 |
+| `apps/console` | 35 | 354 |
+| `conformance` | 4 | 177 |
+| **Total** | **92** | **1,638** |
 
 The console tests run in jsdom with a 10-second async-wait timeout (set in `apps/console/src/test/setup.ts`). On a heavily loaded machine one can still time out; if it does, rerun that package alone (`pnpm --filter console test`) before treating it as a failure. The counts above come from a fresh clone with the stock settings.
 
@@ -307,6 +307,8 @@ And the limits of the system itself:
 
 - **Dependencies are declared, not inferred.** If a dependency is neither declared nor claimed, Convergence does not know about it, and nothing goes stale. It does not read arbitrary text.
 - **It only gates actions that flow through it.** Someone with their own repo credentials can walk around it. The Worker is meant to be the only writer to the baseline.
+- **Compare alternatives is not a forecast.** It counts the known, recorded dependents of one decision. Undeclared dependencies don't show up, and a block says the work relied on something that would change, not that it is wrong.
+- **A rejected value is a reason, not a verdict.** `REJECTED_ALTERNATIVE` marks a claim equal to a value a decision declared rejected (`not`). It adds a reason, never changes a verdict, matches exact declared values only, and does not detect an agent that quietly re-adds a value.
 - **Claims are self-reported.** Only the checks that Convergence runs are verified, and only for what the check asserts. See [Tests](#tests) for how narrow that is.
 - **One Durable Object per workspace.** Events for a scenario are applied one at a time, which keeps the ledger consistent and caps throughput for that scenario. Scale beyond that has not been tested.
 - **Polling latency.** Pushes are noticed on a poll (3 s by default) rather than pushed to the Worker. On the deployed Worker, a decision change showed up as stale in 1.2 to 4 seconds in recorded runs. That timing includes the commit push itself.
@@ -340,6 +342,7 @@ As of 2026-10-13, checked against `main`. "Built" means code on `main` with test
 | Checks run by Convergence (R8) at the pushed head | Built, narrow | Plain-text match for Notifications and the shelter scenario. No project test suite is run. Sales ops has no check. |
 | Convergence Console: work graph, inspector, "Why is this blocked?", actions | Built | Live client and replay. Live mode was checked in a headless browser on the deployed Worker |
 | Impact preview in the decision editor | Built | Worked out from the console's view, so it runs in live mode and replay. `impact.test.ts` commits through the replay engine and checks the preview matched, for each story's decision change and for one-setting edits at every step of all three stories |
+| Compare alternatives in the decision editor | Built | Two or three candidate versions of one decision, shown for the Larkhaven County scenario. Reports known, recorded dependents only. Does not say whether blocked work is wrong. |
 | Replay mode (`?mock=1`) | Built | Deployed URL above returns 200. Replay is labelled as replay in the header |
 | Fan-out over seeded items | Built | Engine test with 50 items, plus a 300-item timing test. The console script shows 40 seeded items, labelled as seeded |
 | Larkhaven County shelter scenario | Replay and engine tests; observed live with two real agents on the deployed Worker (`scripts/check-live-shelter.mjs`) | Synthetic, not operational guidance. The live act has two drafts, not the replay's five. Verified Oct 13: two agents ran at once on separate forks, the policy changed mid-run, SH-1 went stale and blocked within about 64 ms, SH-2 stayed green and promoted, SH-1 was revalidated and promoted, and the server's `ledger/verify` check on the stored chain passed. Replay is the fallback |
@@ -352,7 +355,7 @@ As of 2026-10-13, checked against `main`. "Built" means code on `main` with test
 | MCP server, AI dependency inference, claim extraction | Not built | After the contest |
 | Demo video | Not yet | Link to be added |
 
-A preview at commit time is built: before the Decision owner commits a new version, the editor names the work it will block and the work it leaves alone, and says which exceptions it ends. A test commits through the engine and checks the preview matched, for each story's change and for one-setting edits at every step. Full what-if branching (trying alternative decisions side by side before choosing one) is still not built.
+A preview at commit time is built: before the Decision owner commits a new version, the editor names the work it will block and the work it leaves alone, and says which exceptions it ends. A test commits through the engine and checks the preview matched, for each story's change and for one-setting edits at every step. The editor can also hold two or three candidate versions of one decision and show which known dependent work each would block. It runs the same `reconcile` function as a real commit, as a dry run with nothing saved, and a test checks that the preview equals the real commit result. Full what-if branching across a whole project is still not built.
 
 <!-- [AFTER RECORDING: add the demo video link here and in the "Demo video" row of the table above once the video is uploaded] -->
 

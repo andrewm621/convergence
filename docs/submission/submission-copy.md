@@ -28,7 +28,7 @@ We're not necessarily trying to give every agent the same knowledge. We're tryin
 
 That's why Convergence is a protocol first: shared records, receipts and rules for the decisions people and agents rely on, with a traceable trail of what each piece of work relied on. A merge check in a code host, a feature built into Artifacts, or decisions outside code entirely could all build on it.
 
-To be straight about where it stands: v0.1 draft, one implementation, evidence from synthetic scenarios. The 79-vector conformance kit is how you check yours, or tell me where the draft is wrong.
+To be straight about where it stands: v0.1 draft, one implementation, evidence from synthetic scenarios. The 81-vector conformance kit is how you check yours, or tell me where the draft is wrong.
 
 
 ## 4. How we used Cloudflare
@@ -59,7 +59,7 @@ Where the form or README mentions other approaches, keep it neutral and sourced:
 Commands below follow the README and `package.json`. If they change, the README wins.
 
 1. **Prerequisites:** Node 26 or newer and pnpm 10 or newer (per `package.json`). To run live agents or deploy: a Cloudflare account on Workers Paid with Artifacts and Containers access, Docker to build the container image, and an OpenRouter API key (agents call models through it).
-2. **Install and test:** `pnpm install`, then `pnpm test` and `pnpm typecheck` (each runs `pnpm -r`). The tests need no network and no API key. Both passed on a fresh install on 2026-10-14 (contracts 79, delta-core 280, worker 733, console 338, conformance 173; typecheck clean), recorded in the README's Tests section. `pnpm conformance` prints `PASS: 79/79 vectors passed (protocol convergence/0.1)`.
+2. **Install and test:** `pnpm install`, then `pnpm test` and `pnpm typecheck` (each runs `pnpm -r`). The tests need no network and no API key. Both passed on a fresh install on 2026-10-14 (contracts 81, delta-core 290, worker 736, console 354, conformance 177; typecheck clean), recorded in the README's Tests section. `pnpm conformance` prints `PASS: 81/81 vectors passed (protocol convergence/0.1)`.
 3. **Run it:** replay needs no account: `pnpm --filter console dev`, then open `http://localhost:5173/?mock=1`. To serve the console from the Worker: `pnpm build:console`, then `cd apps/worker && npx wrangler dev`. Artifacts has no local emulator, so `wrangler dev` talks to the real service and needs a `wrangler login`. Live mode needs `DEV_TOKEN` as a Worker secret and `pnpm --filter worker exec wrangler deploy`. End-to-end checks: `node scripts/check-live.mjs` (Notifications, stub agents) and `node scripts/check-live-shelter.mjs` (Larkhaven County, real agents). Both need `WORKER_URL` and `DEV_TOKEN`, and `ENABLE_SMOKE=1` on the Worker.
 4. **Deployed demo:** `https://delta-convergence.andrew-8c6.workers.dev` (console at `/`, story deck at `/story/`, credential-free replay at `/?mock=1`; all three returned 200 on 2026-10-14).
 5. **No credentials?** Replay mode (`?mock=1`) plays a scripted story in the browser through the same rule code, labelled "Mock · replay" in the header. It is shipped.

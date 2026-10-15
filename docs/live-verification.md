@@ -129,7 +129,7 @@ Notes:
 
 ## Console live verification
 
-The console (PR #4) was deployed from `main` (head `3036894`) and checked on the deployed Worker on 2026-10-12 with a headless browser, stub agents only, and no model calls.
+The console was deployed from `main` (head `3036894`) and checked on the deployed Worker on 2026-10-12 with a headless browser, stub agents only, and no model calls.
 
 | Check | Result | Observed |
 |---|---|---|
