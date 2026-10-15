@@ -16,19 +16,19 @@ We're not necessarily trying to give every agent the same knowledge. We're tryin
 
 Replay plays a scripted story in your browser through the same rule code the server runs, and the header says "Mock · replay" the whole time. Use the tabs at the top: **Notifications**, **Larkhaven County Shelter**, **Our own build**. Press the right arrow key (or **Next**) to step through each story.
 
-**B. Run it locally.** Replay needs no Cloudflare account and no keys.
+**B. Run it locally.** Replay needs no Cloudflare account and no keys. Prerequisites: Node 26+ and pnpm 10+ (`nvm use` reads `.nvmrc`).
 
 ```bash
 pnpm install
 pnpm --filter console dev     # open http://localhost:5173/?mock=1
 ```
 
-To see the console served the way it ships, as static assets from the Worker:
+Optional, and only if you have a Cloudflare login (the first route is enough to see everything): to see the console served the way it ships, as static assets from the Worker:
 
 ```bash
 pnpm install
 pnpm build:console
-cd apps/worker && npx wrangler dev     # open http://localhost:8787/?mock=1
+pnpm --filter worker exec wrangler dev     # open http://localhost:8787/?mock=1
 ```
 
 Heads up on that second route: `wrangler dev` has no local emulator for Cloudflare Artifacts, so it contacts Cloudflare and needs a `wrangler login`, even though replay itself uses no account data. The first route needs nothing. Live mode (real repos, real agents) needs an Artifacts account and a bearer token: see [Running live](#running-live).
@@ -242,7 +242,7 @@ You need your own Cloudflare account on Workers Paid with Artifacts and Containe
 pnpm install
 pnpm build:console
 cp apps/worker/.dev.vars.example apps/worker/.dev.vars   # set DEV_TOKEN (gitignored)
-wrangler secret put DEV_TOKEN                            # bearer token for /api/*
+pnpm --filter worker exec wrangler secret put DEV_TOKEN  # bearer token for /api/*
 pnpm --filter worker exec wrangler deploy
 ```
 
@@ -261,12 +261,11 @@ pnpm --filter worker exec wrangler deploy
 - **Real agents.** `AGENT_MODE=stub` (the default) runs a scripted agent and needs no model key. `AGENT_MODE=claude` runs the Claude Code harness headless through OpenRouter, and the model behind it is whichever allowlisted slug you set. Set the key as a Worker secret and never commit it:
 
   ```bash
-  wrangler secret put OPENROUTER_API_KEY
+  pnpm --filter worker exec wrangler secret put OPENROUTER_API_KEY
   ```
 
   `AGENT_MODEL` sets the default model slug, and gateway caps on requests, tokens and dollars apply to every run. See [`docs/agent-runtime.md`](docs/agent-runtime.md).
 
-Requires Node 26+ and pnpm 10+.
 
 ## Tests
 
@@ -315,7 +314,7 @@ And the limits of the system itself:
 - **A merge can still conflict.** If a fork's text conflicts with the baseline at promotion, the promote is refused with `MERGE_CONFLICT`. Convergence reports it and does not resolve it.
 - **A permanently unreadable blob wedges a cell.** The poller never skips a baseline commit, so promotes and context changes return `503 POLLER_BEHIND`, and there is no operator escape yet.
 - **A crash mid-promote, then a retry, returns a 409 rather than resuming.**
-- **Replay is replay.** The console's replay mode runs the real rule code on scripted events. The agents, git and the clock are scripted, and the header says so. The fan-out strip and the build history are replay or seeded, not live agents, and the shelter act in the console is replay too; its live run is the separate script above.
+- **Replay is replay.** The console's replay mode runs the real rule code on scripted events. The agents, git and the clock are scripted, and the header says so. The fan-out strip and the build history are replay or seeded, not live agents, and the Larkhaven County tab in replay mode is replay too. The shelter act runs live only in a live cell, staged by the separate script above.
 - **It does not auto-resolve consequential conflicts**, replace Git or Artifacts, or build a knowledge graph.
 - **Artifacts is in open beta**, and the behavior described here is what we observed on it.
 
