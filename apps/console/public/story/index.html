@@ -98,6 +98,8 @@ html.boot .slide, html.boot .slide.on { transition: none; }
 html.rm .slide .rv, html.rm .slide .ch { animation: none !important; }
 @keyframes chIn { from { opacity: 0; } to { opacity: 1; } }
 .slide.on .ch { animation: chIn .01s steps(1, end) calc(var(--t0, 0s) + var(--i) * 42ms) both; }
+/* the typing always ends on the full text: JS adds .typed when the run is over, cancelled, or the tab is hidden */
+.typed .ch { animation: none !important; }
 .w { display: inline-block; white-space: nowrap; }
 
 /* ---------- O1 ---------- */
@@ -802,8 +804,8 @@ html.rm #prog-dots i, html.rm #prog-worm { transition: none; }
   var deep = (qs.get("slide") || location.hash.replace("#", "") || "").toUpperCase();
   var live = qs.get("mode") === "live" || deep === "T0" || deep === "Q1";
   var ORDER = live
-    ? ["T0", "O1", "O2", "A1", "O4", "O3", "M1", "R1", "O5", "K1", "C1", "C2", "C3", "C4", "K8", "N1", "C5", "Z1", "Q1"]
-    : ["O1", "O2", "A1", "O3", "M1", "O4", "R1", "O5", "K1", "C1", "C2", "C3", "C4", "K8", "N1", "C5", "Z1"];
+    ? ["T0", "O1", "O2", "A1", "O4", "O3", "M1", "K8", "R1", "O5", "K1", "C1", "C2", "C3", "C4", "N1", "C5", "Z1", "Q1"]
+    : ["O1", "O2", "A1", "O3", "M1", "K8", "O4", "R1", "O5", "K1", "C1", "C2", "C3", "C4", "N1", "C5", "Z1"];
   document.body.classList.toggle("live", live);
 
   var stage = document.getElementById("stage");
@@ -816,7 +818,7 @@ html.rm #prog-dots i, html.rm #prog-worm { transition: none; }
   /* ---------- reduced motion ---------- */
   var mq = window.matchMedia("(prefers-reduced-motion: reduce)");
   var rm = mq.matches || qs.get("rm") === "1";
-  function setRM(v) { rm = v; html.classList.toggle("rm", rm); if (typeof c3Apply === "function") c3Apply(); }
+  function setRM(v) { rm = v; html.classList.toggle("rm", rm); if (typeof c3Apply === "function") c3Apply(); if (rm && typeof typedSettle === "function") typedEls.forEach(typedSettle); }
   if (mq.addEventListener) mq.addEventListener("change", function (e) { setRM(e.matches); });
   html.classList.toggle("rm", rm);
   // &motion=0: the motifs (O3 timeline, O4 dependency lines, C5 judgment boundary) sit in their end state.
@@ -847,6 +849,40 @@ html.rm #prog-dots i, html.rm #prog-worm { transition: none; }
       if (wi < all.length - 1) { el.appendChild(document.createTextNode(" ")); i++; }
     });
   });
+  /* Typing guard. The characters are revealed by per-character CSS animations; if that clock stalls (throttled or hidden tab, a restart
+     racing a slide change, a stalled frame) the tail would stay hidden. So the run is also backed by a timer, and every way out of it
+     (finish, leave the slide, re-enter, replay, tab hidden, reduced motion) settles on the full text. */
+  var typedEls = Array.prototype.slice.call(document.querySelectorAll("[data-type]"));
+  function typedSettle(el) {
+    clearTimeout(el._typeT);
+    if (el.textContent !== el.dataset.type) el.textContent = el.dataset.type; // never leave the headline short or garbled
+    el.classList.add("typed");
+  }
+  function typedSettleIn(slide) { typedEls.forEach(function (el) { if (slide.contains(el)) typedSettle(el); }); }
+  function typedArm(slide) {
+    typedEls.forEach(function (el) {
+      if (!slide.contains(el)) return;
+      clearTimeout(el._typeT); el.classList.remove("typed");
+      if (rm) { typedSettle(el); return; }
+      var chs = el.querySelectorAll(".ch"), last = chs[chs.length - 1];
+      var n = last ? (+last.style.getPropertyValue("--i") || chs.length) : 0;
+      el._typeT = setTimeout(function () { typedSettle(el); }, (parseFloat(el.style.getPropertyValue("--t0")) || 0) * 1000 + n * 42 + 600);
+    });
+  }
+  /* Same idea for the whole slide: its reveals all land well inside 11.5 s, so at that point any finite animation still unfinished (a stalled
+     clock after a replay or fast back-and-forth) is jumped to its end state, which is the slide as designed. O4 is user-paced, so it is left alone. */
+  function finishAnims(slide) {
+    if (!slide || !slide.getAnimations) return;
+    slide.getAnimations({ subtree: true }).forEach(function (a) {
+      try { if (a.playState !== "finished" && isFinite(a.effect.getComputedTiming().endTime)) a.finish(); } catch (e) {}
+    });
+  }
+  function settleArm(slide, id) {
+    clearTimeout(slide._settleT);
+    if (id !== "O4") slide._settleT = setTimeout(function () { finishAnims(slide); }, 11500);
+  }
+  document.addEventListener("visibilitychange", function () { if (document.hidden) typedEls.forEach(typedSettle); });
+  addEventListener("pagehide", function () { typedEls.forEach(typedSettle); });
 
   /* ---------- O2: twelve things in flight ---------- */
   (function () {
@@ -1192,11 +1228,12 @@ html.rm #prog-dots i, html.rm #prog-worm { transition: none; }
     opts = opts || {};
     i = Math.max(0, Math.min(ORDER.length - 1, i));
     var prevEl = idx >= 0 ? slides[ORDER[idx]] : null;
-    if (prevEl && i !== idx) { prevEl.classList.remove("on"); prevEl.inert = true; prevEl.setAttribute("aria-hidden", "true"); }
+    if (prevEl && i !== idx) { typedSettleIn(prevEl); clearTimeout(prevEl._settleT); prevEl.classList.remove("on"); prevEl.inert = true; prevEl.setAttribute("aria-hidden", "true"); }
     clearTimers();
     idx = i;
     var id = ORDER[idx], el = slides[id];
     el.inert = false; el.removeAttribute("aria-hidden");
+    typedArm(el); settleArm(el, id);
     el.classList.add("on");
     var h = handlers[id]; if (h && h.enter) h.enter(!!opts.fromEnd, opts.step);
     prog.go(idx);
@@ -1209,7 +1246,7 @@ html.rm #prog-dots i, html.rm #prog-worm { transition: none; }
   }
   function next() { var h = handlers[cur()]; if (h && h.next && h.next()) return; if (idx < ORDER.length - 1) show(idx + 1); }
   function prev() { var h = handlers[cur()]; if (h && h.prev && h.prev()) return; if (idx > 0) show(idx - 1, { fromEnd: true }); }
-  function replay() { var id = cur(), h = handlers[id]; replayCSS(slides[id]); if (h && h.reset) h.reset(); prog.reset(); }
+  function replay() { var id = cur(), h = handlers[id]; typedArm(slides[id]); settleArm(slides[id], id); replayCSS(slides[id]); if (h && h.reset) h.reset(); prog.reset(); }
 
   /* ---------- cursor: visible on O4, hidden after a pause elsewhere ---------- */
   var cursorTimer;
