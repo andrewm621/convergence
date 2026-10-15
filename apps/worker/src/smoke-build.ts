@@ -85,9 +85,9 @@ export function buildPointerSeed(): PointerSeed {
 		[build.workItems.wi1, build.dependencies.wi1, build.commits.wi1Head, "Where the M4 revalidate loop lives on main (PR #6)."],
 		[build.workItems.wi2, build.dependencies.wi2, build.commits.wi2Head, "Where the console evidence labels live on main (PR #7)."],
 		[build.workItems.wi3, build.dependencies.wi3, build.commits.wi3Head, "The video script."],
-		[build.workItems.wi4, build.dependencies.wi4, build.commits.wi4Head, "The shelter fixtures (PRs #3 and #4)."],
+		[build.workItems.wi4, build.dependencies.wi4, build.commits.wi4Head, "The shelter fixtures (PR #4)."],
 		[build.workItems.wi5, build.dependencies.wi5, build.commits.wi5Head, "The shared brief. It lives outside git."],
-		[build.workItems.wi6, build.dependencies.wi6, build.commits.wi6Head, "The README (PR #1, unmerged)."],
+		[build.workItems.wi6, build.dependencies.wi6, build.commits.wi6Head, "The README, as it stands on main."],
 		[build.workItems.wi7, build.dependencies.wi7, build.commits.wi7Head, "The console identity header."],
 	] as const;
 
