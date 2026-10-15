@@ -7,7 +7,7 @@ import { POINTER_SCENARIO } from "./cell/pointer-scenario";
 import { NOTIFICATIONS_SCENARIO_FILES, PointerForkRequest, PointerPushRequest, SEED_SCENARIOS, SMOKE_LABEL_RE, SmokeDeleteRequest, seedLabelAllowed, seedScenarioAllowed, deleteSmokeRepos, forkPointer, purgeSmokeRepos, pushPointer, runSmoke, seedForks } from "./smoke";
 import { buildPointerSeed } from "./smoke-build";
 import { SHELTER_SCENARIO, buildShelterSeed } from "./smoke-shelter";
-import { bearerGuard } from "./cell/auth";
+import { apiGuard } from "./cell/auth";
 import { cellApi } from "./cell/routes";
 import { jsonNotFound } from "./not-found";
 
@@ -19,8 +19,9 @@ const app = new Hono<{ Bindings: Env }>();
 
 app.get("/health", (c) => c.json({ ok: true, version: c.env.APP_VERSION }));
 
-// Everything under /api needs the bearer secret. Fails closed when DEV_TOKEN is unset.
-app.use("/api/*", bearerGuard);
+// Everything under /api needs the bearer secret, except four GET reads of the cells in PUBLIC_READ_SCENARIOS (empty by
+// default; see cell/public-read.ts). Fails closed when DEV_TOKEN is unset.
+app.use("/api/*", apiGuard);
 
 // Smoke endpoints create and delete real repos. Off unless ENABLE_SMOKE=1.
 app.use("/api/smoke/*", requireSmoke);

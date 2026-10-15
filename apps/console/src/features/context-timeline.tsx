@@ -11,6 +11,7 @@ import { formatDateTime, formatFacet, parseFacetInput, plural, shortHash } from 
 import { cn } from "@/lib/utils";
 import { UnavailableHint } from "@/components/unavailable-hint";
 import { useConsole } from "@/state/console-context";
+import { useReadOnlyReason } from "@/state/read-only";
 import { CompareAlternatives, CompareLinks, useHeldOptions } from "./compare-alternatives";
 import { scenarioMeta } from "./scenario-meta";
 import { actorLabel, impactSentence, impactSummary, previewImpact, proseEdits, recordIds } from "@/state/derive";
@@ -113,7 +114,7 @@ function versionRows(history: RecordHistory): VersionRow[] {
 
 function RecordCard({ recordId, history, editing, onEdit, onClose }: { recordId: string; history: RecordHistory; editing: boolean; onEdit(): void; onClose(): void }) {
 	const { view, editorRequest, client } = useConsole();
-	const readOnly = scenarioMeta(client.scenario, client.kind === "live").readOnlyReason;
+	const readOnly = useReadOnlyReason();
 	const rows = useMemo(() => versionRows(history), [history]);
 	const head = rows.find((row) => row.current);
 	const edits = useMemo(() => proseEdits(view, recordId), [view, recordId]);

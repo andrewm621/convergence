@@ -12,6 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { formatDateTime, formatTime, shortHash } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useConsole } from "@/state/console-context";
+import { useReadOnlyReason } from "@/state/read-only";
 import { analysisOf, currentRecord, exceptionStatus, exceptionWaiver, recordName, type ExceptionWaiver } from "@/state/derive";
 import { useGate } from "@/state/use-gate";
 import { PromoteButton } from "./promote-button";
@@ -145,7 +146,7 @@ export function Resolutions({ wi, show = "all" }: { wi: WorkItemState; show?: "a
 	const promoted = wi.item.status === "promoted";
 	const noPush = wi.headSha === null;
 	const defaultRecord = candidates[0] ?? null;
-	const readOnly = scenarioMeta(client.scenario, client.kind === "live").readOnlyReason;
+	const readOnly = useReadOnlyReason();
 	const reason = readOnly ?? (promoted ? "Already merged." : noPush ? "Waiting for the agent's first push: a sign-off is tied to a specific version of its work." : null);
 
 	async function submit(input: Omit<ResolveInput, "binding" | "workItemId">, recordId: string | null, label: string): Promise<boolean> {

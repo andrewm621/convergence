@@ -9,8 +9,8 @@ const root = document.getElementById("root");
 if (!root) throw new Error("#root is missing from index.html");
 
 const runtime = readRuntime(window.location.search);
-// Live mode needs the bearer secret: from `#token=...`, else this tab's sessionStorage, else a prompt.
-if (!runtime.mock) bootstrapToken();
+// Live mode needs the bearer secret: from `#token=...`, else this tab's sessionStorage, else a prompt. The public read-only view (`?view=public`) never asks for one.
+if (!runtime.mock && !runtime.publicView) bootstrapToken();
 
 createRoot(root).render(
 	<StrictMode>

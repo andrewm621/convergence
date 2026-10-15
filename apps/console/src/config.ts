@@ -12,6 +12,9 @@ export const DEMO_IDENTITY = {
 
 export const ACTING_AS = `Acting as: ${DEMO_IDENTITY.label}`;
 
+/** Shown wherever an action is disabled in the public read-only view, and as the one-line note under the header. */
+export const PUBLIC_READ_ONLY_NOTE = "Read-only public view. Actions need the maintainer's token.";
+
 /** How often the live client polls the REST state read when the socket is down. */
 export const POLL_INTERVAL_MS = 3000;
 

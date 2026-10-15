@@ -6,6 +6,11 @@ export type Runtime = {
 	/** Replay a scripted scenario in the browser instead of connecting to the Worker. */
 	mock: boolean;
 	scenario: ScenarioName;
+	/**
+	 * Live only: `?view=public` opens the cell as the public read-only view. No token is read or asked for, state comes from polling
+	 * the Worker's public GET reads, and every command is refused in the browser. It is ignored with `?mock=1`.
+	 */
+	publicView?: boolean;
 	/** Live only: a named cell (`notifications-demo`) to open instead of the scenario's own. Its name decides `scenario`. */
 	cell?: string;
 	/** Mock only: begin with no accepted context, to show the empty state. */
@@ -28,6 +33,7 @@ export function readRuntime(search: string, env: { VITE_MOCK?: string } = import
 	const cellScenario = mock ? null : scenarioOfCell(cellParam);
 	return {
 		mock,
+		publicView: !mock && params.get("view") === "public",
 		// The build replay exists only in the mock: the Worker has no such scenario.
 		scenario: cellScenario ?? (isScenarioName(scenarioParam) && (mock || scenarioParam !== "delta-convergence-build") ? scenarioParam : "notifications"),
 		...(cellScenario ? { cell: cellParam as string } : {}),
@@ -42,5 +48,5 @@ export function readRuntime(search: string, env: { VITE_MOCK?: string } = import
 export function createClient(runtime: Runtime): ConsoleClient {
 	return runtime.mock
 		? createMockClient({ scenario: runtime.scenario, start: runtime.start, script: runtime.script, drip: runtime.drip })
-		: createLiveClient({ scenario: runtime.scenario, cell: runtime.cell });
+		: createLiveClient({ scenario: runtime.scenario, cell: runtime.cell, readOnly: runtime.publicView });
 }

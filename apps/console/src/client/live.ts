@@ -36,6 +36,12 @@ export type LiveOptions = {
 	failuresBeforePolling?: number;
 	/** Where the bearer secret comes from. Defaults to sessionStorage. */
 	token?: () => string | null;
+	/**
+	 * The public read-only view. Sends no credential (a token in this tab's sessionStorage is not read), opens no WebSocket
+	 * (the Worker's socket needs the token), polls the REST state every `pollIntervalMs`, never reads agent runs or record text,
+	 * and refuses every command without sending it. A 401 means the cell is not on the Worker's public list.
+	 */
+	readOnly?: boolean;
 };
 
 const GateResponse = z.object({
@@ -112,7 +118,8 @@ export function createLiveClient(options: LiveOptions): ConsoleClient {
 	const failuresBeforePolling = options.failuresBeforePolling ?? 2;
 	const doFetch: typeof fetch = options.fetchImpl ?? ((...args) => fetch(...args));
 	const SocketCtor = options.WebSocketImpl ?? (typeof WebSocket === "undefined" ? undefined : WebSocket);
-	const getToken = options.token ?? (() => readToken());
+	const readOnly = options.readOnly === true;
+	const getToken = readOnly ? () => null : (options.token ?? (() => readToken()));
 
 	let handlers: ClientHandlers | null = null;
 	let socket: WebSocket | null = null;
@@ -139,7 +146,7 @@ export function createLiveClient(options: LiveOptions): ConsoleClient {
 		return token ? { Authorization: `Bearer ${token}` } : {};
 	}
 
-	/** The Worker refused the secret: stop hammering it and let the header offer to re-enter it. */
+	/** The Worker refused the secret: stop hammering it and let the header offer to re-enter it. In the public view it means the cell is not public. */
 	function halt() {
 		halted = true;
 		stopPolling();
@@ -147,7 +154,7 @@ export function createLiveClient(options: LiveOptions): ConsoleClient {
 		reconnectTimer = null;
 		socket?.close();
 		socket = null;
-		setConnection("unauthorized");
+		setConnection(readOnly ? "not-public" : "unauthorized");
 	}
 
 	async function readState(): Promise<void> {
@@ -156,6 +163,7 @@ export function createLiveClient(options: LiveOptions): ConsoleClient {
 		if (!response.ok) throw new Error(`state read failed: ${response.status}`);
 		const snapshot = CellSnapshot.parse(await response.json());
 		lastSeq = snapshot.ledgerHead.seq;
+		if (readOnly) setConnection("live");
 		// The REST read cannot list failing repos, but its header says whether any are failing.
 		const header = response.headers.get("X-Delta-Poller");
 		const poller: PollerHealth | undefined = header === "degraded" ? { healthy: false, degraded: [] } : header === "healthy" ? { healthy: true, degraded: [] } : undefined;
@@ -177,7 +185,7 @@ export function createLiveClient(options: LiveOptions): ConsoleClient {
 
 	function startPolling() {
 		if (pollTimer || halted) return;
-		setConnection("polling");
+		if (!readOnly) setConnection("polling");
 		const tick = () => {
 			readState().catch((error: unknown) => {
 				if (error instanceof UnauthorizedError) halt();
@@ -288,6 +296,7 @@ export function createLiveClient(options: LiveOptions): ConsoleClient {
 	}
 
 	async function command(path: string, body: unknown, idempotencyKey: string): Promise<CommandResult> {
+		if (readOnly) return { ok: false, code: "READ_ONLY", message: "Read-only public view. Actions need the maintainer's token." };
 		try {
 			const response = await send("POST", path, body, idempotencyKey);
 			if (response.ok) {
@@ -330,6 +339,7 @@ export function createLiveClient(options: LiveOptions): ConsoleClient {
 		// Runs are keyed by agent id (the lowercase work item id) across every cell. A 404, a network error or a run of
 		// another cell is not a problem: that work item simply has nothing earlier to show.
 		async agentRuns(workItems) {
+			if (readOnly) return [];
 			const runs = await Promise.all(
 				workItems.map(async (item): Promise<AgentRunSummary | null> => {
 					try {
@@ -345,6 +355,7 @@ export function createLiveClient(options: LiveOptions): ConsoleClient {
 			return runs.flatMap((run) => (run ? [run] : []));
 		},
 		async readRecordText(recordId) {
+			if (readOnly) return "";
 			const response = await send("GET", endpoints.context(cell, recordId));
 			return response.ok ? await response.text() : "";
 		},
@@ -360,6 +371,7 @@ export function createLiveClient(options: LiveOptions): ConsoleClient {
 		kind: "live",
 		scenario: options.scenario,
 		capabilities: { seed: false, start: false, changes: false },
+		readOnly,
 		api,
 		connect(next) {
 			handlers = next;
@@ -367,7 +379,12 @@ export function createLiveClient(options: LiveOptions): ConsoleClient {
 			halted = false;
 			failures = 0;
 			lastSeq = 0;
-			openSocket();
+			if (readOnly) {
+				setConnection("connecting");
+				startPolling();
+			} else {
+				openSocket();
+			}
 			return () => {
 				disposed = true;
 				handlers = null;

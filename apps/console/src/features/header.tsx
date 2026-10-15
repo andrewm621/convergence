@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { promptForToken } from "@/client/auth";
 import { SCENARIOS, type ConnectionState, type PollerHealth, type ScenarioName } from "@/client/types";
-import { ACTING_AS, POLL_INTERVAL_MS } from "@/config";
+import { ACTING_AS, POLL_INTERVAL_MS, PUBLIC_READ_ONLY_NOTE } from "@/config";
 import { cn } from "@/lib/utils";
 import type { ViewMode } from "@/state/console-context";
 import { SCENARIO_META, SYNTHETIC_NOTE, scenarioMeta } from "./scenario-meta";
@@ -14,9 +14,9 @@ export function visibleScenarios(value: ScenarioName, live: boolean): ScenarioNa
 	return SCENARIOS.filter((name) => name === value || (!SCENARIO_META[name].hidden && !(live && SCENARIO_META[name].replayOnly)));
 }
 
-/** `compact`: the scenarios not open show as icons (named in their tooltip and to screen readers) below 2xl, to make room for Work | Map. Only the open one shows its kind until very wide screens, so four scenarios fit at 1920 (three, the live set, keep the kind at 2xl). */
-export function ScenarioSwitcher({ value, onChange, live = false, compact = false }: { value: ScenarioName; onChange(next: ScenarioName): void; live?: boolean; compact?: boolean }) {
-	const names = visibleScenarios(value, live);
+/** `only`: the public read-only view names one cell in its link, so the switcher shows just that scenario (as a label) and offers no other. `compact`: the scenarios not open show as icons (named in their tooltip and to screen readers) below 2xl, to make room for Work | Map. Only the open one shows its kind until very wide screens, so four scenarios fit at 1920 (three, the live set, keep the kind at 2xl). */
+export function ScenarioSwitcher({ value, onChange, live = false, compact = false, only = false }: { value: ScenarioName; onChange(next: ScenarioName): void; live?: boolean; compact?: boolean; only?: boolean }) {
+	const names = only ? [value] : visibleScenarios(value, live);
 	// With four tabs the ones not open wait for very wide screens to show their kind; three fit at 2xl.
 	const crowded = names.length > 3;
 	return (
@@ -96,10 +96,14 @@ const CONNECTION_META: Record<ConnectionState, { text: string; tone: "success" |
 	polling: { text: `Polling every ${POLL_INTERVAL_MS / 1000} s`, tone: "warning", icon: TriangleAlert, hint: "The socket is unavailable, so the console is re-reading state over REST." },
 	offline: { text: "Offline", tone: "danger", icon: WifiOff, hint: "The Convergence API cannot be reached." },
 	unauthorized: { text: "Token refused", tone: "danger", icon: KeyRound, hint: "The Worker refused the access token. Enter it again." },
+	"not-public": { text: "Not in the public view", tone: "neutral", icon: KeyRound, hint: "The Worker does not list this cell for public reading." },
 };
 
-export function ConnectionBadge({ state }: { state: ConnectionState }) {
-	const meta = CONNECTION_META[state];
+/** The public read-only view reads the same Worker state by polling, with no token. */
+const READ_ONLY_LIVE = { text: "Live · read-only", hint: `Reading the Convergence Worker's state every ${POLL_INTERVAL_MS / 1000} s. ${PUBLIC_READ_ONLY_NOTE}` };
+
+export function ConnectionBadge({ state, readOnly = false }: { state: ConnectionState; readOnly?: boolean }) {
+	const meta = readOnly && state === "live" ? { ...CONNECTION_META.live, ...READ_ONLY_LIVE } : CONNECTION_META[state];
 	const Icon = meta.icon;
 	return (
 		<Badge tone={meta.tone} title={meta.hint} data-connection={state} role="status" className="h-7 px-2.5 text-[13px]">
@@ -151,6 +155,7 @@ export function Header({
 	connection,
 	poller = null,
 	live = false,
+	readOnly = false,
 	mode,
 	onMode,
 }: {
@@ -160,6 +165,8 @@ export function Header({
 	onMode?(next: ViewMode): void;
 	/** The live client, not the mock. */
 	live?: boolean;
+	/** The public read-only view: no token, no acting-as identity, one scenario, and a note that actions need the maintainer's token. */
+	readOnly?: boolean;
 	onScenario(next: ScenarioName): void;
 	connection: ConnectionState;
 	poller?: PollerHealth | null;
@@ -187,11 +194,11 @@ export function Header({
 				</div>
 				<div className="h-6 w-px shrink-0 bg-border" aria-hidden />
 				{mode && onMode && <ModeSwitcher value={mode} onChange={onMode} />}
-				<ScenarioSwitcher value={scenario} onChange={onScenario} live={live} compact={mode !== undefined} />
+				<ScenarioSwitcher value={scenario} onChange={onScenario} live={live} compact={mode !== undefined} only={readOnly} />
 				<div className="ml-auto flex shrink-0 items-center gap-3">
 					<PollerBadge poller={poller} />
-					<ConnectionBadge state={connection} />
-					{connection === "unauthorized" && (
+					<ConnectionBadge state={connection} readOnly={readOnly} />
+					{connection === "unauthorized" && !readOnly && (
 						<Button
 							variant="outline"
 							size="sm"
@@ -203,15 +210,22 @@ export function Header({
 							<KeyRound aria-hidden /> Enter token
 						</Button>
 					)}
-					<Badge tone="primary" className="h-7 px-2.5 text-[13px]" data-testid="acting-as">
-						<User aria-hidden className="size-3.5" />
-						{ACTING_AS}
-					</Badge>
+					{!readOnly && (
+						<Badge tone="primary" className="h-7 px-2.5 text-[13px]" data-testid="acting-as">
+							<User aria-hidden className="size-3.5" />
+							{ACTING_AS}
+						</Badge>
+					)}
 					<Button variant="ghost" size="icon-sm" onClick={toggleTheme} aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}>
 						{theme === "dark" ? <Sun /> : <Moon />}
 					</Button>
 				</div>
 			</header>
+			{readOnly && (
+				<div role="note" data-testid="public-note" className="shrink-0 border-b bg-muted px-4 py-1.5 text-[13px] text-muted-foreground">
+					{PUBLIC_READ_ONLY_NOTE}
+				</div>
+			)}
 			{note && (
 				<div role="note" data-testid="scenario-note" className="flex shrink-0 items-center gap-2 border-b bg-info/10 px-4 py-1.5 text-[13px] text-foreground">
 					<Info aria-hidden className="size-3.5 shrink-0 text-info" />
