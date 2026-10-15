@@ -11,6 +11,8 @@ export type ScenarioMeta = {
 	noteLead?: string;
 	/** Left out of the scenario switcher unless it is the open scenario. Still reachable with `?scenario=`. */
 	hidden?: boolean;
+	/** A recording the Worker never seeds: left out of the switcher in live mode (a `-rec1` cell for it would be empty), offered in the mock. */
+	replayOnly?: boolean;
 	/** What runs the work, shown where a model name would be. Overrides the model on `AgentRunStarted`. */
 	agentLabel?: string;
 	/** The work is in this repo's real git history: shas link to GitHub and an all-zero sha reads "not in git". */
@@ -68,6 +70,7 @@ export const SCENARIO_META: Record<ScenarioName, ScenarioMeta> = {
 		icon: BriefcaseBusiness,
 		note: SALES_NOTE,
 		noteLead: SALES_NOTE_LEAD,
+		replayOnly: true,
 		scopeExample: "e.g. reports/q4-forecast.md",
 	},
 };
