@@ -79,15 +79,15 @@ describe("the console, mock-driven end to end", () => {
 		}
 	});
 
-	it("offers Sablewood Sales in the switcher, opens it from ?scenario=sales-ops, and keeps the synthetic note in view", async () => {
+	it("offers Scranton Paper Supply in the switcher, opens it from ?scenario=sales-ops, and keeps the synthetic note in view", async () => {
 		const user = userEvent.setup();
 		const { unmount } = render(<App runtime={runtime} />);
-		expect(screen.getByRole("radio", { name: /Sablewood Sales · knowledge work/ })).toBeInTheDocument();
+		expect(screen.getByRole("radio", { name: /Scranton Paper Supply · knowledge work/ })).toBeInTheDocument();
 		expect(document.body).not.toHaveTextContent(/Northwind/);
 		unmount();
 		render(<App runtime={{ ...runtime, scenario: "sales-ops" }} ui="classic" />);
-		expect(screen.getByRole("radio", { name: /Sablewood Sales/ })).toBeChecked();
-		expect(screen.getByTestId("scenario-note")).toHaveTextContent("Synthetic scenario. Sablewood is a fictional software company");
+		expect(screen.getByRole("radio", { name: /Scranton Paper Supply/ })).toBeChecked();
+		expect(screen.getByTestId("scenario-note")).toHaveTextContent("Synthetic scenario. Scranton Paper Supply Co. is a fictional paper distributor");
 		expect(await screen.findByRole("heading", { name: "qualified-lead" })).toBeInTheDocument();
 		await next(user, 4);
 		const graph = await screen.findByRole("region", { name: "Work graph" });

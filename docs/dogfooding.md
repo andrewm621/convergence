@@ -15,7 +15,7 @@ Six accepted decision records, each with facets the work can rely on, and seven 
 | `positioning` | The headline claims |
 | `demo-identity` | The label on the demo identity |
 
-The `scenario-plan` record and its "second act" wording, and the `scenario-naming` county record, reflect the earlier plan. The shelter act also runs live, but it is not in the submission video: the video's knowledge-work act is the Sablewood Sales replay. The record ids and example commands below keep their names.
+The `scenario-plan` record and its "second act" wording, and the `scenario-naming` county record, reflect the earlier plan. The shelter act also runs live, but it is not in the submission video: the video's knowledge-work act is the Scranton Paper Supply replay. The record ids and example commands below keep their names.
 
 The seven work items are WI-1 to WI-7: the M4 revalidate loop, the console evidence labels, the video script, the shelter fixtures, the shared brief, the README and the console identity header.
 

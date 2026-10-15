@@ -2,7 +2,7 @@
 
 > Synthetic scenario. Not operational guidance. Larkhaven County, its river flood and the Larkhaven Mutual Aid Network are invented.
 
-The Larkhaven County shelter policy is a knowledge-work scenario, no code. It also runs live on the deployed Worker, but it is not in the submission video: the video's knowledge-work act is the Sablewood Sales replay. The console replays the shelter story from fixtures (`?mock=1&scenario=shelter-intake`, five drafts). This page is the live version: two real model agents each write a real document on their own fork, the policy changes while they work, and the Worker's deterministic rules do the rest. No model decides a condition, an authorization or a promotion.
+The Larkhaven County shelter policy is a knowledge-work scenario, no code. It also runs live on the deployed Worker, but it is not in the submission video: the video's knowledge-work act is the Scranton Paper Supply replay. The console replays the shelter story from fixtures (`?mock=1&scenario=shelter-intake`, five drafts). This page is the live version: two real model agents each write a real document on their own fork, the policy changes while they work, and the Worker's deterministic rules do the rest. No model decides a condition, an authorization or a promotion.
 
 ## What happens
 

@@ -29,9 +29,9 @@ export const DEFAULT_SCOPE_EXAMPLE = "e.g. the one document this covers";
 /** The note that must stay visible on the shelter scenario. */
 export const SYNTHETIC_NOTE = "Synthetic scenario. Not operational guidance.";
 
-/** The note that must stay visible on the Sablewood sales scenario. */
+/** The note that must stay visible on the Scranton Paper sales scenario. */
 export const SALES_NOTE_LEAD = "Synthetic scenario.";
-export const SALES_NOTE = `${SALES_NOTE_LEAD} Sablewood is a fictional software company; its leads and pipeline numbers are invented.`;
+export const SALES_NOTE = `${SALES_NOTE_LEAD} Scranton Paper Supply Co. is a fictional paper distributor; its leads and pipeline numbers are invented.`;
 
 /** The note that must stay visible on the replay of our own build. */
 export const BUILD_NOTE_LEAD = "Retrofitted from this repo's git history.";
@@ -65,7 +65,7 @@ export const SCENARIO_META: Record<ScenarioName, ScenarioMeta> = {
 		scopeExample: "e.g. docs/PRD.md only",
 	},
 	"sales-ops": {
-		label: "Sablewood Sales",
+		label: "Scranton Paper Supply",
 		kind: "knowledge work",
 		icon: BriefcaseBusiness,
 		note: SALES_NOTE,

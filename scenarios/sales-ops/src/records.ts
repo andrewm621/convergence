@@ -1,5 +1,5 @@
 /**
- * Context records for Scenario B. Sablewood is a fictional software company; nothing here
+ * Context records for Scenario B. Scranton Paper Supply Co. is a fictional paper distributor; nothing here
  * describes a real organisation or person.
  */
 
@@ -24,7 +24,7 @@ facets:
   lead.qualified.min-employees: 50
   lead.qualified.requires-form-fill: true
 ---
-# Qualified lead (Sablewood)
+# Qualified lead (Scranton Paper)
 A lead is qualified when it has submitted the web form and the company has 50 or more employees.
 `;
 
@@ -53,7 +53,7 @@ facets:
 not:
   lead.qualified.criteria: form-fill-and-50-plus-employees
 ---
-# Qualified lead (Sablewood)
+# Qualified lead (Scranton Paper)
 A lead is qualified when it has submitted the web form, the company has 50 or more employees, and a verified budget signal exists.
 `;
 
@@ -70,6 +70,6 @@ facets:
   activity.touch.types: [call, email, meeting]
   activity.counts-as-touch: outbound-human-contact
 ---
-# Sales activity (Sablewood)
+# Sales activity (Scranton Paper)
 A touch is an outbound call, email or meeting made by a person. Automated sequences do not count.
 `;

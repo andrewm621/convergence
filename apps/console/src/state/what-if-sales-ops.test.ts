@@ -6,7 +6,7 @@ import { initialViewState, toCellState, type ViewState } from "./store";
 import { compareOptions } from "./what-if";
 
 /**
- * Guards the numbers the Sablewood act's compare alternatives shows (the replay, `?mock=1&scenario=sales-ops`).
+ * Guards the numbers the Scranton Paper act's compare alternatives shows (the replay, `?mock=1&scenario=sales-ops`).
  *
  * At the "Draft the definition change" beat three items are running, built on the v1 definitions:
  *   WI-3 Q4 pipeline forecast    relies on lead.qualified.criteria, lead.qualified.min-employees
@@ -28,7 +28,7 @@ async function draftBeatView(): Promise<ViewState> {
 	return { ...initialViewState, ready: true, scenario: "sales-ops", baselineCommit: state.baselineCommit, snapshotHash: state.snapshotHash, policy: s.policy, records: state.records, workItems: state.workItems, dependencies: state.dependencies };
 }
 
-describe("the Sablewood act's compare alternatives", () => {
+describe("the Scranton Paper act's compare alternatives", () => {
 	it("Option A (verified budget, the story's v2) blocks the forecast and the playbook; B (budget optional) blocks nothing; C (100 employees) blocks the forecast only", async () => {
 		const s = await buildSalesOpsScenario();
 		const view = await draftBeatView();

@@ -37,7 +37,7 @@ describe("fixtures are valid contracts", () => {
 	}
 
 	it("the sales-ops fixture is the synthetic company", () => {
-		expect(JSON.stringify(s.docs)).toContain("Sablewood");
+		expect(JSON.stringify(s.docs)).toContain("Scranton Paper");
 	});
 });
 

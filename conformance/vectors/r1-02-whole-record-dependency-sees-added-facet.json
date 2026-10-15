@@ -81,7 +81,7 @@
               "acceptedAt": "2026-09-29T16:00:00Z",
               "acceptedBy": "decision-owner",
               "authority": "decision-owner",
-              "blobHash": "b65f5abe375241a578bd2aa913d0f536dfb0b91be3efa747cde26a9fc6d47a1b",
+              "blobHash": "ddba7ffbfa9138232c3037fd1032ab2bb8934e9048d9f76b220fe787d9981562",
               "facetHash": "dea7f6f5b6678d2ebd297c841e9f517371e93407ecd8b936139a1f9d03e90759",
               "facets": {
                 "lead.qualified.criteria": "form-fill-and-50-plus-employees",
@@ -104,7 +104,7 @@
               "acceptedAt": "2026-09-29T16:00:00Z",
               "acceptedBy": "decision-owner",
               "authority": "decision-owner",
-              "blobHash": "aa557d0b888c1f714a351136f8d0985dda67f522d5ac3c3e05582f93b0b09744",
+              "blobHash": "16f4997347a5c3c264e9a73d71fd9e0787f4124baae5a0d3f981e46f5c804560",
               "facetHash": "9d05aa425afad174fda0b7769dbfbf894452c2629b58be49d69b2812f020a2b0",
               "facets": {
                 "activity.counts-as-touch": "outbound-human-contact",
@@ -124,7 +124,7 @@
         }
       },
       "schemaVersion": 1,
-      "snapshotHash": "d66638be820f186b3611a3ba3431c5eda3299300fe5d1bca788d5d5f347ee891",
+      "snapshotHash": "923c915a2346193c1dee6ccadb69b14e4170c9479543ee9f4ac80a6f122d6420",
       "workItems": {
         "WI-3": {
           "claims": null,
@@ -162,14 +162,14 @@
           "receipt": {
             "accepted": [
               {
-                "blobHash": "b65f5abe375241a578bd2aa913d0f536dfb0b91be3efa747cde26a9fc6d47a1b",
+                "blobHash": "ddba7ffbfa9138232c3037fd1032ab2bb8934e9048d9f76b220fe787d9981562",
                 "facetHash": "dea7f6f5b6678d2ebd297c841e9f517371e93407ecd8b936139a1f9d03e90759",
                 "recordId": "qualified-lead",
                 "version": 1
               }
             ],
             "baselineCommit": "b000000000000000000000000000000000000065",
-            "contextPacketHash": "c0b542f7507b8ed3217389ea4b49741f52c46d22e5005e54f23fce2b65a0a2a9",
+            "contextPacketHash": "9d04e11b8c952cca6c3286ed9a9954402c00a697dc452f2f9b5f85d19cf46614",
             "noteRef": "refs/notes/delta:b000000000000000000000000000000000000065",
             "proposedVisible": []
           },
@@ -214,20 +214,20 @@
           "receipt": {
             "accepted": [
               {
-                "blobHash": "b65f5abe375241a578bd2aa913d0f536dfb0b91be3efa747cde26a9fc6d47a1b",
+                "blobHash": "ddba7ffbfa9138232c3037fd1032ab2bb8934e9048d9f76b220fe787d9981562",
                 "facetHash": "dea7f6f5b6678d2ebd297c841e9f517371e93407ecd8b936139a1f9d03e90759",
                 "recordId": "qualified-lead",
                 "version": 1
               },
               {
-                "blobHash": "aa557d0b888c1f714a351136f8d0985dda67f522d5ac3c3e05582f93b0b09744",
+                "blobHash": "16f4997347a5c3c264e9a73d71fd9e0787f4124baae5a0d3f981e46f5c804560",
                 "facetHash": "9d05aa425afad174fda0b7769dbfbf894452c2629b58be49d69b2812f020a2b0",
                 "recordId": "sales-activity",
                 "version": 1
               }
             ],
             "baselineCommit": "b000000000000000000000000000000000000065",
-            "contextPacketHash": "0f8cc1a8febd2d112d15059cb62d3592a0984fdd39a13115047ad3bcbdeb9a53",
+            "contextPacketHash": "06661509103f5531542b9ca2f16690e06ab8e785d93647d7d617cf0a9718bcc7",
             "noteRef": "refs/notes/delta:b000000000000000000000000000000000000065",
             "proposedVisible": []
           },
@@ -271,14 +271,14 @@
           "receipt": {
             "accepted": [
               {
-                "blobHash": "aa557d0b888c1f714a351136f8d0985dda67f522d5ac3c3e05582f93b0b09744",
+                "blobHash": "16f4997347a5c3c264e9a73d71fd9e0787f4124baae5a0d3f981e46f5c804560",
                 "facetHash": "9d05aa425afad174fda0b7769dbfbf894452c2629b58be49d69b2812f020a2b0",
                 "recordId": "sales-activity",
                 "version": 1
               }
             ],
             "baselineCommit": "b000000000000000000000000000000000000065",
-            "contextPacketHash": "5bd320c25b3edb94ea5c5b9ee2b00be1f675bc3e80fef203398031592b06443f",
+            "contextPacketHash": "7b28d39f801ea239f665e1bd01d4b2d8aebda7154b321fef89c9bba36baf5bbe",
             "noteRef": "refs/notes/delta:b000000000000000000000000000000000000065",
             "proposedVisible": []
           },
@@ -320,14 +320,14 @@
           "receipt": {
             "accepted": [
               {
-                "blobHash": "b65f5abe375241a578bd2aa913d0f536dfb0b91be3efa747cde26a9fc6d47a1b",
+                "blobHash": "ddba7ffbfa9138232c3037fd1032ab2bb8934e9048d9f76b220fe787d9981562",
                 "facetHash": "dea7f6f5b6678d2ebd297c841e9f517371e93407ecd8b936139a1f9d03e90759",
                 "recordId": "qualified-lead",
                 "version": 1
               }
             ],
             "baselineCommit": "b000000000000000000000000000000000000065",
-            "contextPacketHash": "c0b542f7507b8ed3217389ea4b49741f52c46d22e5005e54f23fce2b65a0a2a9",
+            "contextPacketHash": "9d04e11b8c952cca6c3286ed9a9954402c00a697dc452f2f9b5f85d19cf46614",
             "noteRef": "refs/notes/delta:b000000000000000000000000000000000000065",
             "proposedVisible": []
           },
@@ -613,7 +613,7 @@
           ]
         }
       },
-      "snapshotHash": "31bee685381744934cccdf121c5088d8fb192b81c150318ea9631857166da318",
+      "snapshotHash": "cf0e978ba2550a51c53b85d4c7d30f038334dc643c8401735336cd579d169978",
       "workItems": {
         "WI-3": {
           "conditions": [
@@ -636,7 +636,7 @@
           ],
           "headSha": null,
           "promotionApproved": false,
-          "receipt": "c0b542f7507b8ed3217389ea4b49741f52c46d22e5005e54f23fce2b65a0a2a9",
+          "receipt": "9d04e11b8c952cca6c3286ed9a9954402c00a697dc452f2f9b5f85d19cf46614",
           "resolutions": [],
           "revalidating": false,
           "revalidations": 0,
@@ -663,7 +663,7 @@
           ],
           "headSha": null,
           "promotionApproved": false,
-          "receipt": "0f8cc1a8febd2d112d15059cb62d3592a0984fdd39a13115047ad3bcbdeb9a53",
+          "receipt": "06661509103f5531542b9ca2f16690e06ab8e785d93647d7d617cf0a9718bcc7",
           "resolutions": [],
           "revalidating": false,
           "revalidations": 0,
@@ -678,7 +678,7 @@
           ],
           "headSha": null,
           "promotionApproved": false,
-          "receipt": "5bd320c25b3edb94ea5c5b9ee2b00be1f675bc3e80fef203398031592b06443f",
+          "receipt": "7b28d39f801ea239f665e1bd01d4b2d8aebda7154b321fef89c9bba36baf5bbe",
           "resolutions": [],
           "revalidating": false,
           "revalidations": 0,
@@ -704,7 +704,7 @@
           ],
           "headSha": null,
           "promotionApproved": false,
-          "receipt": "c0b542f7507b8ed3217389ea4b49741f52c46d22e5005e54f23fce2b65a0a2a9",
+          "receipt": "9d04e11b8c952cca6c3286ed9a9954402c00a697dc452f2f9b5f85d19cf46614",
           "resolutions": [],
           "revalidating": false,
           "revalidations": 0,
@@ -722,7 +722,7 @@
           "acceptedAt": "2026-10-13T16:00:00Z",
           "acceptedBy": "decision-owner",
           "authority": "decision-owner",
-          "blobHash": "4725997f21f012794325b8e624a5a547bea43fb4ea80ce5ffffd88b9d010bd7a",
+          "blobHash": "483e664a67477230028e6f0d0fd9a0bc57f0da19051f78e0b78e2dfdc3924e64",
           "facetHash": "dd104c0697083d9163ab6044be12f4f301def73ff0078ad2c03d53a3acd56a8a",
           "facets": {
             "lead.qualified.criteria": "form-fill-50-plus-employees-and-verified-budget",
@@ -742,7 +742,7 @@
         }
       ],
       "repo": "sales-ops-baseline",
-      "snapshotHash": "31bee685381744934cccdf121c5088d8fb192b81c150318ea9631857166da318",
+      "snapshotHash": "cf0e978ba2550a51c53b85d4c7d30f038334dc643c8401735336cd579d169978",
       "ts": "2026-10-13T16:00:00Z",
       "type": "BaselinePushed"
     }

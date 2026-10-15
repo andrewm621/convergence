@@ -4,8 +4,8 @@ import type { SalesOpsScenario } from "scenario-sales-ops";
 import type { Beat, MockScript } from "./beats";
 
 /**
- * Scenario B, the same loop on knowledge work (video script segment 10). Sablewood is a
- * fictional software company. The definition of a qualified lead changes mid-flight: the forecast and
+ * Scenario B, the same loop on knowledge work (video script segment 10). Scranton Paper is a
+ * fictional paper distributor. The definition of a qualified lead changes mid-flight: the forecast and
  * the playbook go stale, the glossary does not. One is revalidated, one takes a scoped exception.
  */
 export function salesOpsScript(bundle: SalesOpsScenario): MockScript {
