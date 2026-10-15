@@ -143,9 +143,9 @@ function Mark({ mark, lane }: { mark: ProcessMark; lane: ProcessLane }) {
 					style={{ top: LINE_Y - 6, left: mark.column * COL_W, width: COL_W }}
 				>
 					<span className={cn("size-3 shrink-0 rounded-full ring-4 ring-background", DOT[mark.tone])} />
-					<span className={cn("mt-1.5 bg-background px-0.5 text-xs leading-tight font-medium", TEXT[mark.tone])}>{mark.label}</span>
+					<span className={cn("mt-1.5 bg-background px-1 text-xs leading-tight font-medium", TEXT[mark.tone])}>{mark.label}</span>
 					{mark.detail.map((line) => (
-						<span key={line} className="max-w-full bg-background px-0.5 text-[11px] leading-tight break-words text-muted-foreground">
+						<span key={line} className="max-w-full bg-background px-1 text-[11px] leading-tight break-words text-muted-foreground">
 							{line}
 						</span>
 					))}
