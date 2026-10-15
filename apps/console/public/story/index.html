@@ -315,6 +315,21 @@ html.nomo .c5-list li:nth-child(1) { --t: 2.2s; } html.nomo .c5-list li:nth-chil
 .n1-git { color: var(--muted-foreground); }
 .n1-cv { font-weight: 600; background: color-mix(in oklch, var(--primary) 12%, var(--card)); border-color: color-mix(in oklch, var(--primary) 55%, transparent); }
 
+/* ---------- A1 / M1 / K8 / Z1: the framing slides (text-first; same grammar as R1 / N1) ---------- */
+.a1-big { position: absolute; left: 80px; top: 400px; max-width: 1760px; font-size: 64px; line-height: 1.2; font-weight: 600; letter-spacing: -.015em; }
+.m1-card { top: 400px; width: 840px; display: flex; flex-direction: column; gap: 22px; padding: 36px 40px; }
+.m1-card p { font-size: 36px; line-height: 1.35; color: var(--muted-foreground); }
+.m1-card.rec { border-color: color-mix(in oklch, var(--primary) 55%, transparent); background: color-mix(in oklch, var(--primary) 12%, var(--card)); }
+.m1-card.rec p { color: var(--foreground); }
+.k8-grid { position: absolute; left: 80px; top: 300px; width: 1760px; display: grid; gap: 24px; }
+.k8-row { display: flex; flex-direction: column; gap: 12px; padding: 24px 36px; border-radius: 18px; border: 1.5px solid var(--border); background: var(--card); }
+.k8-row p { font-size: 42px; line-height: 1.25; color: var(--muted-foreground); }
+.k8-row.cv { border-color: color-mix(in oklch, var(--primary) 55%, transparent); background: color-mix(in oklch, var(--primary) 12%, var(--card)); }
+.k8-row.cv p { color: var(--foreground); font-weight: 600; }
+.k8-line { position: absolute; left: 80px; top: 700px; font-size: 38px; line-height: 1.3; font-weight: 600; color: var(--warning); max-width: 1700px; }
+.z1-list { position: absolute; left: 80px; top: 190px; width: 1640px; list-style: none; display: grid; gap: 40px; font-size: 52px; line-height: 1.25; color: var(--muted-foreground); }
+.z1-list .em { color: var(--foreground); font-weight: 700; font-size: 60px; }
+
 /* ---------- motifs: timeline (O3), dependency lines (O4 edges), judgment boundary (C5) ----------
    Same rule as the reveals: every default is the end state; keyframes only supply the path there.
    &motion=0 (html.nomo) and reduced motion both show that end state. */
@@ -464,6 +479,13 @@ html.rm #prog-dots i, html.rm #prog-line { transition: none; }
   <p class="sub rv" style="left:80px;top:918px;font-size:40px;color:var(--foreground);--t:8.4s">Which of these relied on the old one?</p>
 </section>
 
+<!-- ============ A1: the diligent agent (copy is a draft: every string below is the slide's text) ============ -->
+<section class="slide" data-id="A1" data-title="The risky agent isn’t the rogue one." data-tag="GRAPHIC">
+  <h1 class="h1 rv" style="top:118px;--t:.1s">The risky agent isn’t the rogue one.</h1>
+  <p class="a1-big rv" style="--t:1.0s">It’s the diligent one, working from yesterday’s assumption.</p>
+  <p class="r1-foot rv" style="--t:2.6s">Convergence makes the assumption visible, checkable and blockable before the work merges.</p>
+</section>
+
 <!-- ============ O3 ============ -->
 <section class="slide" data-id="O3" data-title="A lockfile for decisions." data-tag="GRAPHIC">
   <h1 class="h1 rv" style="top:118px;--t:.1s">A lockfile for decisions.</h1>
@@ -503,6 +525,20 @@ html.rm #prog-dots i, html.rm #prog-line { transition: none; }
   <div class="o3-word rv" style="left:80px;--t:1.9s"><b>Receipt</b><span>What the work was handed.</span></div>
   <div class="o3-word rv" style="left:760px;--t:4.1s"><b>Compare</b><span>When a decision changes.</span></div>
   <div class="o3-word rv" style="left:1290px;--t:7.2s"><b>Gate</b><span>Block the merge until a person decides.</span></div>
+</section>
+
+<!-- ============ M1: memory vs decisions of record (copy is a draft: every string below is the slide's text) ============ -->
+<section class="slide" data-id="M1" data-title="Shared memory isn’t shared truth." data-tag="GRAPHIC">
+  <h1 class="h1 rv" style="top:118px;--t:.1s">Shared memory isn’t shared truth.</h1>
+  <div class="card m1-card rv" style="left:80px;--t:.6s;--dx:-30px;--dy:0">
+    <div class="lbl">Memory</div>
+    <p>What one agent remembers. Different for every agent. Sometimes that’s the point: a reviewer that never saw the draft argues better.</p>
+  </div>
+  <div class="card m1-card rec rv" style="left:1000px;--t:1.4s;--dx:30px;--dy:0">
+    <div class="lbl" style="color:var(--primary)">Decisions of record</div>
+    <p>What the team has accepted. The same for everyone. Versioned, so every piece of work says which version it used.</p>
+  </div>
+  <p class="r1-foot rv" style="--t:2.8s">Agents can forget different things. They shouldn’t be working from different decisions.</p>
 </section>
 
 <!-- ============ O4 (centrepiece) ============ -->
@@ -651,6 +687,17 @@ html.rm #prog-dots i, html.rm #prog-line { transition: none; }
   <div class="c4-box rv" style="left:1520px;--t:4.2s"><b>ledger</b><code>reconciliation-event.json</code></div>
 </section>
 
+<!-- ============ K8: desired state, for decisions (copy is a draft: every string below is the slide's text) ============ -->
+<section class="slide" data-id="K8" data-title="Desired state, for decisions." data-tag="GRAPHIC">
+  <h1 class="h1 rv" style="top:118px;--t:.1s">Desired state, for decisions.</h1>
+  <div class="k8-grid">
+    <div class="k8-row rv" style="--t:.6s;--dy:14px"><div class="lbl">Kubernetes</div><p>You declare the desired state. Controllers keep reconciling the cluster toward it.</p></div>
+    <div class="k8-row cv rv" style="--t:1.6s;--dy:14px"><div class="lbl" style="color:var(--primary)">Convergence</div><p>People accept the decisions. The referee keeps checking the work against them.</p></div>
+  </div>
+  <p class="k8-line rv" style="--t:2.8s">When the next step is consequential, Convergence stops and asks a person.</p>
+  <p class="r1-foot rv" style="--t:3.8s">The decisions change as you learn. The checking stays deterministic.</p>
+</section>
+
 <!-- ============ N1: what Git did for files (copy is a draft: every string below is the slide's text) ============ -->
 <section class="slide" data-id="N1" data-title="What Git did for files, for decisions." data-tag="GRAPHIC">
   <h1 class="h1 rv" style="top:118px;--t:.1s">What Git did for files, for decisions.</h1>
@@ -695,6 +742,17 @@ html.rm #prog-dots i, html.rm #prog-line { transition: none; }
     <li class="rv">Compares up to three versions of one decision; not whole-project branching.</li>
   </ul>
   <p class="c5-small rv">MIT · replay runs without credentials · see the README</p>
+</section>
+
+<!-- ============ Z1: closing (copy is a draft: every string below is the slide's text) ============ -->
+<section class="slide" data-id="Z1" data-title="Somebody still has to coordinate all of it." data-tag="GRAPHIC">
+  <ul class="z1-list">
+    <li class="rv" style="--t:.5s">We can make each person and each agent more productive.</li>
+    <li class="rv" style="--t:1.3s">That doesn’t mean everyone is working toward the same outcome.</li>
+    <li class="rv em" style="--t:2.1s">Somebody still has to coordinate all of it.</li>
+    <li class="rv" style="--t:2.9s">How much of that coordination can we make more reliable, without taking the important decisions away from people?</li>
+    <li class="rv" style="--t:3.7s">That’s what we’re exploring with Convergence.</li>
+  </ul>
 </section>
 
 <!-- ============ Q1 (live final only) ============ -->
@@ -742,8 +800,8 @@ html.rm #prog-dots i, html.rm #prog-line { transition: none; }
   var deep = (qs.get("slide") || location.hash.replace("#", "") || "").toUpperCase();
   var live = qs.get("mode") === "live" || deep === "T0" || deep === "Q1";
   var ORDER = live
-    ? ["T0", "O1", "O2", "O4", "O3", "R1", "O5", "K1", "C1", "C2", "C3", "C4", "N1", "C5", "Q1"]
-    : ["O1", "O2", "O3", "O4", "R1", "O5", "K1", "C1", "C2", "C3", "C4", "N1", "C5"];
+    ? ["T0", "O1", "O2", "A1", "O4", "O3", "M1", "R1", "O5", "K1", "C1", "C2", "C3", "C4", "K8", "N1", "C5", "Z1", "Q1"]
+    : ["O1", "O2", "A1", "O3", "M1", "O4", "R1", "O5", "K1", "C1", "C2", "C3", "C4", "K8", "N1", "C5", "Z1"];
   document.body.classList.toggle("live", live);
 
   var stage = document.getElementById("stage");
