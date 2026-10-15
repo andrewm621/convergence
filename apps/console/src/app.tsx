@@ -10,6 +10,7 @@ import { Home } from "@/features/home";
 import { Inspector } from "@/features/inspector";
 import { ItemPage } from "@/features/item-page";
 import { MockControls } from "@/features/mock-controls";
+import { ProcessView } from "@/features/process-view";
 import { WorkGraph } from "@/features/work-graph";
 import type { MockClient } from "@/mock/client";
 import { cn } from "@/lib/utils";
@@ -61,6 +62,7 @@ type ShellProps = { scenario: ScenarioName; onScenario(next: ScenarioName): void
 /**
  * Work view: decisions on the left, and the home trays (or, once a row is opened, its item page) across the rest.
  * Map view: the original graph and side pane. React Flow mounts only in Map, so it never fits itself to a hidden box.
+ * Process view: one lane per work item across the full width, read from the ledger.
  */
 function NewShell({ scenario, onScenario, controls }: ShellProps) {
 	const { client, connection, view, mode, setMode, selectedId, select } = useConsole();
@@ -70,7 +72,11 @@ function NewShell({ scenario, onScenario, controls }: ShellProps) {
 	return (
 		<div className="flex h-full flex-col bg-background">
 			<Header scenario={scenario} onScenario={onScenario} connection={connection} poller={view.poller} live={client.kind === "live"} mode={mode} onMode={setMode} />
-			{mode === "map" ? (
+			{mode === "process" ? (
+				<main className="flex min-h-0 flex-1 flex-col">
+					<ProcessView />
+				</main>
+			) : mode === "map" ? (
 				// No decisions rail here: the decisions are nodes on the graph, and the graph needs the width to stay readable.
 				<main className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_minmax(400px,480px)] divide-x">
 					<div className="flex min-h-0 flex-col">

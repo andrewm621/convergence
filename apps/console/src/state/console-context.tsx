@@ -11,8 +11,8 @@ export type EditorRequest = { recordId: string; facets: Record<string, FacetValu
 
 export type InspectorTab = "why" | "receipt" | "semantic" | "changes" | "actions";
 
-/** The new shell's two views: Work (home trays and item pages) and Map (the work graph with the side pane). */
-export type ViewMode = "work" | "map";
+/** The new shell's views: Work (home trays and item pages), Map (the work graph with the side pane) and Process (what each agent did over time). */
+export type ViewMode = "work" | "map" | "process";
 
 type ConsoleContextValue = {
 	client: ConsoleClient;
