@@ -210,7 +210,7 @@ A small TypeScript "project status" service: an API plus a settings page. The ba
 **Seeding for reliability:** fixed task prompts, a tiny codebase and a pinned model. The context change is triggered on cue. Because the Claude agents are real, step 4's conflict is *likely* rather than guaranteed. Agent B is told to build from its snapshot. The window is guaranteed because the change happens while it runs. **Replay mode** (P1) re-drives a recorded event log through the same DO in case live agents misbehave on recording day.
 
 ### Scenario B: "Qualified lead" (knowledge work, second scenario)
-The company is synthetic ("Northwind Field Services"). **Don't use real client names or data in the public repo.** The baseline contains `context/definitions/qualified-lead.md` v1 (form fill and 50+ employees) and `context/definitions/sales-activity.md` v1.
+The company is synthetic ("Sablewood", a fictional software company). **Don't use real client names or data in the public repo.** The baseline contains `context/definitions/qualified-lead.md` v1 (form fill and 50+ employees) and `context/definitions/sales-activity.md` v1.
 
 | Work item | Agent | Depends on | Output |
 |---|---|---|---|
