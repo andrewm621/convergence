@@ -72,6 +72,11 @@
         }
       }
     },
+    "why": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2000
+    },
     "blobHash": {
       "$ref": "#/$defs/ObjectHash"
     },

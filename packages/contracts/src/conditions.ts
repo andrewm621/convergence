@@ -29,6 +29,8 @@ export const ReasonCode = z.enum([
 	"FORK_CONTEXT_IGNORED",
 	"FORK_EDITS_CONTEXT",
 	"WRONG_RECORD",
+	/** Additive on a `CLAIM_CONFLICT`: the claimed value is one the governing record declares in its `not` list for that facet. Changes no verdict. */
+	"REJECTED_ALTERNATIVE",
 	// R5 gate
 	"TEST_FAILED",
 	"MISSING_EVIDENCE",

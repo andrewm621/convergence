@@ -334,6 +334,12 @@
       },
       {
         "condition": "Blocked",
+        "reasonCode": "REJECTED_ALTERNATIVE",
+        "type": "RECORD_CONDITION",
+        "workItemId": "WI-X"
+      },
+      {
+        "condition": "Blocked",
         "reasonCode": "STALE_RECEIPT",
         "type": "RECORD_CONDITION",
         "workItemId": "WI-2"
@@ -347,6 +353,12 @@
       {
         "condition": "ClaimConflict",
         "reasonCode": "CLAIM_CONFLICT",
+        "type": "RECORD_CONDITION",
+        "workItemId": "WI-X"
+      },
+      {
+        "condition": "ClaimConflict",
+        "reasonCode": "REJECTED_ALTERNATIVE",
         "type": "RECORD_CONDITION",
         "workItemId": "WI-X"
       },
@@ -398,6 +410,16 @@
         "recordId": "notifications",
         "type": "NO_ACTION",
         "workItemId": "WI-1"
+      },
+      {
+        "reasonCode": "REJECTED_ALTERNATIVE",
+        "type": "BLOCK_PROMOTION",
+        "workItemId": "WI-X"
+      },
+      {
+        "reasonCode": "REJECTED_ALTERNATIVE",
+        "type": "REQUEST_REVIEW",
+        "workItemId": "WI-X"
       },
       {
         "reasonCode": "STALE_RECEIPT",
@@ -534,6 +556,7 @@
             {
               "reasonCodes": [
                 "CLAIM_CONFLICT",
+                "REJECTED_ALTERNATIVE",
                 "SUPERSEDED_BASIS"
               ],
               "type": "Blocked"
@@ -541,6 +564,7 @@
             {
               "reasonCodes": [
                 "CLAIM_CONFLICT",
+                "REJECTED_ALTERNATIVE",
                 "SUPERSEDED_BASIS"
               ],
               "type": "ClaimConflict"

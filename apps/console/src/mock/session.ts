@@ -418,6 +418,8 @@ type RenderInput = {
 	validation: string | null;
 	facets: Record<string, FacetValue>;
 	not: ReadonlyArray<readonly [string, FacetValue]>;
+	/** Kept in step with the Worker's renderRecord. */
+	why?: string | undefined;
 	prose: string;
 };
 
@@ -435,6 +437,7 @@ export function renderRecord(input: RenderInput): string {
 	];
 	if (input.supersedes) lines.push(`supersedes: ${input.supersedes}`);
 	if (input.validation) lines.push(`validation: ${input.validation}`);
+	if (input.why) lines.push(`why: ${JSON.stringify(input.why)}`);
 	lines.push("facets:");
 	for (const [key, value] of Object.entries(input.facets)) lines.push(`  ${key}: ${JSON.stringify(value)}`);
 	if (input.not.length > 0) {

@@ -507,11 +507,12 @@
               "facetKeys": [
                 "scenario.county"
               ],
-              "message": "Claims scenario.county = \"Cedar County\"; accepted scenario-naming@2 says \"Larkhaven County\".",
+              "message": "Claims scenario.county = \"Cedar County\"; accepted scenario-naming@2 says \"Larkhaven County\". scenario-naming@2 rejected \"Cedar County\" for scenario.county.",
               "observedAt": "2026-10-13T03:27:43Z",
               "reasonCodes": [
                 "CLAIM_CONFLICT",
-                "SUPERSEDED_BASIS"
+                "SUPERSEDED_BASIS",
+                "REJECTED_ALTERNATIVE"
               ],
               "recordRefs": [
                 "scenario-naming@1"
@@ -521,13 +522,14 @@
             },
             {
               "facetKeys": [],
-              "message": "Built on scenario-naming@1; current is v2 (scenario.county changed). Claims scenario.county = \"Cedar County\"; accepted scenario-naming@2 says \"Larkhaven County\". A human resolution is required.",
+              "message": "Built on scenario-naming@1; current is v2 (scenario.county changed). Claims scenario.county = \"Cedar County\"; accepted scenario-naming@2 says \"Larkhaven County\". scenario-naming@2 rejected \"Cedar County\" for scenario.county. A human resolution is required.",
               "observedAt": "2026-10-13T03:27:43Z",
               "reasonCodes": [
                 "STALE_RECEIPT",
                 "FACET_CHANGED",
                 "CLAIM_CONFLICT",
                 "SUPERSEDED_BASIS",
+                "REJECTED_ALTERNATIVE",
                 "HUMAN_RESOLUTION_MISSING"
               ],
               "recordRefs": [],
@@ -619,11 +621,12 @@
               "facetKeys": [
                 "scenario.county"
               ],
-              "message": "Claims scenario.county = \"Cedar County\"; accepted scenario-naming@2 says \"Larkhaven County\".",
+              "message": "Claims scenario.county = \"Cedar County\"; accepted scenario-naming@2 says \"Larkhaven County\". scenario-naming@2 rejected \"Cedar County\" for scenario.county.",
               "observedAt": "2026-10-13T03:27:43Z",
               "reasonCodes": [
                 "CLAIM_CONFLICT",
-                "SUPERSEDED_BASIS"
+                "SUPERSEDED_BASIS",
+                "REJECTED_ALTERNATIVE"
               ],
               "recordRefs": [
                 "scenario-naming@1"
@@ -633,13 +636,14 @@
             },
             {
               "facetKeys": [],
-              "message": "Built on scenario-naming@1; current is v2 (scenario.county changed). Claims scenario.county = \"Cedar County\"; accepted scenario-naming@2 says \"Larkhaven County\". A human resolution is required.",
+              "message": "Built on scenario-naming@1; current is v2 (scenario.county changed). Claims scenario.county = \"Cedar County\"; accepted scenario-naming@2 says \"Larkhaven County\". scenario-naming@2 rejected \"Cedar County\" for scenario.county. A human resolution is required.",
               "observedAt": "2026-10-13T03:27:43Z",
               "reasonCodes": [
                 "STALE_RECEIPT",
                 "FACET_CHANGED",
                 "CLAIM_CONFLICT",
                 "SUPERSEDED_BASIS",
+                "REJECTED_ALTERNATIVE",
                 "HUMAN_RESOLUTION_MISSING"
               ],
               "recordRefs": [],
@@ -724,11 +728,12 @@
               "facetKeys": [
                 "scenario.county"
               ],
-              "message": "Claims scenario.county = \"Cedar County\"; accepted scenario-naming@2 says \"Larkhaven County\".",
+              "message": "Claims scenario.county = \"Cedar County\"; accepted scenario-naming@2 says \"Larkhaven County\". scenario-naming@2 rejected \"Cedar County\" for scenario.county.",
               "observedAt": "2026-10-13T03:27:43Z",
               "reasonCodes": [
                 "CLAIM_CONFLICT",
-                "SUPERSEDED_BASIS"
+                "SUPERSEDED_BASIS",
+                "REJECTED_ALTERNATIVE"
               ],
               "recordRefs": [
                 "scenario-naming@1"
@@ -738,13 +743,14 @@
             },
             {
               "facetKeys": [],
-              "message": "Built on scenario-naming@1; current is v2 (scenario.county changed). Claims scenario.county = \"Cedar County\"; accepted scenario-naming@2 says \"Larkhaven County\". A human resolution is required.",
+              "message": "Built on scenario-naming@1; current is v2 (scenario.county changed). Claims scenario.county = \"Cedar County\"; accepted scenario-naming@2 says \"Larkhaven County\". scenario-naming@2 rejected \"Cedar County\" for scenario.county. A human resolution is required.",
               "observedAt": "2026-10-13T03:27:43Z",
               "reasonCodes": [
                 "STALE_RECEIPT",
                 "FACET_CHANGED",
                 "CLAIM_CONFLICT",
                 "SUPERSEDED_BASIS",
+                "REJECTED_ALTERNATIVE",
                 "HUMAN_RESOLUTION_MISSING"
               ],
               "recordRefs": [],
@@ -1003,6 +1009,24 @@
       },
       {
         "condition": "Blocked",
+        "reasonCode": "REJECTED_ALTERNATIVE",
+        "type": "RECORD_CONDITION",
+        "workItemId": "WI-1"
+      },
+      {
+        "condition": "Blocked",
+        "reasonCode": "REJECTED_ALTERNATIVE",
+        "type": "RECORD_CONDITION",
+        "workItemId": "WI-2"
+      },
+      {
+        "condition": "Blocked",
+        "reasonCode": "REJECTED_ALTERNATIVE",
+        "type": "RECORD_CONDITION",
+        "workItemId": "WI-3"
+      },
+      {
+        "condition": "Blocked",
         "reasonCode": "STALE_RECEIPT",
         "type": "RECORD_CONDITION",
         "workItemId": "WI-1"
@@ -1046,6 +1070,18 @@
       {
         "condition": "ClaimConflict",
         "reasonCode": "CLAIM_CONFLICT",
+        "type": "RECORD_CONDITION",
+        "workItemId": "WI-2"
+      },
+      {
+        "condition": "ClaimConflict",
+        "reasonCode": "REJECTED_ALTERNATIVE",
+        "type": "RECORD_CONDITION",
+        "workItemId": "WI-1"
+      },
+      {
+        "condition": "ClaimConflict",
+        "reasonCode": "REJECTED_ALTERNATIVE",
         "type": "RECORD_CONDITION",
         "workItemId": "WI-2"
       },
@@ -1190,6 +1226,31 @@
         "recordId": "evidence-policy",
         "type": "NO_ACTION",
         "workItemId": "WI-7"
+      },
+      {
+        "reasonCode": "REJECTED_ALTERNATIVE",
+        "type": "BLOCK_PROMOTION",
+        "workItemId": "WI-1"
+      },
+      {
+        "reasonCode": "REJECTED_ALTERNATIVE",
+        "type": "BLOCK_PROMOTION",
+        "workItemId": "WI-2"
+      },
+      {
+        "reasonCode": "REJECTED_ALTERNATIVE",
+        "type": "BLOCK_PROMOTION",
+        "workItemId": "WI-3"
+      },
+      {
+        "reasonCode": "REJECTED_ALTERNATIVE",
+        "type": "REQUEST_REVIEW",
+        "workItemId": "WI-1"
+      },
+      {
+        "reasonCode": "REJECTED_ALTERNATIVE",
+        "type": "REQUEST_REVIEW",
+        "workItemId": "WI-2"
       },
       {
         "reasonCode": "STALE_RECEIPT",
@@ -1436,6 +1497,7 @@
                 "CLAIM_CONFLICT",
                 "FACET_CHANGED",
                 "HUMAN_RESOLUTION_MISSING",
+                "REJECTED_ALTERNATIVE",
                 "STALE_RECEIPT",
                 "SUPERSEDED_BASIS"
               ],
@@ -1444,6 +1506,7 @@
             {
               "reasonCodes": [
                 "CLAIM_CONFLICT",
+                "REJECTED_ALTERNATIVE",
                 "SUPERSEDED_BASIS"
               ],
               "type": "ClaimConflict"
@@ -1471,6 +1534,7 @@
                 "CLAIM_CONFLICT",
                 "FACET_CHANGED",
                 "HUMAN_RESOLUTION_MISSING",
+                "REJECTED_ALTERNATIVE",
                 "STALE_RECEIPT",
                 "SUPERSEDED_BASIS"
               ],
@@ -1479,6 +1543,7 @@
             {
               "reasonCodes": [
                 "CLAIM_CONFLICT",
+                "REJECTED_ALTERNATIVE",
                 "SUPERSEDED_BASIS"
               ],
               "type": "ClaimConflict"
@@ -1506,6 +1571,7 @@
                 "CLAIM_CONFLICT",
                 "FACET_CHANGED",
                 "HUMAN_RESOLUTION_MISSING",
+                "REJECTED_ALTERNATIVE",
                 "STALE_RECEIPT",
                 "SUPERSEDED_BASIS"
               ],
@@ -1514,6 +1580,7 @@
             {
               "reasonCodes": [
                 "CLAIM_CONFLICT",
+                "REJECTED_ALTERNATIVE",
                 "SUPERSEDED_BASIS"
               ],
               "type": "ClaimConflict"
@@ -1541,6 +1608,7 @@
                 "CLAIM_CONFLICT",
                 "FACET_CHANGED",
                 "HUMAN_RESOLUTION_MISSING",
+                "REJECTED_ALTERNATIVE",
                 "STALE_RECEIPT",
                 "SUPERSEDED_BASIS"
               ],
@@ -1549,6 +1617,7 @@
             {
               "reasonCodes": [
                 "CLAIM_CONFLICT",
+                "REJECTED_ALTERNATIVE",
                 "SUPERSEDED_BASIS"
               ],
               "type": "ClaimConflict"
@@ -1576,6 +1645,7 @@
                 "CLAIM_CONFLICT",
                 "FACET_CHANGED",
                 "HUMAN_RESOLUTION_MISSING",
+                "REJECTED_ALTERNATIVE",
                 "STALE_RECEIPT",
                 "SUPERSEDED_BASIS"
               ],
@@ -1584,6 +1654,7 @@
             {
               "reasonCodes": [
                 "CLAIM_CONFLICT",
+                "REJECTED_ALTERNATIVE",
                 "SUPERSEDED_BASIS"
               ],
               "type": "ClaimConflict"

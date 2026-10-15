@@ -65,6 +65,34 @@ describe("planContextChange", () => {
 	});
 });
 
+describe("planContextChange `why`", () => {
+	const facets = { "notifications.default": "opt-in", "notifications.cadence": "weekly-digest" };
+
+	it("writes `why` into the record when the request has one, and reads it back", () => {
+		const result = plan({ facets, not: { "notifications.default": "on" }, why: "Opt-in only, after the consent complaints." });
+		if (!result.ok) throw new Error(result.message);
+		const text = result.files["context/notifications.md"] as string;
+		expect(text).toContain('why: "Opt-in only, after the consent complaints."');
+		expect(parseContextRecord(text)).toMatchObject({ ok: true, record: { frontMatter: { why: "Opt-in only, after the consent complaints.", not: { "notifications.default": "on" } } } });
+	});
+
+	it("writes no `why` when the request has none, and a new version does not inherit the old one", () => {
+		const first = plan({ facets, why: "First reason." });
+		if (!first.ok) throw new Error(first.message);
+		const second = plan({ facets: { ...facets, "notifications.cadence": "daily-digest" } }, { previous: { path: "context/notifications.md", text: first.files["context/notifications.md"] as string }, currentVersion: 2 });
+		if (!second.ok) throw new Error(second.message);
+		expect(second.files["context/notifications.md"]).not.toContain("why:");
+	});
+
+	it("keeps `why` through a prose-only edit", () => {
+		const first = plan({ facets, why: "First reason." });
+		if (!first.ok) throw new Error(first.message);
+		const edit = plan({ prose: "# N\nnew\n" }, { previous: { path: "context/notifications.md", text: first.files["context/notifications.md"] as string }, currentVersion: 2 });
+		if (!edit.ok) throw new Error(edit.message);
+		expect(edit.files["context/notifications.md"]).toContain('why: "First reason."');
+	});
+});
+
 describe("nextDecisionPath", () => {
 	it("numbers after the highest existing decision", () => {
 		expect(nextDecisionPath([], "x")).toBe("decisions/0001-x.md");

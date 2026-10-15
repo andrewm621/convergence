@@ -99,3 +99,22 @@ describe("toRecordSnapshot", () => {
 		expect((await toRecordSnapshot("nope")).ok).toBe(false);
 	});
 });
+
+describe("`why` (the decision's rationale)", () => {
+	const WITH_WHY = GOOD.replace("facets:", 'why: "Opt-in only, after the consent complaints."\nfacets:');
+
+	it("parses `why` and carries it onto the snapshot without touching any hash", async () => {
+		const plain = await toRecordSnapshot(GOOD);
+		const withWhy = await toRecordSnapshot(WITH_WHY);
+		if (!plain.ok || !withWhy.ok) throw new Error("unreachable");
+		expect(withWhy.snapshot.why).toBe("Opt-in only, after the consent complaints.");
+		expect(withWhy.snapshot.facetHash).toBe(plain.snapshot.facetHash);
+		// Records without `why` produce exactly the snapshot they always did: the key is absent, not null.
+		expect("why" in plain.snapshot).toBe(false);
+	});
+
+	it("rejects an empty or non-string `why`", () => {
+		expect(parseContextRecord(GOOD.replace("facets:", 'why: ""\nfacets:')).ok).toBe(false);
+		expect(parseContextRecord(GOOD.replace("facets:", "why: 3\nfacets:")).ok).toBe(false);
+	});
+});

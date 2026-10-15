@@ -252,6 +252,11 @@
             }
           }
         },
+        "why": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
         "blobHash": {
           "$ref": "#/$defs/ObjectHash"
         },
@@ -1297,6 +1302,7 @@
         "FORK_CONTEXT_IGNORED",
         "FORK_EDITS_CONTEXT",
         "WRONG_RECORD",
+        "REJECTED_ALTERNATIVE",
         "TEST_FAILED",
         "MISSING_EVIDENCE",
         "HUMAN_RESOLUTION_MISSING",

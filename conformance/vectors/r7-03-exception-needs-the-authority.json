@@ -180,11 +180,12 @@
               "facetKeys": [
                 "lead.qualified.criteria"
               ],
-              "message": "Claims lead.qualified.criteria = \"form-fill-and-50-plus-employees\"; accepted qualified-lead@2 says \"form-fill-50-plus-employees-and-verified-budget\".",
+              "message": "Claims lead.qualified.criteria = \"form-fill-and-50-plus-employees\"; accepted qualified-lead@2 says \"form-fill-50-plus-employees-and-verified-budget\". qualified-lead@2 rejected \"form-fill-and-50-plus-employees\" for lead.qualified.criteria.",
               "observedAt": "2026-10-13T15:30:00Z",
               "reasonCodes": [
                 "CLAIM_CONFLICT",
-                "SUPERSEDED_BASIS"
+                "SUPERSEDED_BASIS",
+                "REJECTED_ALTERNATIVE"
               ],
               "recordRefs": [
                 "qualified-lead@1"
@@ -194,13 +195,14 @@
             },
             {
               "facetKeys": [],
-              "message": "Built on qualified-lead@1; current is v2 (lead.qualified.criteria changed). Claims lead.qualified.criteria = \"form-fill-and-50-plus-employees\"; accepted qualified-lead@2 says \"form-fill-50-plus-employees-and-verified-budget\". A human resolution is required.",
+              "message": "Built on qualified-lead@1; current is v2 (lead.qualified.criteria changed). Claims lead.qualified.criteria = \"form-fill-and-50-plus-employees\"; accepted qualified-lead@2 says \"form-fill-50-plus-employees-and-verified-budget\". qualified-lead@2 rejected \"form-fill-and-50-plus-employees\" for lead.qualified.criteria. A human resolution is required.",
               "observedAt": "2026-10-13T15:30:00Z",
               "reasonCodes": [
                 "STALE_RECEIPT",
                 "FACET_CHANGED",
                 "CLAIM_CONFLICT",
                 "SUPERSEDED_BASIS",
+                "REJECTED_ALTERNATIVE",
                 "HUMAN_RESOLUTION_MISSING"
               ],
               "recordRefs": [],
@@ -470,6 +472,7 @@
                 "CLAIM_CONFLICT",
                 "FACET_CHANGED",
                 "HUMAN_RESOLUTION_MISSING",
+                "REJECTED_ALTERNATIVE",
                 "STALE_RECEIPT",
                 "SUPERSEDED_BASIS"
               ],
@@ -478,6 +481,7 @@
             {
               "reasonCodes": [
                 "CLAIM_CONFLICT",
+                "REJECTED_ALTERNATIVE",
                 "SUPERSEDED_BASIS"
               ],
               "type": "ClaimConflict"

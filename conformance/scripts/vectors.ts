@@ -477,6 +477,24 @@ async function definitions(): Promise<Definition[]> {
 			setup: [...nBase],
 			when: forkPush(n.workItems.wi2, fakeSha("f", 0x309), [{ subject: "notifications.unrelated", value: "whatever", basedOn: "notifications@1" }]),
 		},
+		{
+			id: "r3-10-claim-equals-rejected-value",
+			description: "A claim for notifications.default = on, which notifications@2 declares in its `not` list, is still a conflict and also carries REJECTED_ALTERNATIVE. The reason is additive: the gate still blocks exactly as it would without it.",
+			rules: ["R3"],
+			polarity: "positive",
+			fixture: N,
+			setup: [...nBase, n.events.v2],
+			when: forkPush(n.workItems.wi2, fakeSha("f", 0x30a), [{ subject: "notifications.default", value: "on", basedOn: "notifications@2" }]),
+		},
+		{
+			id: "r3-11-wrong-value-not-declared-rejected",
+			description: "A claim for notifications.default = off conflicts with notifications@2, but off is not in its `not` list, so there is no REJECTED_ALTERNATIVE. Only declared values match.",
+			rules: ["R3"],
+			polarity: "negative",
+			fixture: N,
+			setup: [...nBase, n.events.v2],
+			when: forkPush(n.workItems.wi2, fakeSha("f", 0x30b), [{ subject: "notifications.default", value: "off", basedOn: "notifications@2" }]),
+		},
 		// ---------- R3b ----------
 		{
 			id: "r3b-01-cross-claim-conflict",

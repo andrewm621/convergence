@@ -48,6 +48,11 @@ export const REASON_META: Partial<Record<ReasonCode, ReasonMeta>> = {
 		rule: "A claim that cites a replaced version conflicts if that setting has changed since, even when the value now matches.",
 		next: "Revalidate so the claim cites the current version.",
 	},
+	REJECTED_ALTERNATIVE: {
+		summary: "A decision already rejected this value.",
+		rule: "The decision lists this value as one it rules out. This adds the reason; it doesn't change whether the work is blocked.",
+		next: "Read why it was rejected, then revalidate.",
+	},
 	UNDECLARED_DEP: {
 		summary: "The agent's claims cite a decision it wasn't given.",
 		rule: "Work may only depend on decisions it was handed or a person accepted.",
@@ -176,6 +181,7 @@ const REASON_LABEL: Record<ReasonCode | "NO_ACTION", string> = {
 	FORK_CONTEXT_IGNORED: "Own copy ignored",
 	FORK_EDITS_CONTEXT: "Edited a decision",
 	WRONG_RECORD: "Wrong decision",
+	REJECTED_ALTERNATIVE: "Already rejected",
 	TEST_FAILED: "Check failed",
 	MISSING_EVIDENCE: "Evidence missing",
 	HUMAN_RESOLUTION_MISSING: "Awaiting a person",

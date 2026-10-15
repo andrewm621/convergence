@@ -1,4 +1,7 @@
 import { describe, expect, it } from "vitest";
+import type { DeltaEvent } from "contracts";
+import { analyze } from "./analysis";
+import { evaluateGate } from "./gate";
 import { createCell, conditionTypes, effectTypes, reasonsOf, resolutionEvent } from "./testing/harness";
 import { forkPush, notifications as n, registerItem, salesOps as s } from "./testing/scenarios";
 
@@ -26,7 +29,8 @@ describe("R3 claim conflict", () => {
 		const result = await c.send(n.events.wi2PushedV1);
 		const conflict = (await c.wi("WI-2")).conditions.find((x) => x.type === "ClaimConflict");
 		expect(conflict?.facetKeys).toEqual(n.expected.afterWi2Push["WI-2"].conflictSubjects);
-		expect(conflict?.reasonCodes).toEqual(["CLAIM_CONFLICT", "SUPERSEDED_BASIS"]);
+		// notifications v2 declares "on" rejected, so the demo claim also carries the additive reason (the verdict is the same).
+		expect(conflict?.reasonCodes).toEqual(["CLAIM_CONFLICT", "SUPERSEDED_BASIS", "REJECTED_ALTERNATIVE"]);
 		expect(conflict?.message).toContain('Claims notifications.default = "on"; accepted notifications@2 says "opt-in"');
 		expect((await c.wi("WI-2")).item.status).toBe("conflict");
 		expect(effectTypes(result)).toEqual(expect.arrayContaining(["REQUEST_REVIEW", "BLOCK_PROMOTION"]));
@@ -148,6 +152,94 @@ describe("R3 claim conflict", () => {
 		await c.send(s.events.wi3Pushed);
 		const conflict = (await c.wi("WI-3")).conditions.find((x) => x.type === "ClaimConflict");
 		expect(conflict?.facetKeys).toEqual(["lead.qualified.criteria"]);
+	});
+});
+
+/** The notifications v2 push, with the records' `not` and `why` replaced. v2 declares `notifications.default: "on"` as rejected. */
+function v2With(patch: { not?: Record<string, never[]>; why?: string }): DeltaEvent {
+	const event = n.events.v2;
+	if (event.type !== "BaselinePushed") throw new Error("unreachable");
+	return { ...event, records: event.records.map((r) => ({ ...r, ...(patch.not ? { not: patch.not } : {}), ...(patch.why ? { why: patch.why } : {}) })) };
+}
+
+const WHY = "Opt-in only, after the consent complaints.";
+
+/** The conflict finding on `notifications.default` (v2 also rejects the old cadence, so the stale claims raise two). */
+function defaultConflict(state: Parameters<typeof analyze>[0]) {
+	return analyze(state, "WI-2", n.policy).conflicts.find((f) => f.subject === "notifications.default");
+}
+
+describe("R3 REJECTED_ALTERNATIVE (declared `not` values, exact match)", () => {
+	async function conflicted(v2: DeltaEvent, claims: unknown = n.claims.wi2V1) {
+		const c = await createCell(n.seed, n.policy);
+		await c.send(n.events.registerWi1);
+		await c.send(n.events.registerWi2);
+		await c.send(v2);
+		await c.send(forkPush(wi2, claims));
+		return c;
+	}
+
+	it("[positive] a claim equal to a rejected value is flagged with the rationale, and the gate verdict is unchanged", async () => {
+		const withNot = await conflicted(v2With({ why: WHY }));
+		const withoutNot = await conflicted(v2With({ not: {} }));
+
+		const conflict = (await withNot.wi("WI-2")).conditions.find((x) => x.type === "ClaimConflict");
+		expect(conflict?.reasonCodes).toEqual(["CLAIM_CONFLICT", "SUPERSEDED_BASIS", "REJECTED_ALTERNATIVE"]);
+		expect(conflict?.message).toContain(`notifications@2 rejected "on" for notifications.default: ${WHY}`);
+
+		const state = await withNot.state();
+		expect(defaultConflict(state)?.rejected).toEqual({
+			recordId: "notifications",
+			version: 2,
+			facet: "notifications.default",
+			value: "on",
+			why: WHY,
+		});
+
+		// Same facts minus the `not` list: identical verdict, identical status; the only difference is the added reason.
+		const gateWith = evaluateGate(state, "WI-2", n.policy);
+		const gateWithout = evaluateGate(await withoutNot.state(), "WI-2", n.policy);
+		expect(gateWith.promotable).toBe(false);
+		expect(gateWith.promotable).toBe(gateWithout.promotable);
+		expect(gateWith.reasonCodes).toContain("REJECTED_ALTERNATIVE");
+		expect(gateWith.reasonCodes.filter((code) => code !== "REJECTED_ALTERNATIVE")).toEqual(gateWithout.reasonCodes);
+		expect((await withNot.wi("WI-2")).item.status).toBe((await withoutNot.wi("WI-2")).item.status);
+		expect(defaultConflict(await withoutNot.state())?.rejected).toBeUndefined();
+	});
+
+	it("[positive] the reason carries the version even when the record has no `why`", async () => {
+		const c = await conflicted(n.events.v2);
+		const finding = defaultConflict(await c.state());
+		expect(finding?.reasonCodes).toContain("REJECTED_ALTERNATIVE");
+		expect(finding?.rejected).toEqual({ recordId: "notifications", version: 2, facet: "notifications.default", value: "on" });
+		expect(finding?.message).toContain('notifications@2 rejected "on" for notifications.default.');
+	});
+
+	it("[positive] a wrong-record claim carrying a rejected value is flagged on the governing record", async () => {
+		const c = await conflicted(v2With({ why: WHY }), [{ subject: "notifications.default", value: "on", basedOn: "status-model@1" }]);
+		const finding = defaultConflict(await c.state());
+		expect(finding?.reasonCodes).toEqual(["CLAIM_CONFLICT", "WRONG_RECORD", "REJECTED_ALTERNATIVE"]);
+		expect(finding?.rejected?.why).toBe(WHY);
+	});
+
+	it("[negative] a different value is not flagged", async () => {
+		const c = await conflicted(v2With({ why: WHY }), [{ subject: "notifications.default", value: "off", basedOn: "notifications@2" }]);
+		const conflict = (await c.wi("WI-2")).conditions.find((x) => x.type === "ClaimConflict");
+		expect(conflict?.reasonCodes).toEqual(["CLAIM_CONFLICT"]);
+		expect(defaultConflict(await c.state())?.rejected).toBeUndefined();
+	});
+
+	it("[negative] matching is exact: a list holding the rejected value, or a near spelling, is not flagged", async () => {
+		for (const value of [["on"], "ON", "on "]) {
+			const c = await conflicted(v2With({ why: WHY }), [{ subject: "notifications.default", value, basedOn: "notifications@2" }]);
+			const finding = defaultConflict(await c.state());
+			expect(finding?.reasonCodes, JSON.stringify(value)).toEqual(["CLAIM_CONFLICT"]);
+		}
+	});
+
+	it("[negative] a claim that agrees with the accepted facet raises nothing", async () => {
+		const c = await conflicted(v2With({ why: WHY }), [{ subject: "notifications.default", value: "opt-in", basedOn: "notifications@2" }]);
+		expect(analyze(await c.state(), "WI-2", n.policy).conflicts).toEqual([]);
 	});
 });
 

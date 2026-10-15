@@ -8,8 +8,10 @@ export const ContextChangeRequest = z.strictObject({
 	recordId: Slug,
 	/** The record's facets after the change. Omit to leave them as they are (a prose edit). */
 	facets: z.record(FacetKey, FacetValue).optional(),
-	/** Values the facets must no longer hold (documentation only). */
+	/** Values the facets must no longer hold. Declared data: it changes no verdict, but a claim equal to one is flagged REJECTED_ALTERNATIVE. */
 	not: z.record(FacetKey, z.union([FacetScalar, z.array(FacetScalar)])).optional(),
+	/** Why this decision was made, written into the record as `why` and quoted when a claim re-asserts a rejected value. Defaults to nothing: the rationale stays in the decision file. */
+	why: z.string().trim().min(1).max(2000).optional(),
 	/** The Markdown after the front-matter. Omit to keep the current prose. */
 	prose: z.string().max(100_000).optional(),
 	rationale: z.string().trim().min(1).max(2000),
@@ -75,6 +77,7 @@ export function planContextChange(input: {
 			accepted_at: now,
 			facets: request.facets,
 			...(request.not ? { not: request.not } : {}),
+			...(request.why ? { why: request.why } : {}),
 		};
 	} else {
 		const parsed = parseContextRecord(input.previous.text);
@@ -100,6 +103,7 @@ export function planContextChange(input: {
 				...(prev.validation ? { validation: prev.validation } : {}),
 				facets: request.facets ?? prev.facets,
 				...(request.not ? { not: request.not } : {}),
+				...(request.why ? { why: request.why } : {}),
 			};
 		} else {
 			if (request.prose === undefined || request.prose === parsed.record.body) {
@@ -153,6 +157,7 @@ export function renderRecord(fm: ContextRecordFrontMatter, body: string): string
 	if (fm.supersedes) lines.push(`supersedes: ${fm.supersedes}`);
 	if (fm.validation) lines.push(`validation: ${q(fm.validation)}`);
 	if (fm.decision) lines.push(`decision: ${q(fm.decision)}`);
+	if (fm.why) lines.push(`why: ${q(fm.why)}`);
 	lines.push("facets:");
 	for (const key of Object.keys(fm.facets).sort()) lines.push(`  ${q(key)}: ${q(fm.facets[key])}`);
 	const not = fm.not ?? {};

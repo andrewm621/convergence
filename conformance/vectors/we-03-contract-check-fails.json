@@ -235,11 +235,12 @@
                 "notifications.cadence",
                 "notifications.default"
               ],
-              "message": "Claims notifications.cadence = \"immediate\"; accepted notifications@2 says \"weekly-digest\". Claims notifications.default = \"on\"; accepted notifications@2 says \"opt-in\".",
+              "message": "Claims notifications.cadence = \"immediate\"; accepted notifications@2 says \"weekly-digest\". notifications@2 rejected \"immediate\" for notifications.cadence. Claims notifications.default = \"on\"; accepted notifications@2 says \"opt-in\". notifications@2 rejected \"on\" for notifications.default.",
               "observedAt": "2026-10-13T16:10:00Z",
               "reasonCodes": [
                 "CLAIM_CONFLICT",
-                "SUPERSEDED_BASIS"
+                "SUPERSEDED_BASIS",
+                "REJECTED_ALTERNATIVE"
               ],
               "recordRefs": [
                 "notifications@1"
@@ -249,13 +250,14 @@
             },
             {
               "facetKeys": [],
-              "message": "Built on notifications@1; current is v2 (notifications.cadence, notifications.default changed). Claims notifications.cadence = \"immediate\"; accepted notifications@2 says \"weekly-digest\". Claims notifications.default = \"on\"; accepted notifications@2 says \"opt-in\". No passing evidence at the current head for: tests/contract/notifications.test.ts, tests/contract/status-model.test.ts.",
+              "message": "Built on notifications@1; current is v2 (notifications.cadence, notifications.default changed). Claims notifications.cadence = \"immediate\"; accepted notifications@2 says \"weekly-digest\". notifications@2 rejected \"immediate\" for notifications.cadence. Claims notifications.default = \"on\"; accepted notifications@2 says \"opt-in\". notifications@2 rejected \"on\" for notifications.default. No passing evidence at the current head for: tests/contract/notifications.test.ts, tests/contract/status-model.test.ts.",
               "observedAt": "2026-10-13T16:10:00Z",
               "reasonCodes": [
                 "STALE_RECEIPT",
                 "FACET_CHANGED",
                 "CLAIM_CONFLICT",
                 "SUPERSEDED_BASIS",
+                "REJECTED_ALTERNATIVE",
                 "MISSING_EVIDENCE"
               ],
               "recordRefs": [],
@@ -342,6 +344,12 @@
       },
       {
         "condition": "Blocked",
+        "reasonCode": "REJECTED_ALTERNATIVE",
+        "type": "RECORD_CONDITION",
+        "workItemId": "WI-2"
+      },
+      {
+        "condition": "Blocked",
         "reasonCode": "STALE_RECEIPT",
         "type": "RECORD_CONDITION",
         "workItemId": "WI-2"
@@ -376,6 +384,11 @@
       },
       {
         "reasonCode": "MISSING_EVIDENCE",
+        "type": "BLOCK_PROMOTION",
+        "workItemId": "WI-2"
+      },
+      {
+        "reasonCode": "REJECTED_ALTERNATIVE",
         "type": "BLOCK_PROMOTION",
         "workItemId": "WI-2"
       },
@@ -476,6 +489,7 @@
                 "CLAIM_CONFLICT",
                 "FACET_CHANGED",
                 "MISSING_EVIDENCE",
+                "REJECTED_ALTERNATIVE",
                 "STALE_RECEIPT",
                 "SUPERSEDED_BASIS",
                 "TEST_FAILED"
@@ -485,6 +499,7 @@
             {
               "reasonCodes": [
                 "CLAIM_CONFLICT",
+                "REJECTED_ALTERNATIVE",
                 "SUPERSEDED_BASIS"
               ],
               "type": "ClaimConflict"

@@ -110,6 +110,18 @@
           "type": "null"
         }
       ]
+    },
+    "why": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        {
+          "type": "null"
+        }
+      ]
     }
   },
   "required": [

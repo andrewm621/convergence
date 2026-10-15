@@ -28,8 +28,10 @@ export const ContextRecordFrontMatter = z
 		validation: z.string().min(1).nullish(),
 		decision: z.string().min(1).nullish(),
 		facets: z.record(FacetKey, FacetValue),
-		/** Per-facet values the facet must NOT hold (typically the superseded value). Documentation: not governed, not hashed. */
+		/** Per-facet values the facet must NOT hold (typically the superseded value). Not governed and not hashed; a claim that equals one is flagged `REJECTED_ALTERNATIVE`, which changes no verdict. */
 		not: z.record(FacetKey, NotValues).nullish(),
+		/** Why the decision was made (and why the `not` values were rejected), in the decider's words. Quoted on a conflict that matches a `not` value; never governed or hashed. */
+		why: z.string().min(1).max(2000).nullish(),
 	})
 	.superRefine((fm, ctx) => {
 		if (fm.status === "accepted") {
@@ -62,6 +64,8 @@ export const RecordSnapshot = z.strictObject({
 	validation: z.string().min(1).nullable(),
 	facets: z.record(FacetKey, FacetValue),
 	not: z.record(FacetKey, z.array(FacetScalar)),
+	/** The record's `why`, when it has one. Omitted (not null) when absent so existing snapshots keep their bytes. */
+	why: z.string().min(1).max(2000).optional(),
 	blobHash: ObjectHash,
 	facetHash: Sha256,
 });

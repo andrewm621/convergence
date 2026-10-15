@@ -1,4 +1,4 @@
-import { canonicalJson, compareStrings, parseRecordRef, type Claim, type CellState, type Evidence, type ReasonCode, type RecordSnapshot, type WorkItemState } from "contracts";
+import { canonicalJson, compareStrings, parseRecordRef, type Claim, type CellState, type Evidence, type FacetScalar, type ReasonCode, type RecordSnapshot, type WorkItemState } from "contracts";
 import { acceptedDependenciesOf, currentSnapshot, dependenciesOf, isPromoted, isRejected, snapshotAt, workItemIds } from "./cell-state";
 import { diffFacets, facetValuesEqual } from "./facets";
 import type { Policy } from "contracts";
@@ -11,12 +11,32 @@ export type StaleFinding = {
 	reasonCodes: ReasonCode[];
 };
 
+/**
+ * A claim equals a value a decision declared in its `not` list for that facet. Informational: it rides on a
+ * conflict that was already there and never changes whether the work is blocked. Present only on an exact match
+ * with a DECLARED value; nothing is inferred.
+ */
+export type RejectedAlternative = {
+	/** The governing record whose `not` list holds the value. */
+	recordId: string;
+	/** Its accepted version (the one that declared the rejection, not necessarily the one the claim cites). */
+	version: number;
+	/** The facet (equal to the claim's subject). */
+	facet: string;
+	/** The rejected value, as declared. */
+	value: FacetScalar;
+	/** The record's `why`, when it has one. */
+	why?: string;
+};
+
 export type ConflictFinding = {
 	recordId: string;
 	subject: string;
 	basedOn: string;
 	reasonCodes: ReasonCode[];
 	message: string;
+	/** Set together with the `REJECTED_ALTERNATIVE` reason code. */
+	rejected?: RejectedAlternative;
 };
 
 export type UncertainFinding = {
@@ -89,6 +109,22 @@ function validClaims(wi: WorkItemState): Claim[] | null {
 	return cs.claims;
 }
 
+/**
+ * A claim value that is exactly one of the record's declared `not` values for the subject. Scalars only: a list-valued
+ * claim is never matched, because `not` lists hold separate rejected values and "contains" would be a guess.
+ */
+function rejectedAlternative(record: RecordSnapshot, subject: string, value: Claim["value"]): RejectedAlternative | undefined {
+	if (Array.isArray(value)) return undefined;
+	const declared = record.not[subject];
+	if (!declared?.some((rejected) => facetValuesEqual(rejected, value))) return undefined;
+	return { recordId: record.recordId, version: record.version, facet: subject, value, ...(record.why ? { why: record.why } : {}) };
+}
+
+/** The sentence a conflict message gains when the claimed value was declared rejected. */
+function rejectedSentence(rejected: RejectedAlternative): string {
+	return ` ${rejected.recordId}@${rejected.version} rejected ${canonicalJson(rejected.value)} for ${rejected.facet}${rejected.why ? `: ${rejected.why}` : "."}`;
+}
+
 /** R3 and R4: compare claims to the current accepted facets; fail closed on missing or malformed ones. */
 function findClaimIssues(state: CellState, wi: WorkItemState): Pick<Analysis, "conflicts" | "uncertain" | "outsideReceipt"> {
 	const conflicts: ConflictFinding[] = [];
@@ -141,12 +177,14 @@ function findClaimIssues(state: CellState, wi: WorkItemState): Pick<Analysis, "c
 				const governing = governor.facets[claim.subject];
 				if (governing !== undefined && !facetValuesEqual(claim.value, governing)) {
 					flagged = true;
+					const rejected = rejectedAlternative(governor, claim.subject, claim.value);
 					conflicts.push({
 						recordId: governor.recordId,
 						subject: claim.subject,
 						basedOn: claim.basedOn,
-						reasonCodes: ["CLAIM_CONFLICT", "WRONG_RECORD"],
-						message: `Claims ${claim.subject} = ${canonicalJson(claim.value)} citing ${claim.basedOn}, but ${governor.recordId}@${governor.version} governs it and says ${canonicalJson(governing)}.`,
+						reasonCodes: rejected ? ["CLAIM_CONFLICT", "WRONG_RECORD", "REJECTED_ALTERNATIVE"] : ["CLAIM_CONFLICT", "WRONG_RECORD"],
+						message: `Claims ${claim.subject} = ${canonicalJson(claim.value)} citing ${claim.basedOn}, but ${governor.recordId}@${governor.version} governs it and says ${canonicalJson(governing)}.${rejected ? rejectedSentence(rejected) : ""}`,
+						...(rejected ? { rejected } : {}),
 					});
 				}
 			}
@@ -162,12 +200,16 @@ function findClaimIssues(state: CellState, wi: WorkItemState): Pick<Analysis, "c
 		}
 		const superseded = ref.version !== current.version;
 		if (nowValue !== undefined && !facetValuesEqual(claim.value, nowValue)) {
+			const rejected = rejectedAlternative(current, claim.subject, claim.value);
+			const reasonCodes: ReasonCode[] = superseded ? ["CLAIM_CONFLICT", "SUPERSEDED_BASIS"] : ["CLAIM_CONFLICT"];
+			if (rejected) reasonCodes.push("REJECTED_ALTERNATIVE");
 			conflicts.push({
 				recordId: ref.recordId,
 				subject: claim.subject,
 				basedOn: claim.basedOn,
-				reasonCodes: superseded ? ["CLAIM_CONFLICT", "SUPERSEDED_BASIS"] : ["CLAIM_CONFLICT"],
-				message: `Claims ${claim.subject} = ${canonicalJson(claim.value)}; accepted ${ref.recordId}@${current.version} says ${canonicalJson(nowValue)}.`,
+				reasonCodes,
+				message: `Claims ${claim.subject} = ${canonicalJson(claim.value)}; accepted ${ref.recordId}@${current.version} says ${canonicalJson(nowValue)}.${rejected ? rejectedSentence(rejected) : ""}`,
+				...(rejected ? { rejected } : {}),
 			});
 		} else if (superseded && !facetValuesEqual(basisValue, nowValue)) {
 			conflicts.push({

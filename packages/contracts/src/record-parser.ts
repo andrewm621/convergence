@@ -88,6 +88,7 @@ export async function toRecordSnapshot(
 			validation: fm.validation ?? null,
 			facets: fm.facets,
 			not,
+			...(fm.why ? { why: fm.why } : {}),
 			blobHash: options.blobHash ?? (await sha256Hex(text)),
 			facetHash: await hashFacets(fm.facets),
 		},

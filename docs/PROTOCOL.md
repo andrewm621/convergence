@@ -104,14 +104,15 @@ Front-matter fields:
 | `validation` | no | Name of the check that asserts this record against the work (rule R8). |
 | `decision` | no | Pointer to a decision log entry. |
 | `facets` | yes | Map of `FacetKey` to `FacetValue`. The governed content. |
-| `not` | no | Per-facet values the facet must not hold, usually the superseded value. Documentation only: it is not governed and not hashed. Each key MUST name a key of `facets`. |
+| `not` | no | Per-facet values the facet must not hold, usually the superseded value. Declared data: it is not governed, not hashed and never changes a verdict. A claim that equals one of these values is flagged with `REJECTED_ALTERNATIVE` (see R3). Each key MUST name a key of `facets`. |
+| `why` | no | A short string: why the decision was made, and why its `not` values were ruled out, in the decider's words. Not governed and not hashed. Quoted on a `REJECTED_ALTERNATIVE` reason. A parser that predates this field rejects a record that has it (unknown key), so add it only once every reader is upgraded. |
 
 Parsing MUST fail closed. A file is not a record if it lacks the opening or closing fence, if the YAML is invalid, has duplicate keys or aliases, if any key is unknown, or if any value has the wrong type. YAML is read with the 1.2 core schema, so `on` and `opt-in` stay strings. A file that fails to parse is reported (the `invalid` list of `BaselinePushed`) and is never accepted. Implementation: `record-parser.ts`.
 
 **Identity and versioning.**
 
 - A version is `recordId@version`. Versions increase; a version once accepted is immutable in its facets.
-- Prose is not governed. Two files with the same facets have the same `facetHash`, which is the SHA-256 of the canonical JSON of `facets` alone. Neither prose nor `not` enters it.
+- Prose is not governed. Two files with the same facets have the same `facetHash`, which is the SHA-256 of the canonical JSON of `facets` alone. None of prose, `not` or `why` enters it.
 - `blobHash` identifies the exact file content: a git blob oid (40 or 64 hex) or a SHA-256 of the file text. The engine treats it as opaque.
 - `status: proposed` records are visible but govern nothing. `superseded` is parsed, but a record whose status is not `accepted` does not govern, and supersession in practice is a higher accepted version replacing a lower one; the reference reconciler does not act on the `status: superseded` value itself.
 
@@ -125,7 +126,7 @@ Anything else produces a `NO_ACTION` effect with a reason code, and the record d
 
 The engine cannot verify who wrote `accepted_by`. An adapter MUST restrict writes to the accepted baseline to authenticated humans. In the reference implementation the Worker is the only writer: it takes the acting human from the session, remembers the sha of every context change it pushes, and the poller turns a baseline commit into an accepted version only if the cell recorded that sha as a context change by the record's authority (see "Trust boundary" in [`control-loop.md`](control-loop.md)).
 
-**RecordSnapshot** ([schema](../packages/contracts/schema/record-snapshot.json)) is the parsed, hashed form the reconciler sees: `recordId`, `version`, `status`, `authority`, `acceptedBy`, `acceptedAt`, `validation`, `facets`, `not`, `blobHash`, `facetHash`. A cell keeps, per record, `current` (the accepted head version or null), `versions` (every version seen) and `proposed` (the latest proposed version, if any).
+**RecordSnapshot** ([schema](../packages/contracts/schema/record-snapshot.json)) is the parsed, hashed form the reconciler sees: `recordId`, `version`, `status`, `authority`, `acceptedBy`, `acceptedAt`, `validation`, `facets`, `not`, `why` (optional, omitted when the record has none), `blobHash`, `facetHash`. A cell keeps, per record, `current` (the accepted head version or null), `versions` (every version seen) and `proposed` (the latest proposed version, if any).
 
 ### 3.3 Work item
 
@@ -264,8 +265,9 @@ Tests: `rules-r1-r2.test.ts` ("R2 unaffected work is left alone, with the reason
 - A claim citing a superseded version is a conflict if the claimed facet differs between the cited version and the current one (`SUPERSEDED_BASIS`), even when the claimed value happens to equal the current one. If the facet did not change, it is not a conflict.
 - A claim on a subject the cited record does not carry, but another accepted record governs, is a conflict if the value differs and Uncertain if it agrees (`WRONG_RECORD`). It is never a pass.
 - A claim on a subject no accepted record governs is not contradicted.
+- **Rejected alternatives.** When a claim is a conflict by one of the first three bullets and its value is exactly equal to one of the governing record's declared `not` values for that facet, the conflict also carries `REJECTED_ALTERNATIVE`. The reason is additive: it appears alongside `CLAIM_CONFLICT` (and `SUPERSEDED_BASIS` or `WRONG_RECORD` when those apply), it is never raised on its own, and it changes no verdict, status or effect. The implementation attaches `rejected: { recordId, version, facet, value, why? }` to the conflict finding, where `version` is the governing record's current accepted version and `why` is that record's `why` when it has one, and appends the same facts to the conflict message. Matching is an exact comparison of a scalar claim value with a declared `not` scalar: there is no fuzzy matching, a list-valued claim never matches, and nothing is inferred from prose. This surfaces a conflict the engine already found, with the decision's own reason. It does not detect an agent that quietly re-adds a rejected value without claiming it, and it does not examine proposed records.
 - Missing, empty or malformed claims, or claims for a different head, MUST be treated as unknown and fail closed to Uncertain (`NO_CLAIMS`, `MALFORMED_CLAIMS`). A claim citing a version the cell has never seen is Uncertain (`UNKNOWN_CONTEXT_VERSION`).
-Tests: `rules-r3-r4.test.ts` ("R3 claim conflict"); `freeze-fixes.test.ts` ("S4 a claim is checked against the record that governs its subject").
+Tests: `rules-r3-r4.test.ts` ("R3 claim conflict", "R3 REJECTED_ALTERNATIVE (declared `not` values, exact match)"); vectors `r3-10`, `r3-11`; `freeze-fixes.test.ts` ("S4 a claim is checked against the record that governs its subject").
 
 **R3b. Cross-claim conflict.** Two live work items (neither promoted nor rejected) that claim different values for the same subject, where no accepted facet governs that subject, MUST both be Uncertain (`CROSS_CLAIM_CONFLICT`) with a `REQUEST_REVIEW`. The condition clears when either side stops disagreeing.
 Tests: `rules-r3-r4.test.ts` ("R3b cross-claim conflict (P1)"); `freeze-fixes.test.ts` ("S5 R3b ignores rejected items").

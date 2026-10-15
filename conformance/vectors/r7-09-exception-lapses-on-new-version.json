@@ -274,11 +274,12 @@
               "facetKeys": [
                 "pets"
               ],
-              "message": "Claims pets = \"service animals only\"; accepted shelter-intake-policy@2 says \"crated pets admitted, pet area in Hall B\".",
+              "message": "Claims pets = \"service animals only\"; accepted shelter-intake-policy@2 says \"crated pets admitted, pet area in Hall B\". shelter-intake-policy@2 rejected \"service animals only\" for pets.",
               "observedAt": "2026-10-13T15:30:00Z",
               "reasonCodes": [
                 "CLAIM_CONFLICT",
-                "SUPERSEDED_BASIS"
+                "SUPERSEDED_BASIS",
+                "REJECTED_ALTERNATIVE"
               ],
               "recordRefs": [
                 "shelter-intake-policy@1"

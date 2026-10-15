@@ -237,11 +237,12 @@
                 "notifications.cadence",
                 "notifications.default"
               ],
-              "message": "Claims notifications.cadence = \"immediate\"; accepted notifications@2 says \"weekly-digest\". Claims notifications.default = \"on\"; accepted notifications@2 says \"opt-in\".",
+              "message": "Claims notifications.cadence = \"immediate\"; accepted notifications@2 says \"weekly-digest\". notifications@2 rejected \"immediate\" for notifications.cadence. Claims notifications.default = \"on\"; accepted notifications@2 says \"opt-in\". notifications@2 rejected \"on\" for notifications.default.",
               "observedAt": "2026-10-13T16:10:00Z",
               "reasonCodes": [
                 "CLAIM_CONFLICT",
-                "SUPERSEDED_BASIS"
+                "SUPERSEDED_BASIS",
+                "REJECTED_ALTERNATIVE"
               ],
               "recordRefs": [
                 "notifications@1"
@@ -251,7 +252,7 @@
             },
             {
               "facetKeys": [],
-              "message": "Revalidation is in progress; waiting for the agent's next push. Built on notifications@1; current is v2 (notifications.cadence, notifications.default changed). Claims notifications.cadence = \"immediate\"; accepted notifications@2 says \"weekly-digest\". Claims notifications.default = \"on\"; accepted notifications@2 says \"opt-in\". No passing evidence at the current head for: tests/contract/notifications.test.ts, tests/contract/status-model.test.ts.",
+              "message": "Revalidation is in progress; waiting for the agent's next push. Built on notifications@1; current is v2 (notifications.cadence, notifications.default changed). Claims notifications.cadence = \"immediate\"; accepted notifications@2 says \"weekly-digest\". notifications@2 rejected \"immediate\" for notifications.cadence. Claims notifications.default = \"on\"; accepted notifications@2 says \"opt-in\". notifications@2 rejected \"on\" for notifications.default. No passing evidence at the current head for: tests/contract/notifications.test.ts, tests/contract/status-model.test.ts.",
               "observedAt": "2026-10-13T17:00:00Z",
               "reasonCodes": [
                 "REVALIDATION_PENDING",
@@ -259,6 +260,7 @@
                 "FACET_CHANGED",
                 "CLAIM_CONFLICT",
                 "SUPERSEDED_BASIS",
+                "REJECTED_ALTERNATIVE",
                 "MISSING_EVIDENCE"
               ],
               "recordRefs": [],
@@ -432,6 +434,7 @@
                 "CLAIM_CONFLICT",
                 "FACET_CHANGED",
                 "MISSING_EVIDENCE",
+                "REJECTED_ALTERNATIVE",
                 "REVALIDATION_PENDING",
                 "STALE_RECEIPT",
                 "SUPERSEDED_BASIS"
@@ -441,6 +444,7 @@
             {
               "reasonCodes": [
                 "CLAIM_CONFLICT",
+                "REJECTED_ALTERNATIVE",
                 "SUPERSEDED_BASIS"
               ],
               "type": "ClaimConflict"
