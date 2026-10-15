@@ -54,19 +54,22 @@ export const policy: Policy = {
 
 /**
  * Real commits from this repo. Short shas in the comments; the README has the PR numbers.
+ * Every sha below is an ancestor of main, so each can be checked from main's history alone. Two commits the shelter
+ * work was first built in (the Cedar County fixtures and the Larkhaven rename) lived on a side branch that was
+ * squash-merged as 3036894, so they are not on main and are not cited; the squash merge is.
  *
  * Record changes: `baselineV1` (the commit the starting state is read from), `namingV2`, `evidenceV2`, `evidenceV3`.
  * `evidenceV1` is where the claims check first counted as a test; it is the seed's evidence rule, not a replayed event.
- * Work heads: where the work now lives on main (merge commits for PRs #6 and #7), or the commit it was built in.
+ * Work heads: where the work now lives on main (merge commits for PRs #6 and #7, the squash merge for PR #4), or the commit it was built in.
  * `productNamingProse` and `wi5Head` are `NOT_IN_GIT`: the wording edit is invented, and the shared brief lives in Notion.
  */
 export const commits = {
-	/** 61867a9 (PR #3): where "Cedar County" first appears. */
-	baselineV1: "61867a991e187da94a3c3b152ebc2e484f81da65",
+	/** f29ac84: the first commit on main that names "Cedar County" (the video script's shelter act and the submission copy). */
+	baselineV1: "f29ac84485004d933a5c3d1db1b74b55e99352cf",
 	/** 7d7fa09 (PR #6): the claims check first counts as a test (evidence policy v1). */
 	evidenceV1: "7d7fa09fcb5c7deb442302412e7747e3f132e916",
-	/** 59d48e4 (PR #4): scenario naming v2 (Cedar County becomes Larkhaven County). */
-	namingV2: "59d48e4659fde029f10cc0cf5d70d8640c6b74bc",
+	/** 3036894 (PR #4, squash merge): scenario naming v2. Its diff on main replaces Cedar County with Larkhaven County in the video script and submission copy. */
+	namingV2: "30368947b30fc5f4ee8f6d34a9e7721e9c2d9529",
 	/** 8350830 (PR #6): evidence policy v2. */
 	evidenceV2: "835083048a2807f22e5ba40959b13f82a3b9345a",
 	/** 2f3d2c8 (PR #6): evidence policy v3 (required facets come from the receipt). */
@@ -79,13 +82,13 @@ export const commits = {
 	wi2Head: "668970268c10adb56035a6a9721a3dd8e2eb4b81",
 	/** f29ac84: the video script revised, with the shelter act. */
 	wi3Head: "f29ac84485004d933a5c3d1db1b74b55e99352cf",
-	/** 61867a9 (PR #3): the shelter fixtures. */
-	wi4Head: "61867a991e187da94a3c3b152ebc2e484f81da65",
+	/** 3036894 (PR #4, squash merge): where the shelter fixtures now live on main, under the Larkhaven name. */
+	wi4Head: "30368947b30fc5f4ee8f6d34a9e7721e9c2d9529",
 	/** Not in git: the shared brief lives in Notion. */
 	wi5Head: NOT_IN_GIT,
-	/** e0710e6: tip of the cloud/t9-readme branch (PR #1, unmerged) as of Oct 13. */
+	/** e0710e6: the draft README, which is on main. The README has been revised since; the claims are the draft's. */
 	wi6Head: "e0710e60d29e193f5724116e91d2388097544ba4",
-	/** 3036894 (PR #4): the commit that introduced the console identity header. */
+	/** 3036894 (PR #4, squash merge): the commit that introduced the console identity header. */
 	wi7Head: "30368947b30fc5f4ee8f6d34a9e7721e9c2d9529",
 } as const;
 
@@ -94,8 +97,14 @@ export const commits = {
  * `setup` (the replay registering work items, not history), `notInGit` (the shared brief, no commit) and
  * `productNamingProse` (the invented wording edit).
  * PR #6 and PR #7 were pushed first as commits 7d7fa09 (Oct 12 23:47 ET) and a first version of PR #7
- * (Oct 12 23:54 ET, since rewritten when the branch was rebased, so its sha is not cited). Their heads in the
+ * (Oct 12 23:54 ET, since rewritten when the branch was rebased, so its sha is not cited and that time cannot be
+ * checked from main; the commits PR #7 left on main are later). Their heads in the
  * fixture are the merge commits, which is where the work lives now; the claims are what the first versions assumed.
+ * `namingV2` is the author time of 3036894, the squash merge on main that carries the rename. The rename was first
+ * committed earlier on a side branch (Oct 12 23:11 ET), but that commit is not on main, so its time is not used.
+ * `wi4Pushed` is the exception: the Cedar County shelter fixtures (Oct 12 22:57 ET) were only ever committed on that
+ * side branch, so this time is the author time of a commit that is not on main or the remote. It cannot be checked
+ * from public history; the README says so. Its head is the squash merge, where the work lives now.
  */
 export const ts = {
 	setup: "2026-10-13T02:00:00Z",
@@ -103,7 +112,7 @@ export const ts = {
 	wi6Pushed: "2026-10-13T02:16:42Z",
 	wi4Pushed: "2026-10-13T02:57:39Z",
 	wi3Pushed: "2026-10-13T02:58:20Z",
-	namingV2: "2026-10-13T03:11:59Z",
+	namingV2: "2026-10-13T03:27:43Z",
 	wi7Pushed: "2026-10-13T03:27:43Z",
 	wi1Pushed: "2026-10-13T03:47:01Z",
 	wi2Pushed: "2026-10-13T03:54:55Z",
@@ -127,7 +136,7 @@ export const workItems = {
 	wi1: workItem("WI-1", "M4 revalidate loop (PR #6)", actors.buildAgent),
 	wi2: workItem("WI-2", "Console evidence labels (PR #7)", actors.consoleAgent),
 	wi3: workItem("WI-3", "Video script", actors.docsAgent),
-	wi4: workItem("WI-4", "Shelter fixtures (PRs #3 and #4)", actors.buildAgent),
+	wi4: workItem("WI-4", "Shelter fixtures (PR #4)", actors.buildAgent),
 	wi5: workItem("WI-5", "Shared brief (Notion; not in git)", actors.docsAgent),
 	wi6: workItem("WI-6", "README", actors.docsAgent),
 	wi7: workItem("WI-7", "Console identity header", actors.consoleAgent),
@@ -286,7 +295,7 @@ export async function buildDogfoodBuildScenario() {
 	const events = {
 		register,
 		push,
-		/** Cedar County becomes Larkhaven County (59d48e4). */
+		/** Cedar County becomes Larkhaven County (3036894, the squash merge of PR #4). */
 		namingV2: baseline(commits.namingV2, ts.namingV2, snapshotHashes.namingV2, [namingV2]),
 		/** The claims check becomes informational; only a check Convergence runs counts (8350830). */
 		evidenceV2: baseline(commits.evidenceV2, ts.evidenceV2, snapshotHashes.evidenceV2, [evidenceV2]),
@@ -301,12 +310,12 @@ export async function buildDogfoodBuildScenario() {
 		...items.map((item) => ({ key: `register-${item.id}`, label: `${item.id} registered (replay setup, not history)`, ts: ts.setup, event: register[item.id]! })),
 		{ key: "push-WI-5", label: "WI-5 pushed (not in git)", ts: ts.notInGit, event: push["WI-5"]! },
 		{ key: "push-WI-6", label: "WI-6 pushed (e0710e6)", ts: ts.wi6Pushed, event: push["WI-6"]! },
-		{ key: "push-WI-4", label: "WI-4 pushed (61867a9)", ts: ts.wi4Pushed, event: push["WI-4"]! },
+		{ key: "push-WI-4", label: "WI-4 pushed (first version on a side branch, not on main; time unverifiable)", ts: ts.wi4Pushed, event: push["WI-4"]! },
 		{ key: "push-WI-3", label: "WI-3 pushed (f29ac84)", ts: ts.wi3Pushed, event: push["WI-3"]! },
-		{ key: "namingV2", label: "Scenario naming v2 (59d48e4)", ts: ts.namingV2, event: events.namingV2 },
+		{ key: "namingV2", label: "Scenario naming v2 (3036894)", ts: ts.namingV2, event: events.namingV2 },
 		{ key: "push-WI-7", label: "WI-7 pushed (3036894)", ts: ts.wi7Pushed, event: push["WI-7"]! },
 		{ key: "push-WI-1", label: "WI-1 pushed (first version of PR #6)", ts: ts.wi1Pushed, event: push["WI-1"]! },
-		{ key: "push-WI-2", label: "WI-2 pushed (first version of PR #7)", ts: ts.wi2Pushed, event: push["WI-2"]! },
+		{ key: "push-WI-2", label: "WI-2 pushed (first version of PR #7, since rewritten; time not verifiable from main)", ts: ts.wi2Pushed, event: push["WI-2"]! },
 		{ key: "evidenceV2", label: "Evidence policy v2 (8350830)", ts: ts.evidenceV2, event: events.evidenceV2 },
 		{ key: "evidenceV3", label: "Evidence policy v3 (2f3d2c8)", ts: ts.evidenceV3, event: events.evidenceV3 },
 		{ key: "productNamingProse", label: "Product naming wording edit (invented, not in git)", ts: ts.productNamingProse, event: events.productNamingProse },

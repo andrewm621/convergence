@@ -108,7 +108,7 @@ describe("the build replay: beats follow the fixture's timeline and the delta-co
 		expect(times).toEqual(bundle.timeline.map((step) => step.ts));
 		expect([...times].sort()).toEqual(times);
 		const rename = mock.view.ledger.find((entry) => entry.payload.event.type === "BaselinePushed");
-		expect(rename?.payload.event.ts).toBe("2026-10-13T03:11:59Z");
+		expect(rename?.payload.event.ts).toBe("2026-10-13T03:27:43Z");
 		mock.stop();
 	});
 
@@ -163,7 +163,7 @@ describe("the build replay: labelling", () => {
 		const harness = await renderWithMock(<WorkGraph />, { scenario: SCENARIO, beats: 3 });
 		const graph = await screen.findByRole("region", { name: "Work graph" });
 		await waitFor(() => expect(within(graph).getByText("M4 revalidate loop (PR #6)")).toBeInTheDocument());
-		for (const label of ["Console evidence labels (PR #7)", "Video script", "Shelter fixtures (PRs #3 and #4)", "Shared brief (Notion; not in git)", "README", "Console identity header"]) {
+		for (const label of ["Console evidence labels (PR #7)", "Video script", "Shelter fixtures (PR #4)", "Shared brief (Notion; not in git)", "README", "Console identity header"]) {
 			expect(within(graph).getByText(label)).toBeInTheDocument();
 		}
 		expect(within(graph).getAllByText("recorded build session").length).toBeGreaterThanOrEqual(7);

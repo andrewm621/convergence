@@ -17,7 +17,7 @@
       "version": 1
     },
     "state": {
-      "baselineCommit": "59d48e4659fde029f10cc0cf5d70d8640c6b74bc",
+      "baselineCommit": "30368947b30fc5f4ee8f6d34a9e7721e9c2d9529",
       "dependencies": [
         {
           "basis": "declared",
@@ -145,11 +145,11 @@
         }
       ],
       "processed": {
-        "delta-convergence-build-baseline@59d48e4659fde029f10cc0cf5d70d8640c6b74bc": "",
+        "delta-convergence-build-baseline@30368947b30fc5f4ee8f6d34a9e7721e9c2d9529": "",
         "delta-convergence-build-wi-1@ce882f2ecdd1b6f66f3d0804fa2eb169cc093dd4": "",
         "delta-convergence-build-wi-2@668970268c10adb56035a6a9721a3dd8e2eb4b81": "",
         "delta-convergence-build-wi-3@f29ac84485004d933a5c3d1db1b74b55e99352cf": "",
-        "delta-convergence-build-wi-4@61867a991e187da94a3c3b152ebc2e484f81da65": "",
+        "delta-convergence-build-wi-4@30368947b30fc5f4ee8f6d34a9e7721e9c2d9529": "",
         "delta-convergence-build-wi-5@0000000000000000000000000000000000000000": "",
         "delta-convergence-build-wi-6@e0710e60d29e193f5724116e91d2388097544ba4": "",
         "delta-convergence-build-wi-7@30368947b30fc5f4ee8f6d34a9e7721e9c2d9529": "",
@@ -381,7 +381,7 @@
                 "version": 1
               }
             ],
-            "baselineCommit": "61867a991e187da94a3c3b152ebc2e484f81da65",
+            "baselineCommit": "f29ac84485004d933a5c3d1db1b74b55e99352cf",
             "contextPacketHash": "50afdc5482be5a4ce75adcae8ed6c45a0422252e9b86b09273196d44e3935392",
             "noteRef": "refs/notes/delta:ce882f2ecdd1b6f66f3d0804fa2eb169cc093dd4",
             "proposedVisible": []
@@ -459,7 +459,7 @@
                 "version": 1
               }
             ],
-            "baselineCommit": "61867a991e187da94a3c3b152ebc2e484f81da65",
+            "baselineCommit": "f29ac84485004d933a5c3d1db1b74b55e99352cf",
             "contextPacketHash": "cb80b0080b36925c14f36fd22391e513aadffc3396118d793395124de06c9de9",
             "noteRef": "refs/notes/delta:668970268c10adb56035a6a9721a3dd8e2eb4b81",
             "proposedVisible": []
@@ -492,7 +492,7 @@
                 "scenario.county"
               ],
               "message": "Built on scenario-naming@1; accepted is v2. Changed: scenario.county.",
-              "observedAt": "2026-10-13T03:11:59Z",
+              "observedAt": "2026-10-13T03:27:43Z",
               "reasonCodes": [
                 "STALE_RECEIPT",
                 "FACET_CHANGED"
@@ -508,7 +508,7 @@
                 "scenario.county"
               ],
               "message": "Claims scenario.county = \"Cedar County\"; accepted scenario-naming@2 says \"Larkhaven County\".",
-              "observedAt": "2026-10-13T03:11:59Z",
+              "observedAt": "2026-10-13T03:27:43Z",
               "reasonCodes": [
                 "CLAIM_CONFLICT",
                 "SUPERSEDED_BASIS"
@@ -522,7 +522,7 @@
             {
               "facetKeys": [],
               "message": "Built on scenario-naming@1; current is v2 (scenario.county changed). Claims scenario.county = \"Cedar County\"; accepted scenario-naming@2 says \"Larkhaven County\". A human resolution is required.",
-              "observedAt": "2026-10-13T03:11:59Z",
+              "observedAt": "2026-10-13T03:27:43Z",
               "reasonCodes": [
                 "STALE_RECEIPT",
                 "FACET_CHANGED",
@@ -576,7 +576,7 @@
                 "version": 1
               }
             ],
-            "baselineCommit": "61867a991e187da94a3c3b152ebc2e484f81da65",
+            "baselineCommit": "f29ac84485004d933a5c3d1db1b74b55e99352cf",
             "contextPacketHash": "c6da88b273dfd7ded1f3cd6d23d907358bd8c6512e9c37f881d193800e0d03af",
             "noteRef": "refs/notes/delta:f29ac84485004d933a5c3d1db1b74b55e99352cf",
             "proposedVisible": []
@@ -595,7 +595,7 @@
               }
             ],
             "error": null,
-            "headSha": "61867a991e187da94a3c3b152ebc2e484f81da65",
+            "headSha": "30368947b30fc5f4ee8f6d34a9e7721e9c2d9529",
             "status": "ok"
           },
           "conditions": [
@@ -604,7 +604,7 @@
                 "scenario.county"
               ],
               "message": "Built on scenario-naming@1; accepted is v2. Changed: scenario.county.",
-              "observedAt": "2026-10-13T03:11:59Z",
+              "observedAt": "2026-10-13T03:27:43Z",
               "reasonCodes": [
                 "STALE_RECEIPT",
                 "FACET_CHANGED"
@@ -620,7 +620,7 @@
                 "scenario.county"
               ],
               "message": "Claims scenario.county = \"Cedar County\"; accepted scenario-naming@2 says \"Larkhaven County\".",
-              "observedAt": "2026-10-13T03:11:59Z",
+              "observedAt": "2026-10-13T03:27:43Z",
               "reasonCodes": [
                 "CLAIM_CONFLICT",
                 "SUPERSEDED_BASIS"
@@ -634,7 +634,7 @@
             {
               "facetKeys": [],
               "message": "Built on scenario-naming@1; current is v2 (scenario.county changed). Claims scenario.county = \"Cedar County\"; accepted scenario-naming@2 says \"Larkhaven County\". A human resolution is required.",
-              "observedAt": "2026-10-13T03:11:59Z",
+              "observedAt": "2026-10-13T03:27:43Z",
               "reasonCodes": [
                 "STALE_RECEIPT",
                 "FACET_CHANGED",
@@ -649,7 +649,7 @@
           ],
           "contextPaths": [],
           "evidence": [],
-          "headSha": "61867a991e187da94a3c3b152ebc2e484f81da65",
+          "headSha": "30368947b30fc5f4ee8f6d34a9e7721e9c2d9529",
           "item": {
             "actor": {
               "displayName": "Build agent",
@@ -664,7 +664,7 @@
             ],
             "source": "live",
             "status": "conflict",
-            "title": "Shelter fixtures (PRs #3 and #4)"
+            "title": "Shelter fixtures (PR #4)"
           },
           "promotionApproval": null,
           "receipt": {
@@ -676,9 +676,9 @@
                 "version": 1
               }
             ],
-            "baselineCommit": "61867a991e187da94a3c3b152ebc2e484f81da65",
+            "baselineCommit": "f29ac84485004d933a5c3d1db1b74b55e99352cf",
             "contextPacketHash": "aa38b282f3d3c213d243cea855a87e454dc4ebe86838cdd0d244050dfbeae86c",
-            "noteRef": "refs/notes/delta:61867a991e187da94a3c3b152ebc2e484f81da65",
+            "noteRef": "refs/notes/delta:30368947b30fc5f4ee8f6d34a9e7721e9c2d9529",
             "proposedVisible": []
           },
           "resolutions": [],
@@ -709,7 +709,7 @@
                 "scenario.county"
               ],
               "message": "Built on scenario-naming@1; accepted is v2. Changed: scenario.county.",
-              "observedAt": "2026-10-13T03:11:59Z",
+              "observedAt": "2026-10-13T03:27:43Z",
               "reasonCodes": [
                 "STALE_RECEIPT",
                 "FACET_CHANGED"
@@ -725,7 +725,7 @@
                 "scenario.county"
               ],
               "message": "Claims scenario.county = \"Cedar County\"; accepted scenario-naming@2 says \"Larkhaven County\".",
-              "observedAt": "2026-10-13T03:11:59Z",
+              "observedAt": "2026-10-13T03:27:43Z",
               "reasonCodes": [
                 "CLAIM_CONFLICT",
                 "SUPERSEDED_BASIS"
@@ -739,7 +739,7 @@
             {
               "facetKeys": [],
               "message": "Built on scenario-naming@1; current is v2 (scenario.county changed). Claims scenario.county = \"Cedar County\"; accepted scenario-naming@2 says \"Larkhaven County\". A human resolution is required.",
-              "observedAt": "2026-10-13T03:11:59Z",
+              "observedAt": "2026-10-13T03:27:43Z",
               "reasonCodes": [
                 "STALE_RECEIPT",
                 "FACET_CHANGED",
@@ -787,7 +787,7 @@
                 "version": 1
               }
             ],
-            "baselineCommit": "61867a991e187da94a3c3b152ebc2e484f81da65",
+            "baselineCommit": "f29ac84485004d933a5c3d1db1b74b55e99352cf",
             "contextPacketHash": "a6c635852248fcf29fe7bf848e942e281fb9d027f3350e7b902ec28455d7bbb2",
             "proposedVisible": []
           },
@@ -864,7 +864,7 @@
                 "version": 1
               }
             ],
-            "baselineCommit": "61867a991e187da94a3c3b152ebc2e484f81da65",
+            "baselineCommit": "f29ac84485004d933a5c3d1db1b74b55e99352cf",
             "contextPacketHash": "da0728aa5d1a4c289de3aa52315ea4c73f588c8df16c9873dbf679daafac23a6",
             "noteRef": "refs/notes/delta:e0710e60d29e193f5724116e91d2388097544ba4",
             "proposedVisible": []
@@ -926,7 +926,7 @@
                 "version": 1
               }
             ],
-            "baselineCommit": "61867a991e187da94a3c3b152ebc2e484f81da65",
+            "baselineCommit": "f29ac84485004d933a5c3d1db1b74b55e99352cf",
             "contextPacketHash": "6054a44177d04f88d51ebd4bc5ffdd97ced5ae99b5a2eaab0478f4541b3eb945",
             "noteRef": "refs/notes/delta:30368947b30fc5f4ee8f6d34a9e7721e9c2d9529",
             "proposedVisible": []
@@ -1364,12 +1364,12 @@
         }
       ],
       "processed": [
-        "delta-convergence-build-baseline@59d48e4659fde029f10cc0cf5d70d8640c6b74bc",
+        "delta-convergence-build-baseline@30368947b30fc5f4ee8f6d34a9e7721e9c2d9529",
         "delta-convergence-build-baseline@835083048a2807f22e5ba40959b13f82a3b9345a",
         "delta-convergence-build-wi-1@ce882f2ecdd1b6f66f3d0804fa2eb169cc093dd4",
         "delta-convergence-build-wi-2@668970268c10adb56035a6a9721a3dd8e2eb4b81",
         "delta-convergence-build-wi-3@f29ac84485004d933a5c3d1db1b74b55e99352cf",
-        "delta-convergence-build-wi-4@61867a991e187da94a3c3b152ebc2e484f81da65",
+        "delta-convergence-build-wi-4@30368947b30fc5f4ee8f6d34a9e7721e9c2d9529",
         "delta-convergence-build-wi-5@0000000000000000000000000000000000000000",
         "delta-convergence-build-wi-6@e0710e60d29e193f5724116e91d2388097544ba4",
         "delta-convergence-build-wi-7@30368947b30fc5f4ee8f6d34a9e7721e9c2d9529",
@@ -1561,7 +1561,7 @@
               "type": "Stale"
             }
           ],
-          "headSha": "61867a991e187da94a3c3b152ebc2e484f81da65",
+          "headSha": "30368947b30fc5f4ee8f6d34a9e7721e9c2d9529",
           "promotionApproved": false,
           "receipt": "aa38b282f3d3c213d243cea855a87e454dc4ebe86838cdd0d244050dfbeae86c",
           "resolutions": [],

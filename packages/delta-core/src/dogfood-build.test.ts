@@ -63,7 +63,7 @@ describe("the build-history fixture is valid and carries its honest framing", ()
 		const ordered = s.timeline.map((step) => step.ts);
 		expect([...ordered].sort()).toEqual(ordered);
 		// Real author times (UTC) of the commits.
-		expect(s.events.namingV2.ts).toBe("2026-10-13T03:11:59Z");
+		expect(s.events.namingV2.ts).toBe("2026-10-13T03:27:43Z");
 		expect(s.events.evidenceV2.ts).toBe("2026-10-13T04:04:23Z");
 		expect(s.events.evidenceV3.ts).toBe("2026-10-13T04:18:34Z");
 		expect(s.events.push["WI-1"]?.ts).toBe("2026-10-13T03:47:01Z");
@@ -83,8 +83,9 @@ describe("the build-history fixture is valid and carries its honest framing", ()
 		expect(s.commits.evidenceV1.startsWith("7d7fa09")).toBe(true);
 		expect(s.commits.evidenceV2.startsWith("8350830")).toBe(true);
 		expect(s.commits.evidenceV3.startsWith("2f3d2c8")).toBe(true);
-		expect(s.commits.namingV2.startsWith("59d48e4")).toBe(true);
-		expect(s.commits.baselineV1.startsWith("61867a9")).toBe(true);
+		expect(s.commits.namingV2.startsWith("3036894")).toBe(true);
+		expect(s.commits.baselineV1.startsWith("f29ac84")).toBe(true);
+		expect(s.commits.wi4Head.startsWith("3036894")).toBe(true);
 		expect(s.commits.wi3Head.startsWith("f29ac84")).toBe(true);
 		expect(s.commits.wi6Head.startsWith("e0710e6")).toBe(true);
 		expect(s.commits.wi7Head.startsWith("3036894")).toBe(true);
@@ -138,7 +139,7 @@ describe("before any change, every item sits in a clean state", () => {
 });
 
 describe.each(stores)("the replay on the %s", (_label, makeStore) => {
-	it("step 1, scenario naming v1 to v2 (Cedar County to Larkhaven County, 59d48e4): WI-3, WI-4, WI-5 go stale; WI-1, WI-2, WI-6, WI-7 are untouched", async () => {
+	it("step 1, scenario naming v1 to v2 (Cedar County to Larkhaven County, 3036894): WI-3, WI-4, WI-5 go stale; WI-1, WI-2, WI-6, WI-7 are untouched", async () => {
 		const cell = await replayBefore("namingV2", makeStore());
 		const before = structuredClone(await cell.state());
 		const result = await cell.send(s.events.namingV2);

@@ -87,7 +87,7 @@ ${NOTE}
 A run check asserts exactly the facets the work item relied on, and fails closed when it is handed none.
 `;
 
-/** v1: the fictional county is Cedar County. First appears in commit 61867a9 (PR #3). */
+/** v1: the fictional county is Cedar County. First appears on main in commit f29ac84 (the video script and submission copy). */
 export const SCENARIO_NAMING_V1 = `---
 id: scenario-naming
 version: 1
@@ -107,7 +107,7 @@ ${NOTE}
 The synthetic shelter scenario is set in an invented county.
 `;
 
-/** v2: renamed to Larkhaven County. Commit 59d48e4 (PR #4). The network name does not move. */
+/** v2: renamed to Larkhaven County. Commit 3036894 (PR #4, squash merge). The network name does not move. */
 export const SCENARIO_NAMING_V2 = `---
 id: scenario-naming
 version: 2
