@@ -132,8 +132,6 @@ describe("the build replay: labelling", () => {
 		expect(screen.getByText("Mock · replay")).toBeInTheDocument();
 		const switcher = screen.getByRole("radiogroup", { name: "Scenario" });
 		expect(within(switcher).getByRole("radio", { name: /Our own build \(replay\)/ })).toBeChecked();
-		// Unlike Northwind Sales Ops, it is always offered.
-		expect(within(switcher).queryByRole("radio", { name: /Northwind/ })).toBeNull();
 		expect(SCENARIO_META[SCENARIO].hidden).toBeUndefined();
 	});
 

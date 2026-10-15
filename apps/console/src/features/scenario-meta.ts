@@ -27,6 +27,10 @@ export const DEFAULT_SCOPE_EXAMPLE = "e.g. the one document this covers";
 /** The note that must stay visible on the shelter scenario. */
 export const SYNTHETIC_NOTE = "Synthetic scenario. Not operational guidance.";
 
+/** The note that must stay visible on the Sablewood sales scenario. */
+export const SALES_NOTE_LEAD = "Synthetic scenario.";
+export const SALES_NOTE = `${SALES_NOTE_LEAD} Sablewood is a fictional software company; its leads and pipeline numbers are invented.`;
+
 /** The note that must stay visible on the replay of our own build. */
 export const BUILD_NOTE_LEAD = "Retrofitted from this repo's git history.";
 export const BUILD_NOTE = `${BUILD_NOTE_LEAD} Decisions made before Convergence was recording them; dependencies declared by us; humans resolve.`;
@@ -58,7 +62,14 @@ export const SCENARIO_META: Record<ScenarioName, ScenarioMeta> = {
 		readOnlyReason: "Resolved by a human outside the console in the real build.",
 		scopeExample: "e.g. docs/PRD.md only",
 	},
-	"sales-ops": { label: "Northwind Sales Ops", kind: "knowledge work", icon: BriefcaseBusiness, hidden: true, scopeExample: "e.g. reports/q4-forecast.md" },
+	"sales-ops": {
+		label: "Sablewood Sales",
+		kind: "knowledge work",
+		icon: BriefcaseBusiness,
+		note: SALES_NOTE,
+		noteLead: SALES_NOTE_LEAD,
+		scopeExample: "e.g. reports/q4-forecast.md",
+	},
 };
 
 /**

@@ -74,7 +74,7 @@
               "acceptedAt": "2026-09-29T16:00:00Z",
               "acceptedBy": "decision-owner",
               "authority": "decision-owner",
-              "blobHash": "ef0fdcc399e9e7e665655d4f114201d065d7eaa91504b3a62147120a61587bdf",
+              "blobHash": "b65f5abe375241a578bd2aa913d0f536dfb0b91be3efa747cde26a9fc6d47a1b",
               "facetHash": "dea7f6f5b6678d2ebd297c841e9f517371e93407ecd8b936139a1f9d03e90759",
               "facets": {
                 "lead.qualified.criteria": "form-fill-and-50-plus-employees",
@@ -91,7 +91,7 @@
               "acceptedAt": "2026-10-13T16:00:00Z",
               "acceptedBy": "decision-owner",
               "authority": "decision-owner",
-              "blobHash": "9c9d55010ec2eb6f942410013639b00079632a69690a01ee33300c5b5136b65e",
+              "blobHash": "4725997f21f012794325b8e624a5a547bea43fb4ea80ce5ffffd88b9d010bd7a",
               "facetHash": "dd104c0697083d9163ab6044be12f4f301def73ff0078ad2c03d53a3acd56a8a",
               "facets": {
                 "lead.qualified.criteria": "form-fill-50-plus-employees-and-verified-budget",
@@ -119,7 +119,7 @@
               "acceptedAt": "2026-09-29T16:00:00Z",
               "acceptedBy": "decision-owner",
               "authority": "decision-owner",
-              "blobHash": "9cf1e776c2e58ef06f84dcd37db50e3cfff1179cdf27a5d3435924e278265dff",
+              "blobHash": "aa557d0b888c1f714a351136f8d0985dda67f522d5ac3c3e05582f93b0b09744",
               "facetHash": "9d05aa425afad174fda0b7769dbfbf894452c2629b58be49d69b2812f020a2b0",
               "facets": {
                 "activity.counts-as-touch": "outbound-human-contact",
@@ -139,7 +139,7 @@
         }
       },
       "schemaVersion": 1,
-      "snapshotHash": "f65797ed0f3ebf3f1196dbd0734580cf09d5573edd11d7a688da78df15b73af6",
+      "snapshotHash": "31bee685381744934cccdf121c5088d8fb192b81c150318ea9631857166da318",
       "workItems": {
         "WI-3": {
           "claims": {
@@ -233,14 +233,14 @@
           "receipt": {
             "accepted": [
               {
-                "blobHash": "ef0fdcc399e9e7e665655d4f114201d065d7eaa91504b3a62147120a61587bdf",
+                "blobHash": "b65f5abe375241a578bd2aa913d0f536dfb0b91be3efa747cde26a9fc6d47a1b",
                 "facetHash": "dea7f6f5b6678d2ebd297c841e9f517371e93407ecd8b936139a1f9d03e90759",
                 "recordId": "qualified-lead",
                 "version": 1
               }
             ],
             "baselineCommit": "b000000000000000000000000000000000000065",
-            "contextPacketHash": "0808f8bca1724157b5d6c6c7c44d52b5a351a2072147d8219b91cfad2e09a666",
+            "contextPacketHash": "c0b542f7507b8ed3217389ea4b49741f52c46d22e5005e54f23fce2b65a0a2a9",
             "noteRef": "refs/notes/delta:b000000000000000000000000000000000000065",
             "proposedVisible": []
           },
@@ -306,20 +306,20 @@
           "receipt": {
             "accepted": [
               {
-                "blobHash": "ef0fdcc399e9e7e665655d4f114201d065d7eaa91504b3a62147120a61587bdf",
+                "blobHash": "b65f5abe375241a578bd2aa913d0f536dfb0b91be3efa747cde26a9fc6d47a1b",
                 "facetHash": "dea7f6f5b6678d2ebd297c841e9f517371e93407ecd8b936139a1f9d03e90759",
                 "recordId": "qualified-lead",
                 "version": 1
               },
               {
-                "blobHash": "9cf1e776c2e58ef06f84dcd37db50e3cfff1179cdf27a5d3435924e278265dff",
+                "blobHash": "aa557d0b888c1f714a351136f8d0985dda67f522d5ac3c3e05582f93b0b09744",
                 "facetHash": "9d05aa425afad174fda0b7769dbfbf894452c2629b58be49d69b2812f020a2b0",
                 "recordId": "sales-activity",
                 "version": 1
               }
             ],
             "baselineCommit": "b000000000000000000000000000000000000065",
-            "contextPacketHash": "57caa33a93dd3a8fa7c2329e310f62965e3dbefb1f4c72402b55f78e609f4d40",
+            "contextPacketHash": "0f8cc1a8febd2d112d15059cb62d3592a0984fdd39a13115047ad3bcbdeb9a53",
             "noteRef": "refs/notes/delta:b000000000000000000000000000000000000065",
             "proposedVisible": []
           },
@@ -363,14 +363,14 @@
           "receipt": {
             "accepted": [
               {
-                "blobHash": "9cf1e776c2e58ef06f84dcd37db50e3cfff1179cdf27a5d3435924e278265dff",
+                "blobHash": "aa557d0b888c1f714a351136f8d0985dda67f522d5ac3c3e05582f93b0b09744",
                 "facetHash": "9d05aa425afad174fda0b7769dbfbf894452c2629b58be49d69b2812f020a2b0",
                 "recordId": "sales-activity",
                 "version": 1
               }
             ],
             "baselineCommit": "b000000000000000000000000000000000000065",
-            "contextPacketHash": "7d9998a0731e547639e37aa1bb8078bb9aec843bd880d9486d1a2f3548937b2a",
+            "contextPacketHash": "5bd320c25b3edb94ea5c5b9ee2b00be1f675bc3e80fef203398031592b06443f",
             "noteRef": "refs/notes/delta:b000000000000000000000000000000000000065",
             "proposedVisible": []
           },
@@ -502,7 +502,7 @@
           ]
         }
       },
-      "snapshotHash": "f65797ed0f3ebf3f1196dbd0734580cf09d5573edd11d7a688da78df15b73af6",
+      "snapshotHash": "31bee685381744934cccdf121c5088d8fb192b81c150318ea9631857166da318",
       "workItems": {
         "WI-3": {
           "conditions": [
@@ -535,7 +535,7 @@
           ],
           "headSha": "f000000000000000000000000000000000000067",
           "promotionApproved": false,
-          "receipt": "0808f8bca1724157b5d6c6c7c44d52b5a351a2072147d8219b91cfad2e09a666",
+          "receipt": "c0b542f7507b8ed3217389ea4b49741f52c46d22e5005e54f23fce2b65a0a2a9",
           "resolutions": [],
           "revalidating": false,
           "revalidations": 0,
@@ -562,7 +562,7 @@
           ],
           "headSha": "f000000000000000000000000000000000000072",
           "promotionApproved": false,
-          "receipt": "57caa33a93dd3a8fa7c2329e310f62965e3dbefb1f4c72402b55f78e609f4d40",
+          "receipt": "0f8cc1a8febd2d112d15059cb62d3592a0984fdd39a13115047ad3bcbdeb9a53",
           "resolutions": [],
           "revalidating": false,
           "revalidations": 0,
@@ -577,7 +577,7 @@
           ],
           "headSha": null,
           "promotionApproved": false,
-          "receipt": "7d9998a0731e547639e37aa1bb8078bb9aec843bd880d9486d1a2f3548937b2a",
+          "receipt": "5bd320c25b3edb94ea5c5b9ee2b00be1f675bc3e80fef203398031592b06443f",
           "resolutions": [],
           "revalidating": false,
           "revalidations": 0,

@@ -4,8 +4,8 @@ import type { SalesOpsScenario } from "scenario-sales-ops";
 import type { Beat, MockScript } from "./beats";
 
 /**
- * Scenario B, the same loop on knowledge work (video script segment 10). Northwind Field
- * Services is synthetic. The definition of a qualified lead changes mid-flight: the forecast and
+ * Scenario B, the same loop on knowledge work (video script segment 10). Sablewood is a
+ * fictional software company. The definition of a qualified lead changes mid-flight: the forecast and
  * the playbook go stale, the glossary does not. One is revalidated, one takes a scoped exception.
  */
 export function salesOpsScript(bundle: SalesOpsScenario): MockScript {
@@ -18,7 +18,7 @@ export function salesOpsScript(bundle: SalesOpsScenario): MockScript {
 		{
 			id: "start",
 			title: "Three agents running",
-			caption: "A forecast, a playbook and a glossary, each built from the definitions it was handed.",
+			caption: "A Q4 pipeline forecast, an SDR playbook and an activity glossary, each built from the definitions it was handed.",
 			async run({ session, drip }) {
 				await session.seedIfEmpty();
 				await session.startAgents(["wi3", "wi4", "wi5"]);
@@ -36,8 +36,8 @@ export function salesOpsScript(bundle: SalesOpsScenario): MockScript {
 		},
 		{
 			id: "reword",
-			title: "Reworded definition",
-			caption: "Prose-only edit to qualified-lead. NO_ACTION, PROSE_ONLY. Nobody is paged.",
+			title: "Definition reworded",
+			caption: "The qualified-lead wording changes but no setting moves. Nothing goes red and nobody is paged.",
 			async run({ session }) {
 				const record = currentSnapshot(await session.cell.state(), "qualified-lead");
 				if (record && record.blobHash !== bundle.docs.qualifiedLeadV1.snapshot.blobHash) return undefined;
@@ -63,8 +63,8 @@ export function salesOpsScript(bundle: SalesOpsScenario): MockScript {
 		},
 		{
 			id: "commit-v2",
-			title: "v2 lands: forecast and playbook stale",
-			caption: "Two edges turn red. The glossary never used that definition, so it is left alone.",
+			title: "v2 lands: forecast and playbook blocked",
+			caption: "Both were built on qualified-lead v1, so both are held. The glossary never used that definition, so it is left alone.",
 			async run({ session }) {
 				const record = currentSnapshot(await session.cell.state(), "qualified-lead");
 				if (record && record.version < 2) await session.fixture("v2");
@@ -73,8 +73,8 @@ export function salesOpsScript(bundle: SalesOpsScenario): MockScript {
 		},
 		{
 			id: "agents-push",
-			title: "Agents push their v1 work",
-			caption: "Forecast and playbook cite qualified-lead@1: claim conflicts. The glossary is clean.",
+			title: "Drafts come in",
+			caption: "The forecast and the playbook still count leads the v1 way, so they conflict with v2. The glossary is clean.",
 			async run({ session, drip }) {
 				const state = await session.cell.state();
 				if (!state.workItems["WI-3"]?.headSha) {
@@ -91,21 +91,21 @@ export function salesOpsScript(bundle: SalesOpsScenario): MockScript {
 					await session.finishRun("WI-5");
 				}
 				drip([
-					["WI-3", "status", "Pushed reports/q4-forecast.md with claims based on qualified-lead@1"],
-					["WI-4", "status", "Pushed playbooks/sdr-priorities.md with claims based on qualified-lead@1"],
-					["WI-5", "status", "Pushed docs/glossary.md"],
+					["WI-3", "status", "Handed in reports/q4-forecast.md, built on qualified-lead@1"],
+					["WI-4", "status", "Handed in playbooks/sdr-priorities.md, built on qualified-lead@1"],
+					["WI-5", "status", "Handed in docs/glossary.md"],
 				]);
 				return { select: "WI-3", tab: "why" };
 			},
 		},
 		{
 			id: "exception",
-			title: "Allow with exception for the forecast",
-			caption: "Grandfathered on v1 for the board deck. Scope and rationale are on the record.",
+			title: "Allow the forecast with an exception",
+			caption: "The Q4 board deck already uses this forecast, so it stays on v1. The exception covers reports/q4-forecast.md only, and the reason is on the record.",
 			async run({ session }) {
 				const wi = (await session.cell.state()).workItems["WI-3"];
 				if (wi && wi.resolutions.length === 0) {
-					await session.resolveNow("accept-exception", "WI-3", "qualified-lead", "Q4 forecast is grandfathered on v1 for the board deck.", exception.scope);
+					await session.resolveNow("accept-exception", "WI-3", "qualified-lead", "The Q4 board deck already uses this forecast. It stays on v1 until the definition changes again.", exception.scope);
 				}
 				return { select: "WI-3", tab: "actions" };
 			},
@@ -113,7 +113,7 @@ export function salesOpsScript(bundle: SalesOpsScenario): MockScript {
 		{
 			id: "revalidate",
 			title: "Revalidate the playbook",
-			caption: "WI-4 gets a fresh receipt at qualified-lead@2 and its agent is re-dispatched.",
+			caption: "Its agent is sent back with qualified-lead v2 and told exactly what changed.",
 			async run({ session, drip }) {
 				const wi = (await session.cell.state()).workItems["WI-4"];
 				if (wi && !wi.revalidating && wi.revalidations === 0) {
@@ -129,17 +129,17 @@ export function salesOpsScript(bundle: SalesOpsScenario): MockScript {
 		{
 			id: "rerun-lands",
 			title: "Re-run lands: claims match",
-			caption: "The playbook now cites qualified-lead@2. Its check passes. Ready.",
+			caption: "The playbook now counts leads the v2 way, built on qualified-lead v2. Its checks pass. Ready to merge.",
 			async run({ session, drip }) {
 				await session.completeRerun("WI-4");
-				drip([["WI-4", "status", "Pushed. Claims now based on qualified-lead@2"]]);
+				drip([["WI-4", "status", "Handed in a new draft, built on qualified-lead@2"]]);
 				return { select: "WI-4", tab: "semantic" };
 			},
 		},
 		{
 			id: "promote-all",
 			title: "All three merge",
-			caption: "Same gate, same ledger: glossary, excepted forecast and revalidated playbook.",
+			caption: "Same gate, same audit log: the untouched glossary, the forecast on its exception and the revalidated playbook.",
 			async run({ session }) {
 				for (const id of ["WI-5", "WI-3", "WI-4"]) await session.promoteNow(id);
 				return { select: "WI-3", tab: "actions" };
