@@ -9,11 +9,19 @@ import { cn } from "@/lib/utils";
 import type { ViewMode } from "@/state/console-context";
 import { SCENARIO_META, SYNTHETIC_NOTE, scenarioMeta } from "./scenario-meta";
 
-/** `compact`: the scenarios not open show as icons (named in their tooltip and to screen readers) below 2xl, to make room for Work | Map. Only the open one shows its kind until very wide screens, so four scenarios fit at 1920. */
+/** The scenarios the switcher offers: the open one always, the rest unless hidden, or replay-only while the console is live. */
+export function visibleScenarios(value: ScenarioName, live: boolean): ScenarioName[] {
+	return SCENARIOS.filter((name) => name === value || (!SCENARIO_META[name].hidden && !(live && SCENARIO_META[name].replayOnly)));
+}
+
+/** `compact`: the scenarios not open show as icons (named in their tooltip and to screen readers) below 2xl, to make room for Work | Map. Only the open one shows its kind until very wide screens, so four scenarios fit at 1920 (three, the live set, keep the kind at 2xl). */
 export function ScenarioSwitcher({ value, onChange, live = false, compact = false }: { value: ScenarioName; onChange(next: ScenarioName): void; live?: boolean; compact?: boolean }) {
+	const names = visibleScenarios(value, live);
+	// With four tabs the ones not open wait for very wide screens to show their kind; three fit at 2xl.
+	const crowded = names.length > 3;
 	return (
 		<div role="radiogroup" aria-label="Scenario" className="inline-flex shrink-0 items-center rounded-lg border bg-muted p-0.5">
-			{SCENARIOS.filter((name) => name === value || !SCENARIO_META[name].hidden).map((name) => {
+			{names.map((name) => {
 				const meta = name === value ? scenarioMeta(name, live) : SCENARIO_META[name];
 				const Icon = meta.icon;
 				const active = name === value;
@@ -34,7 +42,7 @@ export function ScenarioSwitcher({ value, onChange, live = false, compact = fals
 					>
 						<Icon className="size-3.5" aria-hidden />
 						<span className={iconOnly ? "sr-only 2xl:not-sr-only" : undefined}>{meta.label}</span>{" "}
-						<span className={cn("hidden text-xs font-normal text-muted-foreground", active ? "2xl:inline" : "min-[2200px]:inline")}>· {meta.kind}</span>
+						<span className={cn("hidden text-xs font-normal text-muted-foreground", active || !crowded ? "2xl:inline" : "min-[2200px]:inline")}>· {meta.kind}</span>
 					</button>
 				);
 			})}
