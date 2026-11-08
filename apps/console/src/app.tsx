@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { BottomStrip } from "@/features/bottom-strip";
 import { ContextTimeline } from "@/features/context-timeline";
 import { Header } from "@/features/header";
+import { CalmShell } from "@/features/calm/calm-shell";
 import { Home } from "@/features/home";
 import { Inspector } from "@/features/inspector";
 import { NotPublic } from "@/features/not-public";
@@ -19,10 +20,11 @@ import { ConsoleProvider, useConsole } from "@/state/console-context";
 import { TRAY_LABEL, type Tray } from "@/state/trays";
 
 /** Which shell: the trays-and-item-page console (the default), or the original three-pane one at `?ui=classic`. */
-export type UiChoice = "new" | "classic";
+export type UiChoice = "new" | "classic" | "calm";
 
 export function readUi(search: string): UiChoice {
-	return new URLSearchParams(search).get("ui") === "classic" ? "classic" : "new";
+	const requested = new URLSearchParams(search).get("ui");
+	return requested === "classic" ? "classic" : requested === "calm" ? "calm" : "new";
 }
 
 export function App({ runtime, ui = "new" }: { runtime: Runtime; ui?: UiChoice }) {
@@ -60,7 +62,7 @@ type ShellProps = { scenario: ScenarioName; onScenario(next: ScenarioName): void
 function Shell({ ui, cell, ...props }: ShellProps & { ui: UiChoice; cell: string }) {
 	const { connection } = useConsole();
 	if (connection === "not-public") return <NotPublic cell={cell} />;
-	return ui === "classic" ? <ClassicShell {...props} /> : <NewShell {...props} />;
+	return ui === "classic" ? <ClassicShell {...props} /> : ui === "calm" ? <CalmShell {...props} /> : <NewShell {...props} />;
 }
 
 /**

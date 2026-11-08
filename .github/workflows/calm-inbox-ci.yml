@@ -1,0 +1,31 @@
+name: Calm Work Inbox verification
+on:
+  pull_request:
+    paths:
+      - "apps/console/**"
+      - "packages/**"
+      - "conformance/**"
+      - ".github/workflows/calm-inbox-ci.yml"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.32.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "26"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm -r typecheck
+      - run: pnpm -r test
+      - run: pnpm conformance
+      - run: pnpm build:console
